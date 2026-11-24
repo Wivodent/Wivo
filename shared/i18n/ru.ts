@@ -44,4 +44,12 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'wizard.printAndDesignNumbers': "Номера печати и дизайна",
   'wizard.show': "Показать",
   'wizard.hide': "Скрыть",
+  'wizard.patientBox': "Пациент",
+  'wizard.patientBoxSub': "Человек, для которого делается работа",
+  'wizard.patientBoxInfo': "Имя пациента остаётся внутри вашей клиники: оно не показывается ни в ссылке отслеживания клиента, ни партнёру.",
+  'wizard.orderedByBox': "Заказчик",
+  'wizard.orderedByBoxSub': "Кто заказал работу · необязательно",
+  'wizard.notesForTheJob': "Заметки к работе",
+  'wizard.optional': "необязательно",
+  'wizard.notesShownOnJob': "Добавляется в описание работы, видно на странице работы.",
 }

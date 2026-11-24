@@ -4060,6 +4060,14 @@ export const en = {
   'wizard.printAndDesignNumbers': "Print and design numbers",
   'wizard.show': "Show",
   'wizard.hide': "Hide",
+  'wizard.patientBox': "Patient",
+  'wizard.patientBoxSub': "The person the work is for",
+  'wizard.patientBoxInfo': "The patient's name stays inside your clinic: it is never shown on the client's tracking link or to a partner.",
+  'wizard.orderedByBox': "Ordered by",
+  'wizard.orderedByBoxSub': "Who asked for the work · optional",
+  'wizard.notesForTheJob': "Notes for the job",
+  'wizard.optional': "optional",
+  'wizard.notesShownOnJob': "Added to the job description, visible on the job page.",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

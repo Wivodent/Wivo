@@ -1,5 +1,6 @@
 import { useId } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, UserRound, Building2 } from 'lucide-react'
+import { SectionCard } from '../../ui/SectionCard'
 import type { WizardStepComponent } from '../types'
 import { fieldErrors } from '../types'
 import { WizardField } from '../ui/WizardField'
@@ -9,12 +10,12 @@ import { t } from '@/lib/i18n'
 import { PatientPicker } from '@/components/Patients/PatientPicker'
 
 /**
- * Step 5 — "Patsient ja tellimus".
+ * Step 5 — "Patsient ja tellimus" (docs/design patient-order.html).
  *
- * Everything here is about WHO the job is for, and nothing here is about how it
- * is made. Every field carries visible helper text rather than a tooltip: this
- * product is used by people who will not hover to find out what a field means,
- * and a hidden explanation is the same as no explanation.
+ * Two boxes side by side: Patient (who the work is for) and Ordered by (the
+ * client and their own order number), each with an "i" saying who the
+ * information is for and where it is shown. The description and the notes are
+ * their own section below. What is required has not changed.
  */
 export const StepOrder: WizardStepComponent = ({ state, patch, errors, showErrors }) => {
   const customerId = useId()
@@ -27,11 +28,17 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
   const refError = showErrors ? fieldErrors(errors, 'customerReference')[0]?.message ?? null : null
 
   return (
-    <div className="max-w-[820px] space-y-8">
+    <div className="space-y-6">
+      <div className="grid gap-5 lg:grid-cols-2 items-start">
 
-      {/* ── Kes ────────────────────────────────────────────────────────────── */}
-      <section className="space-y-6">
-        <h3 className="text-base font-semibold text-ink">{t('wizard.whoItIsFor')}</h3>
+      {/* ── Patient ────────────────────────────────────────────────────────── */}
+      <SectionCard
+        title={t('wizard.patientBox')}
+        subtitle={t('wizard.patientBoxSub')}
+        icon={UserRound}
+        iconTint="bg-violet-100 text-violet-700"
+        info={`${t('wizard.typeThePatientSNameIf')} ${t('wizard.patientBoxInfo')}`}
+      >
 
         {/* PatientPicker is reused verbatim — it owns the patient-record linking
             and the "Loo patsient" shortcut, and forking it here would give the
@@ -75,9 +82,6 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
             }
             required
           />
-          <p className={WIZARD_HELP}>
-            {t('wizard.typeThePatientSNameIf')}
-          </p>
           {patientError && (
             <p className={WIZARD_ERROR} role="alert">
               <AlertCircle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
@@ -85,11 +89,18 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
             </p>
           )}
         </div>
+      </SectionCard>
 
+      {/* ── Ordered by ─────────────────────────────────────────────────────── */}
+      <SectionCard
+        title={t('wizard.orderedByBox')}
+        subtitle={t('wizard.orderedByBoxSub')}
+        icon={Building2}
+        info={`${t('wizard.theClinicOrDentistWhoOrdered')} ${t('wizard.theClientSOwnOrderNumber')}`}
+      >
         <WizardField
           label={t('wizard.client')}
           htmlFor={customerId}
-          help={t('wizard.theClinicOrDentistWhoOrdered')}
           error={customerError}
         >
           <WizardCustomerSelect
@@ -103,7 +114,6 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
         <WizardField
           label={t('wizard.clientReference')}
           htmlFor={refId}
-          help={t('wizard.theClientSOwnOrderNumber')}
           error={refError}
         >
           <input
@@ -116,7 +126,8 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
             className={WIZARD_INPUT}
           />
         </WizardField>
-      </section>
+      </SectionCard>
+      </div>
 
       {/* Väljastus is deliberately NOT asked here. A job being created is at the
           lab by definition, so the question has exactly one possible answer —
@@ -126,9 +137,12 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
           something. */}
 
       {/* ── Vaba tekst ─────────────────────────────────────────────────────── */}
-      <section className="space-y-6">
-        <h3 className="text-base font-semibold text-ink">{t('wizard.descriptionAndNotes')}</h3>
-
+      <SectionCard
+        title={t('wizard.notesForTheJob')}
+        subtitle={t('wizard.optional')}
+        info={`${t('wizard.writeItAsYouWouldExplain')} ${t('wizard.extraInformationForTheLabIt')}`}
+      >
+        <div className="grid gap-5 lg:grid-cols-2">
         <div>
           <label htmlFor={descriptionId} className={WIZARD_LABEL}>{t('wizard.description')}</label>
           <textarea
@@ -139,9 +153,6 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
             placeholder={t('wizard.whatExactlyIsBeingMade')}
             className={WIZARD_INPUT + ' resize-y'}
           />
-          <p className={WIZARD_HELP}>
-            {t('wizard.writeItAsYouWouldExplain')}
-          </p>
         </div>
 
         <div>
@@ -158,10 +169,11 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
               are folded into the job description, so promising privacy here
               would be a lie the user finds out about on the job page. */}
           <p className={WIZARD_HELP}>
-            {t('wizard.extraInformationForTheLabIt')}
+            {t('wizard.notesShownOnJob')}
           </p>
         </div>
-      </section>
+        </div>
+      </SectionCard>
     </div>
   )
 }

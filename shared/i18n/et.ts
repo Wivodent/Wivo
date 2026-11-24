@@ -4046,4 +4046,12 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'wizard.printAndDesignNumbers': "Prindi ja disaini numbrid",
   'wizard.show': "Näita",
   'wizard.hide': "Peida",
+  'wizard.patientBox': "Patsient",
+  'wizard.patientBoxSub': "Inimene, kellele töö tehakse",
+  'wizard.patientBoxInfo': "Patsiendi nimi jääb teie kliiniku sisse: seda ei näidata kliendi jälgimislingil ega partnerile.",
+  'wizard.orderedByBox': "Tellija",
+  'wizard.orderedByBoxSub': "Kes töö tellis · valikuline",
+  'wizard.notesForTheJob': "Märkmed töö kohta",
+  'wizard.optional': "valikuline",
+  'wizard.notesShownOnJob': "Lisatakse töö kirjeldusse, nähtav töö lehel.",
 }
