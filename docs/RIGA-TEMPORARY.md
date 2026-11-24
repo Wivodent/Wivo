@@ -37,7 +37,7 @@ Everything in PowerShell, on your Windows machine.
 9. **On a Riga machine:** run the installer. Windows will say the file is **unsigned**: More info → Run anyway. Check the SHA-256 first: `Get-FileHash .\Wivo-Riga-Setup-<version>.exe`. Open Wivo, paste the licence, confirm the clinic's name, sign in.
 10. **Check it is Riga's:** Settings → Licence shows Riga's address. A wrong address gives a red banner and sends nothing.
 
-**Updates until the release tool exists:** this installer comes from `testing`, which pins the root keys, so it **refuses an unsigned app update**. Every update to Riga is a new installer from `npm run dist:riga`, installed by hand over the old one.
+**Updates:** up to 2.0.4 every update was a new installer installed by hand: those installers read main's GitHub releases and refuse them, unsigned. **From 2.0.5 Riga's installer updates itself** from Riga's own signed releases (`npm run release:riga`, docs/RELEASE.md, docs/RIGA-ROLLOUT.md). `riga.env` needs a third line from 2.0.5: `VITE_PHONE_URL=https://wivo-dentiks.pages.dev`.
 
 **If the build says "Refused":** read the line; each one names the fix. Do not edit the script to get past it.
 
@@ -46,22 +46,23 @@ Everything in PowerShell, on your Windows machine.
 ## B. The Cloudflare project for Riga's phone
 
 1. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git**. Pick the Wivo repository.
-2. **Project name:** `wivo-riga` (the address becomes `https://wivo-riga.pages.dev`).
+2. **Project name:** `wivo-dentiks` (the address becomes `https://wivo-dentiks.pages.dev`). It must be **Pages**, not Workers (Create → Pages).
 3. **Production branch: `riga`.** Not `testing`: a push to `testing` would otherwise change Riga's phones at once, ahead of the installer on their desktops. `riga` is moved to the installer's commit by hand (part A, step 7), so both are always the same version. (`main` is Tallinn's, and does not have the phone screens for jobs and stages yet.) The branch must exist before this step: do A7 first.
 4. **Build settings:** framework preset *None*; build command `npm run mobile:build`; build output directory `dist-mobile`; root directory empty. Same as `wivo`'s: if `wivo` sets `NODE_VERSION`, set the same here (22).
 5. **Environment variables (Production only):**
    - `VITE_SUPABASE_URL` = Riga's Project URL
    - `VITE_SUPABASE_ANON_KEY` = Riga's anon / publishable key
    - `VITE_VAPID_PUBLIC_KEY` = the public half of Riga's VAPID pair (`node scripts/vapid-keys.mjs`, docs/RIGA-SETUP.md 8.3). Public; without it a phone cannot turn push on.
+   - `VITE_PHONE_URL` = `https://wivo-dentiks.pages.dev`: "What's new" names Riga's phone app with it (from 2.0.5).
 
    Nothing else. No secret, no `service_role` key, never `VAPID_PRIVATE_KEY`.
 6. **Save and Deploy.** Wait for the first deployment to finish.
 7. **No previews:** the project's **Settings → Builds → Branch control**: *Preview branches* = **None** (and automatic preview deployments off). A preview would be a second copy of the app on its own address, with these same variables.
-8. **Riga's Supabase → Authentication → URL Configuration:** Site URL `https://wivo-riga.pages.dev`; add the same address to *Redirect URLs*. (Invites and password links come back to it.)
+8. **Riga's Supabase → Authentication → URL Configuration:** Site URL `https://wivo-dentiks.pages.dev`; add `https://wivo-dentiks.pages.dev/auth/confirm` to *Redirect URLs*. (Invites and password links come back to it.)
 9. **Check it:** open the address on a phone, sign in with a Riga account. In the browser's developer tools → Network, the requests go to `<riga ref>.supabase.co` and nowhere else (never to `wrtucsfmpbwekugzzzxw` or `jhqyvancrzykxhzwnost`). Install it to the home screen.
 10. **To change a value later:** the variable in the dashboard, then *Retry deployment*: the values are built in at build time, not read when the app runs.
 
-`wivo-test` keeps `testing` as its production branch. `wivo-riga` builds `riga`, which only ever points at a commit that is already on `testing`.
+`wivo-test` keeps `testing` as its production branch. `wivo-dentiks` builds `riga`, which only ever points at a commit that is already on `testing`.
 
 ---
 

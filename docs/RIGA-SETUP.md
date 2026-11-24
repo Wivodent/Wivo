@@ -1,4 +1,4 @@
-# Riia seadistus: samm-sammult Macis
+# Riia seadistus: samm-sammult
 
 See on sinu käsiraamat, Kevin. **Üks käsk korraga**, Maci Terminalis, repo
 kaustast (`~/dev/Workly`), haru `testing`. Iga samm ütleb, mida pärast nägema
@@ -7,6 +7,13 @@ käsitsi edasi.
 
 Taust: `RIGA-GO-LIVE.md` („Monday 23.11.2026") ja `docs/RIGA-TEMPORARY.md`
 (installer ja Cloudflare). Sarnane juhend demole: `docs/DEMO-SETUP.md`.
+
+> **Parandatud 25.11.2026 päris seadistuse (23.11) järgi:** projekti loomise
+> lülitid (1), `psql -P pager=off` (2.3), Vaulti ja funktsioonide võti on
+> `sb_secret` (3, 8.4), Resendi kirjed ja võtmete järjekord (6), mallide
+> teemarida (7.3), telefoni aadress on `wivo-dentiks.pages.dev` (5, 8.4, 10).
+> Juhend kirjutati Maci jaoks; Windowsi käsud on `docs/RIGA-ROLLOUT.md`-s.
+> Järgmised installerid: `docs/RELEASE.md` ja `docs/RIGA-ROLLOUT.md`.
 
 > **Parool ega võti ei lähe kunagi käsureale.** zsh-i ajalugu
 > (`~/.zsh_history`) on fail kettal. Iga samm allpool küsib parooli varjatult
@@ -73,6 +80,13 @@ Dashboard (supabase.com) → **Riia organisatsioon** → **New project**:
 | Region | **North EU (Stockholm)** `eu-north-1` |
 | Database password | **Generate**, kohe paroolihaldurisse |
 | Plan / Compute | Pro, vaikimisi suurus |
+| **Grant API access automatically** (Data API) | **sees** |
+| **Enable RLS automatically** (automaatne RLS uutele tabelitele) | **väljas** |
+
+Need kaks lülitit on uue projekti vormis (Security / Advanced). Nii töötas
+Riia päris seadistus (23.11): migratsioonid panevad iga tabeli RLS-i ja
+reeglid ise (sql/098, `ensure_mfa_policies`), automaatne RLS segaks
+baseline'i.
 
 Projekt on valmis ~2 minutiga. Pane kirja:
 
@@ -80,10 +94,15 @@ Projekt on valmis ~2 minutiga. Pane kirja:
 - **Project URL**: `https://<REF>.supabase.co`;
 - **anon / publishable key**: Project Settings → API Keys.
 
-**Kontrolli kohe, et legacy `service_role` võti on olemas:** Project Settings
-→ API Keys → **Legacy API keys** → `service_role` (algab `eyJ`). Seda on vaja
-sammus 2 (Vault, cron). **Kui seda vahekaarti ei ole, peatu ja anna teada:**
-baseline (sql/052, sql/056) keeldub ilma selleta.
+**Kaks võtit, mõlemad Project Settings → API Keys:**
+
+- **Legacy `service_role`** (Legacy API keys, algab `eyJ`): ainult
+  baseline'i jaoks (samm 2), sest sql/052 ja sql/056 keelduvad võtmest, mis
+  ei alga `eyJ`-ga. **Kui seda vahekaarti ei ole, peatu ja anna teada.**
+- **Secret key** (`sb_secret_…`, Secret keys): see läheb pärast baseline'i
+  Vaulti ja funktsioonide saladusse (samm 3 ja 8.4). **Uues projektis vastab
+  värav legacy JWT-ga tehtud taimerikutsele 401** (nii juhtus 23.11), seega
+  taimer kasutab `sb_secret` võtit.
 
 **Spend cap** (Organization → Billing): jäta sisse. Pro sisaldab 100 GB
 Storage'it; üle selle ütleb Supabase ette, mitte arvel.
@@ -96,8 +115,9 @@ Kõik migratsioonid sql/000 … sql/125 ühe failina. Skript lisab Vaulti
 **Riia** teenusevõtme ja võtab maha arvete croni, mis on sql/052-s tootmise
 aadressiga (Riia arveid ei saada).
 
-**2.1. Tee fail** kodukausta, ainult sinule loetav. Skript küsib
-`service_role` võtit varjatult (keeldub tootmise võtmest):
+**2.1. Tee fail** kodukausta, ainult sinule loetav. Skript küsib **legacy**
+`service_role` võtit (`eyJ…`) varjatult (keeldub tootmise võtmest); samm 3
+vahetab selle Vaultis `sb_secret` võtme vastu:
 
 ```sh
 umask 077; node scripts/fresh-schema.mjs > ~/riga-baseline.sql
@@ -116,10 +136,12 @@ postgresql://postgres.<REF>@aws-0-eu-north-1.pooler.supabase.com:5432/postgres
 Transaction pooler (6543), mitte otseühendus (ainult IPv6).
 
 **2.3. Jooksuta.** `-W` küsib andmebaasi parooli varjatult,
-`ON_ERROR_STOP=1` peatab esimese vea peal:
+`ON_ERROR_STOP=1` peatab esimese vea peal, **`-P pager=off`** hoiab
+väljundi lehitsejast eemal: ilma selleta jääb psql pika väljundi juures
+lehitseja taha ootama ja baseline jääb poolikuks (23.11):
 
 ```sh
-/opt/homebrew/opt/libpq/bin/psql "postgresql://postgres.<REF>@aws-0-eu-north-1.pooler.supabase.com:5432/postgres" -W -v ON_ERROR_STOP=1 -f ~/riga-baseline.sql
+/opt/homebrew/opt/libpq/bin/psql "postgresql://postgres.<REF>@aws-0-eu-north-1.pooler.supabase.com:5432/postgres" -W -P pager=off -v ON_ERROR_STOP=1 -f ~/riga-baseline.sql
 ```
 
 Lõpus `NOTIFY` ja mitte ühtegi `ERROR`-it. `NOTICE`-id (`skipping`,
@@ -148,11 +170,32 @@ projekti funktsioonide aadress. SQL Editoris:
 select vault.create_secret('https://<REF>.functions.supabase.co', 'wivo_functions_url');
 ```
 
+**Võti `sb_secret` peale.** Baseline pani Vaulti legacy `service_role` JWT-i,
+millega uue projekti värav vastab taimerile 401. Vaheta see secret key
+vastu (Project Settings → API Keys → Secret keys, `sb_secret_…`). SQL
+Editoris, oma võtmega:
+
+```sql
+select vault.update_secret((select id from vault.secrets where name = 'wivo_service_role_key'), '<sb_secret_… võti>');
+```
+
+Sama võti läheb sammus 8.4 funktsioonide saladusse `WIVO_SERVICE_SECRET_KEY`
+(`_shared/serviceAuth.ts` võrdleb neid). **Ära salvesta seda päringut**
+(SQL Editori snippet): kui Editor selle ise salvestas, kustuta see.
+
 Kontroll (kaks rida: `wivo_functions_url`, `wivo_service_role_key`):
 
 ```sql
 select name from vault.secrets order by name;
 ```
+
+Kontroll, et võti on `sb_secret` (näitab ainult algust):
+
+```sql
+select left(decrypted_secret, 10) from vault.decrypted_secrets where name = 'wivo_service_role_key';
+```
+
+→ `sb_secret_`.
 
 Cron kutsub funktsiooni, mis tuleb alles sammus 8. Seni vastab ta 404-ga; see
 on normaalne.
@@ -175,8 +218,11 @@ järjekorras (kopa piir ei saa olla suurem kui üldine):
 Dashboard → **Authentication**:
 
 1. **URL Configuration**
-   - Site URL: `https://wivo-riga.pages.dev`
-   - Redirect URLs: lisa `https://wivo-riga.pages.dev/auth/confirm`
+   - Site URL: `https://wivo-dentiks.pages.dev`
+   - Redirect URLs: lisa `https://wivo-dentiks.pages.dev/auth/confirm`
+
+   Mõlemad on Riia telefoni aadress (Cloudflare `wivo-dentiks`, samm 10):
+   kutse ja parooli link tulevad sinna tagasi.
 2. **Sign In / Providers → Email**
    - Confirm email: sees. Secure email change: sees.
    - Email OTP Expiration: `86400` (24 h: kutse ja parooli link).
@@ -194,16 +240,19 @@ Dashboard → **Authentication**:
 **6.1. Domeen.** resend.com, **Riia konto** → **Domains → Add Domain** →
 `wivo.dentiks.lv`, region **EU (Ireland)** `eu-west-1`.
 
-**6.2. Kirjed Iljale.** Resend näitab kirjeid; **DKIM-i väärtus on ainult
-selle konto oma**, nii et kopeeri see Resendist täpselt. Saada Iljale see
-tabel (nimed `dentiks.lv` tsooni sees):
+**6.2. Kirjed Iljale.** Resend näitab kirjeid; **kopeeri nimed ja väärtused
+Resendist täpselt**, need on selle konto omad. 23.11 seisuga on need
+**kaks CNAME-kirjet ja DKIM-i TXT** (nimed `dentiks.lv` tsooni sees):
 
 | Tüüp | Nimi | Väärtus |
 |---|---|---|
+| CNAME | `rsend.wivo` | Resendist |
+| CNAME | `send.wivo` | Resendist |
 | TXT | `resend._domainkey.wivo` | DKIM, Resendist (`p=MIGf…`) |
-| MX | `send.wivo` | `feedback-smtp.eu-west-1.amazonses.com`, prioriteet `10` |
-| TXT | `send.wivo` | `v=spf1 include:amazonses.com ~all` |
-| TXT | `_dmarc.wivo` | `v=DMARC1; p=none;` |
+| TXT | `_dmarc.wivo` | `v=DMARC1; p=none;` (soovituslik) |
+
+Kui Resend näitab teistsuguseid nimesid, kehtib Resend: tabel on 23.11 seis.
+(Varem olid siin MX ja SPF TXT `send.wivo` all; Resend ei näita neid enam.)
 
 Iljale lisaks:
 - `dentiks.lv` enda MX, SPF ja muud kirjed **jäävad puutumata**; alamdomeen
@@ -214,14 +263,18 @@ Iljale lisaks:
 
 **6.3. Kinnita.** Kui Ilja ütleb, et kirjed on sees: Resend → **Verify DNS
 Records**, oota, kuni kõik on **Verified** (minutid kuni paar tundi).
-Kontroll Terminalis (trükib `v=spf1 include:amazonses.com ~all`):
+Kontroll (trükib Resendi väärtuse): Macis `dig +short CNAME send.wivo.dentiks.lv`,
+Windowsi PowerShellis:
 
-```sh
-dig +short TXT send.wivo.dentiks.lv
+```powershell
+Resolve-DnsName -Type CNAME send.wivo.dentiks.lv
 ```
 
-**6.4. Kaks võtit.** Resend → **API Keys → Create API Key**, mõlemad
-**Sending access**, domeen ainult `wivo.dentiks.lv`:
+**6.4. Kaks võtit, alles pärast kinnitust.** Tee võtmed **alles siis, kui
+domeen on Resendis _Verified_**. Enne kinnitust tehtud võtmega annab saatmine
+vea „not authorized to send emails from …" (23.11); siis kustuta võti ja tee
+uus. Resend → **API Keys → Create API Key**, mõlemad **Sending access**,
+domeen ainult `wivo.dentiks.lv`:
 
 - `riga-auth-smtp`: Supabase Authi SMTP (samm 7);
 - `riga-functions`: Edge Functions (samm 8).
@@ -255,8 +308,10 @@ Save.
 **7.2.** Authentication → **Rate Limits**: e-mails per hour `30`.
 
 **7.3.** Authentication → **Emails → Templates**. Kleebi teema ja sisu
-failidest (teema on faili esimeses kommentaaris; sisu ilma selle
-kommentaarita):
+failidest. Teema on faili alguse kommentaaris real `Subject:`: kopeeri ainult
+tekst pärast `Subject: `. **Teema lõppu ei tohi jääda `-->`** (see on
+kommentaari lõpp, mitte teema osa; 23.11 jäi see kirja pealkirja). Sisu
+kleebi ilma selle kommentaarita:
 
 - `docs/auth-email-templates/reset-password.html` → **Reset password**
 - `docs/auth-email-templates/invite.html` → **Invite user**
@@ -317,9 +372,10 @@ secret**, ükshaaval:
 
 | Nimi | Väärtus |
 |---|---|
+| `WIVO_SERVICE_SECRET_KEY` | sama `sb_secret_…` võti, mis sammus 3 Vaulti läks |
 | `RESEND_API_KEY` | `riga-functions` võti |
 | `NOTIFY_FROM` | `Wivo <no-reply@wivo.dentiks.lv>` |
-| `APP_LINK` | `https://wivo-riga.pages.dev/job/{id}` |
+| `APP_LINK` | `https://wivo-dentiks.pages.dev/job/{id}` |
 | `VAPID_PUBLIC_KEY` | 8.3 esimene rida (ilma `VAPID_PUBLIC_KEY=`-ita) |
 | `VAPID_PRIVATE_KEY` | 8.3 teine rida |
 | `VAPID_SUBJECT` | `mailto:` + sinu aadress |
@@ -334,8 +390,9 @@ select status_code, left(content::text, 120) as answer, created
   from net._http_response order by created desc limit 3;
 ```
 
-`200` ja vastus `{"ok":true,…}`. `401` = Vaulti võti ei klapi (peatu ja
-küsi), `404` = funktsioon pole üleval.
+`200` ja vastus `{"ok":true,…}`. `401` = Vaulti võti ja
+`WIVO_SERVICE_SECRET_KEY` ei ole sama `sb_secret` võti (või Vaultis on veel
+legacy JWT, samm 3), `404` = funktsioon pole üleval.
 
 ---
 
@@ -368,7 +425,7 @@ loe rida: iga rida ütleb, mida teha.
 > electron-builder ütleb midagi `wine`-i kohta, ehita Windowsi masinas
 > (`docs/RIGA-TEMPORARY.md`, osa A, samad käsud PowerShellis) ja jätka siit.
 
-**9.4. Telefon samast versioonist.** Cloudflare'i `wivo-riga` ehitab haru
+**9.4. Telefon samast versioonist.** Cloudflare'i `wivo-dentiks` ehitab haru
 `riga`. Kopeeri käsk, mille `dist:riga` lõpus trükkis (sama commit mis
 installeril):
 
@@ -383,21 +440,26 @@ praegusest eespool, nii et `riga` järgib alati `testing`-ut. Kui `dist:riga`
 
 ---
 
-## 10. Cloudflare `wivo-riga`
+## 10. Cloudflare `wivo-dentiks`
 
-Nagu `docs/RIGA-TEMPORARY.md` osa B. Kaks asja, mida seal kergesti vahele jätta:
+Nagu `docs/RIGA-TEMPORARY.md` osa B, päris seadistuse (23.11) järgi:
 
+- **Pages, mitte Workers:** Workers & Pages → Create → **Pages** → Connect to
+  Git. (Workersi vorm näeb sarnane välja, aga ehitab teist asja.)
+- **Project name: `wivo-dentiks`** → aadress `https://wivo-dentiks.pages.dev`.
 - **Production branch: `riga`** (mitte `testing`).
-- **Environment variables (Production), kolm:**
+- **Preview branches: None** (Settings → Builds → Branch control).
+- **Environment variables: Production'i all** (mitte Preview), neli:
   - `VITE_SUPABASE_URL` = Riia Project URL
   - `VITE_SUPABASE_ANON_KEY` = Riia anon / publishable key
   - `VITE_VAPID_PUBLIC_KEY` = 8.3 avalik võti (ilma selleta ei saa telefon
     pushi sisse lülitada)
+  - `VITE_PHONE_URL` = `https://wivo-dentiks.pages.dev` („What's new" näitab
+    seda, mitte app.wivodent.com-i; alates 2.0.5)
 
 Build command `npm run mobile:build`, output `dist-mobile`, `NODE_VERSION`
-`22`. **Preview branches: None.** Kontroll: ava
-`https://wivo-riga.pages.dev`, Network-vaates lähevad päringud ainult
-`<REF>.supabase.co`-sse.
+`22`. Kontroll: ava `https://wivo-dentiks.pages.dev`, Network-vaates lähevad
+päringud ainult `<REF>.supabase.co`-sse.
 
 ---
 
@@ -555,7 +617,7 @@ Kõik peab olema ☑. Iga rida on üks proov päris projektis.
 - [ ] `net._http_response`: `send-notifications` vastab `200` (8.5)
 - [ ] Installeri SHA-256 klapib; Settings → Licence näitab Riia aadressi ja
       Jobs, Payroll, Stock; punast bännerit ei ole
-- [ ] Telefonis `wivo-riga.pages.dev`: päringud ainult `<REF>.supabase.co`-sse
+- [ ] Telefonis `wivo-dentiks.pages.dev`: päringud ainult `<REF>.supabase.co`-sse
 - [ ] `riga` haru commit = installeri commit (Cloudflare → Deployments
       näitab sama lühikest commiti)
 
@@ -569,7 +631,7 @@ Kõik peab olema ☑. Iga rida on üks proov päris projektis.
 - [ ] Kutse jõuab kohale `no-reply@wivo.dentiks.lv`-ilt (Resend → Emails:
       *Delivered*)
 - [ ] „Forgot password?" töölaual → kiri tuleb, link avab
-      `wivo-riga.pages.dev/auth/confirm` ja uus parool töötab
+      `wivo-dentiks.pages.dev/auth/confirm` ja uus parool töötab
 - [ ] Teavituse e-kiri: tehnikul on „E-mail me the same notifications"
       sees, töö liigub tema etapile → kiri tuleb minuti jooksul
 
