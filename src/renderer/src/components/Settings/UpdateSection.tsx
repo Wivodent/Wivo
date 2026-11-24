@@ -6,7 +6,9 @@
  * stuck from one that simply has nothing to do — and with people in two
  * buildings, that call will happen.
  */
-import { RefreshCw, ArrowUpCircle, Check, AlertTriangle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { RefreshCw, ArrowUpCircle, Check, AlertTriangle, ShieldCheck } from 'lucide-react'
+import type { UpdateInfo } from '../../../../types/update'
 import { updateFailureText } from '../../lib/updateMessage'
 import { useUpdate } from '../../providers/UpdateProvider'
 import { t } from '@/lib/i18n'
@@ -14,6 +16,13 @@ import { IS_TEST_COPY } from '../../lib/testCopy'
 
 export function UpdateSection() {
   const { running, state, checkNow, installNow } = useUpdate()
+  const [info, setInfo] = useState<UpdateInfo | null>(null)
+  // Re-read after each state change: the last check time moves with it.
+  useEffect(() => {
+    let cancelled = false
+    void window.wivo?.updateInfo?.().then(i => { if (!cancelled) setInfo(i) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [state.stage])
 
   const line = (): { icon: JSX.Element; text: string } => {
     switch (state.stage) {
@@ -82,6 +91,24 @@ export function UpdateSection() {
         <p className="flex items-center gap-1.5 text-[11px] text-ink-muted mt-2">
           {s.icon} {s.text}
         </p>
+      )}
+
+      {!IS_TEST_COPY && info && (
+        <div className="mt-2 space-y-0.5 text-[11px] text-ink-muted">
+          {state.stage === 'ready' && (
+            <p>{t('settings.updatePending', { running, version: state.version })}</p>
+          )}
+          {info.signedOnly && (
+            <p className="flex items-center gap-1.5">
+              <ShieldCheck size={12} className="text-emerald-600" />
+              {info.source ? t('settings.updatesSignedFrom', { source: info.source }) : t('settings.updatesSignedOnly')}
+            </p>
+          )}
+          {info.signedOnly && !info.hasSource && <p>{t('settings.updatesByInstaller')}</p>}
+          {info.lastCheckedAt && (
+            <p>{t('settings.updatesLastChecked', { time: new Date(info.lastCheckedAt).toLocaleString() })}</p>
+          )}
+        </div>
       )}
     </section>
   )

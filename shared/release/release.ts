@@ -158,7 +158,29 @@ export interface AppRelease {
   sha512: string
   size: number
   created_at: string
+  /**
+   * Which build this installer is (docs/RELEASE.md): `riga` for Riga's
+   * installer, absent for `main`'s. A desktop installs only a release of its
+   * own build, so a release made for one clinic, or main's, never installs in
+   * another, even when it is validly signed.
+   */
+  build?: string
+  /**
+   * The newest migration this version expects in the clinic's database
+   * (`125_mail_quota.sql`). Informational: migrations are applied by hand
+   * before a release is signed until `wivo-update` runs them (docs/RELEASE.md §5).
+   */
+  schema?: string
 }
+
+/** A build with no `build` field in its release statements: the main releases. */
+export const MAIN_BUILD = 'main'
+
+/** The build a release statement is for. Absent means main's. */
+export const releaseBuild = (r: Pick<AppRelease, 'build'>): string => r.build ?? MAIN_BUILD
+
+/** A build id: lower-case letters and digits, as it appears in a release statement. */
+export const isBuildId = (v: unknown): v is string => typeof v === 'string' && /^[a-z][a-z0-9-]{0,30}$/.test(v)
 
 type Payloads = { certificate: Certificate; revocation: Revocation; manifest: Manifest; index: Index; app: AppRelease }
 
@@ -373,7 +395,11 @@ export async function checkSigned<K extends 'manifest' | 'index' | 'app'>(
       return { ok: false, reason: 'bad_path' }
     }
   }
-  if (kind === 'app' && !isVersion((s.payload as AppRelease).version)) return { ok: false, reason: 'bad_version' }
+  if (kind === 'app') {
+    const a = s.payload as AppRelease
+    if (!isVersion(a.version)) return { ok: false, reason: 'bad_version' }
+    if (a.build !== undefined && !isBuildId(a.build)) return { ok: false, reason: 'malformed' }
+  }
   return { ok: true, payload: s.payload as Payloads[K], signedSha256 }
 }
 
@@ -403,6 +429,24 @@ export const PINNED_ROOTS: RootKey[] = [
  * Empty until then: nothing can be fetched, so nothing installs.
  */
 export const UPDATE_SOURCES: string[] = []
+
+/**
+ * Builds that get their own desktop releases, and where (docs/RELEASE.md). A
+ * clinic-specific installer (today Riga's, with its project's address built
+ * in) reads its updates only here: a GitHub repository of its own, whose
+ * release tagged `stable` holds `latest.yml`, `updates.json` and the
+ * installer. `releases/download/<tag>/<file>` is exactly `listAddress`'s
+ * `<source>/<channel>/<file>`. main's CI publishes elsewhere and cannot write
+ * here.
+ */
+export const BUILD_UPDATE_SOURCES: Readonly<Record<string, readonly string[]>> = {
+  riga: ['https://github.com/SniperInSuit/wivo-riga-releases/releases/download'],
+}
+
+/** Where a build's desktop reads its updates: its own address, else UPDATE_SOURCES. */
+export function updateSourcesFor(build: string): string[] {
+  return [...(BUILD_UPDATE_SOURCES[build] ?? (build === MAIN_BUILD ? UPDATE_SOURCES : []))]
+}
 
 /**
  * The published list: the signed index, the certificates that vouch for the
@@ -493,8 +537,8 @@ export function limitedFetcher(fetchImpl: typeof fetch): Fetcher {
 // ─── A desktop release, before it installs (5e) ──────────────────────────────
 
 export type CheckedApp =
-  | { ok: true; key_id: string; serial: number; signedSha256: string }
-  | { ok: false; reason: Refusal | 'too_large' | 'no_app_release' | 'not_this_release' }
+  | { ok: true; key_id: string; serial: number; signedSha256: string; release: AppRelease }
+  | { ok: false; reason: Refusal | 'too_large' | 'no_app_release' | 'not_this_release' | 'wrong_build' }
 
 /**
  * Whether a downloaded desktop installer is Wivo's release, before it is
@@ -503,14 +547,16 @@ export type CheckedApp =
  *      older than one this desktop already accepted (`floor`), names it as
  *      the latest desktop release, with exactly this sha512 and size;
  *   2. a release statement signed by a certified app key, not revoked, says
- *      the same version, file, sha512 and size.
+ *      the same version, file, sha512 and size;
+ *   3. that statement is for this desktop's own `build` (docs/RELEASE.md), so
+ *      main's release never installs in Riga's app, nor the reverse.
  * `sha512` is electron-updater's form: base64 of the raw digest.
  */
 export async function checkAppUpdate(args: {
   list: PublishedList; version: string; sha512: string; size: number
-  pinned: RootKey[]; now: Date; channel: Channel; floor: SerialFloor
+  pinned: RootKey[]; now: Date; channel: Channel; floor: SerialFloor; build: string
 }): Promise<CheckedApp> {
-  const { list, version, sha512, size, pinned, now, channel, floor } = args
+  const { list, version, sha512, size, pinned, now, channel, floor, build } = args
   const trust = await trustFrom(pinned, listedRevocations(list.index))
   const r = await checkIndex(list.index, list.certificates, trust, now, channel, floor)
   if (!r.ok) return r
@@ -522,7 +568,8 @@ export async function checkAppUpdate(args: {
   if (!a.ok) return a
   const p = a.payload
   if (p.version !== version || p.sha512 !== sha512 || p.size !== size || p.file !== named.file) return { ok: false, reason: 'not_this_release' }
-  return { ok: true, key_id: r.index.key_id, serial: r.index.serial, signedSha256: r.signedSha256 }
+  if (releaseBuild(p) !== build) return { ok: false, reason: 'wrong_build' }
+  return { ok: true, key_id: r.index.key_id, serial: r.index.serial, signedSha256: r.signedSha256, release: p }
 }
 
 // ─── Versions and paths ───────────────────────────────────────────────────────

@@ -39,6 +39,7 @@ import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { resolve, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { INSTALL_YKMAN, ykmanCommand } from './yubikey/sign-statements.mjs'
 import {
   generateKeyPairSync, createPrivateKey, createPublicKey, sign as nodeSign,
   verify as nodeVerify,
@@ -161,10 +162,11 @@ function signOnYubikey(letter, message) {
       statements: [{ id: 'licence', label: 'Licence token', slot: k.slot, hex: message.toString('hex') }],
     }))
     writeFileSync(outFile, '{}')
-    const r = spawnSync(process.env.WIVO_YKMAN || 'ykman',
-      ['script', '--force', join(here, 'yubikey', 'setup-device.py'), 'sign', String(k.serial), inFile, outFile],
+    const [cmd, pre] = ykmanCommand() // WIVO_YKMAN: a stand-in in the tests, run with this Node on Windows too
+    const r = spawnSync(cmd,
+      [...pre, 'script', '--force', join(here, 'yubikey', 'setup-device.py'), 'sign', String(k.serial), inFile, outFile],
       { stdio: ['inherit', 2, 'inherit'] })  // the key's prompts go to stderr, so stdout is only the token
-    if (r.error) die(`Could not run ykman (${r.error.message}). Install it: brew install ykman`)
+    if (r.error) die(`Could not run ykman (${r.error.message}). ${INSTALL_YKMAN}`)
     if (r.status !== 0) die(`The YubiKey ${letter} did not sign (above says why). No licence was made.`)
     let out
     try { out = JSON.parse(readFileSync(outFile, 'utf8')) } catch { out = {} }

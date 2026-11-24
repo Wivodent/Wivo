@@ -227,13 +227,13 @@ def sign(serial, in_path, out_path):
     result = {"signed": []}
     say("")
     say(f"{job['what']}: {len(job['statements'])} signature(s), the PIN once and a touch for each.")
-    pin = getpass.getpass("PIN, from Apple Passwords (nothing shows): ")
+    pin = getpass.getpass("PIN, from your password manager (nothing shows): ")
     try:
         piv.verify_pin(pin)
     except InvalidPinError as e:
         left = e.attempts_remaining
         fail(f"wrong PIN; {left} {'try' if left == 1 else 'tries'} left. Nothing was signed. "
-             + ("Stop, and tell Claude before typing it again." if left == 1 else "Copy it from Apple Passwords and run again."))
+             + ("Stop, and tell Claude before typing it again." if left == 1 else "Copy it from your password manager and run again."))
     try:
         for s in job["statements"]:
             message = bytes.fromhex(s["hex"])

@@ -15,21 +15,22 @@
  *      passed on (nothing here talks to GitHub);
  *   4. scans the built app (out/) for a secret or a JWT that is not the key;
  *   5. packages with scripts/electron-builder.riga.cjs: no `.env` resource,
- *      output in dist-riga/, nothing published;
+ *      output in dist-riga/, updates from Riga's own release (docs/RELEASE.md),
+ *      nothing published (`npm run release:riga` publishes, after signing);
  *   6. checks the package holds no .env and none of the above, and prints the
  *      installer's SHA-256 for the handover;
  *   7. prints the command that moves the `riga` branch (Riga's phone app,
- *      Cloudflare `wivo-riga`) to the same commit. It does not run it.
+ *      Cloudflare `wivo-dentiks`) to the same commit. It does not run it.
  *
  * It sends nothing anywhere and reads no secret: riga.env holds only what
  * ships in every phone's bundle anyway.
  */
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { forbiddenIn, parseRigaEnv, phoneBranchCommand } from './riga-env.mjs'
+import { appUpdateYmlProblem, forbiddenIn, parseRigaEnv, phoneBranchCommand } from './riga-env.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = 'dist-riga'
@@ -81,7 +82,7 @@ const envPath = join(ROOT, 'riga.env')
 if (!existsSync(envPath)) fail('riga.env is missing (docs/RIGA-TEMPORARY.md, step A3)')
 const rigaEnv = parseRigaEnv(readFileSync(envPath, 'utf8'))
 if (rigaEnv.problems.length) fail(`riga.env:\n  ${rigaEnv.problems.join('\n  ')}`)
-console.log(`Riga's project: ${rigaEnv.ref} · commit ${commit}`)
+console.log(`Riga's project: ${rigaEnv.ref} · phone ${rigaEnv.phoneUrl} · commit ${commit}`)
 
 // 3. the build, with a clean environment
 const env = {}
@@ -93,6 +94,10 @@ for (const [name, value] of Object.entries(process.env)) {
 Object.assign(env, {
   VITE_SUPABASE_URL: rigaEnv.url,
   VITE_SUPABASE_ANON_KEY: rigaEnv.key,
+  VITE_PHONE_URL: rigaEnv.phoneUrl, // "What's new" names Riga's phone app, not app.wivodent.com
+  // Riga's build: reads its updates only from Riga's own release, and installs
+  // only a release signed for `riga` (docs/RELEASE.md, src/main/releaseCheck.ts)
+  MAIN_VITE_WIVO_BUILD: 'riga',
   MAIN_VITE_SENTRY_DSN: '', // Riga's errors do not go to a project of Tallinn's
   CSC_IDENTITY_AUTO_DISCOVERY: 'false',
   WIN_CSC_LINK: '',
@@ -104,7 +109,8 @@ run('node_modules/electron-vite/bin/electron-vite.js', ['build'], env)
 console.log('\nChecking the build…')
 scan(join(ROOT, 'out'), rigaEnv.key, 50_000_000)
 
-// 5. package
+// 5. package (an installer of an earlier version left in dist-riga/ is removed first)
+rmSync(join(ROOT, OUT), { recursive: true, force: true })
 console.log('\nPackaging…')
 run('node_modules/electron-builder/cli.js',
   ['--win', '--x64', '--publish', 'never', '--config', 'scripts/electron-builder.riga.cjs', '--config.forceCodeSigning=false'], env)
@@ -116,6 +122,10 @@ if (!existsSync(unpacked)) fail(`${OUT}/win-unpacked is missing, so the package 
 const envFiles = findEnvFiles(unpacked)
 if (envFiles.length) fail(`the package holds an env file:\n  ${envFiles.join('\n  ')}`)
 console.log('  no .env in the package')
+const feedFile = join(unpacked, 'resources', 'app-update.yml')
+const feedProblem = appUpdateYmlProblem(existsSync(feedFile) ? readFileSync(feedFile, 'utf8') : '')
+if (feedProblem) fail(`resources/app-update.yml: ${feedProblem}`)
+console.log("  updates from Riga's own release only (app-update.yml)")
 scan(join(unpacked, 'resources'), rigaEnv.key, 50_000_000)
 
 const exes = readdirSync(join(ROOT, OUT)).filter(f => /^Wivo-Riga-Setup-.*\.exe$/.test(f))
@@ -127,5 +137,5 @@ console.log('Send the SHA-256 by another channel than the installer. Windows wil
 // 7. the phone app, from the same commit
 let pushed = false
 try { execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/testing'], { cwd: ROOT }); pushed = true } catch { /* not pushed, or no origin/testing */ }
-console.log(`\nRiga's phone app (Cloudflare wivo-riga builds the riga branch). When you hand over this installer, move it to the same commit:\n\n  ${phoneBranchCommand(fullCommit)}\n`)
+console.log(`\nRiga's phone app (Cloudflare wivo-dentiks builds the riga branch). When you hand over this installer, move it to the same commit:\n\n  ${phoneBranchCommand(fullCommit)}\n`)
 if (!pushed) console.log('First push testing: this commit is not on origin/testing yet.')

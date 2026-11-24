@@ -13,7 +13,20 @@
 export const PRODUCTION_REF = 'wrtucsfmpbwekugzzzxw'
 export const TEST_REF = 'jhqyvancrzykxhzwnost'
 
-export const RIGA_ENV_NAMES = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY']
+export const RIGA_ENV_NAMES = ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'VITE_PHONE_URL']
+
+/**
+ * The clinic's own phone address, shown in "What's new" instead of
+ * app.wivodent.com (Riga: https://wivo-dentiks.pages.dev). `https://` and a
+ * host only: no path, no Supabase address.
+ */
+export function phoneUrlProblem(url) {
+  if (!url) return "VITE_PHONE_URL is missing (Riga's phone address, e.g. https://wivo-dentiks.pages.dev)"
+  const m = /^https:\/\/([a-z0-9-]+(\.[a-z0-9-]+)+)\/?$/.exec(url)
+  if (!m) return 'VITE_PHONE_URL must look like https://<name>.pages.dev, with no path'
+  if (/\.supabase\.co$/.test(m[1])) return "VITE_PHONE_URL is a Supabase address, not the phone app's"
+  return null
+}
 
 const JWT = /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g
 
@@ -44,7 +57,7 @@ export function refOf(url) {
 
 /**
  * Parse riga.env. `problems` empty means the build may go ahead.
- * @returns {{ url: string, key: string, ref: string, problems: string[] }}
+ * @returns {{ url: string, key: string, ref: string, phoneUrl: string, problems: string[] }}
  */
 export function parseRigaEnv(text) {
   const values = new Map()
@@ -61,6 +74,9 @@ export function parseRigaEnv(text) {
   }
   const url = values.get('VITE_SUPABASE_URL') ?? ''
   const key = values.get('VITE_SUPABASE_ANON_KEY') ?? ''
+  const phoneUrl = (values.get('VITE_PHONE_URL') ?? '').replace(/\/$/, '')
+  const phone = phoneUrlProblem(phoneUrl)
+  if (phone) problems.push(phone)
 
   const ref = refOf(url)
   if (!url) problems.push('VITE_SUPABASE_URL is missing')
@@ -78,7 +94,7 @@ export function parseRigaEnv(text) {
 
   for (const [shape, what] of SECRETS) if (shape.test(text)) problems.push(`it holds ${what}`)
   if ((text.match(JWT) ?? []).some(token => token !== key)) problems.push('it holds a token outside VITE_SUPABASE_ANON_KEY')
-  return { url: url.replace(/\/$/, ''), key, ref: ref ?? '', problems }
+  return { url: url.replace(/\/$/, ''), key, ref: ref ?? '', phoneUrl, problems }
 }
 
 /**
@@ -101,7 +117,7 @@ export function forbiddenIn(text, key) {
 }
 
 /**
- * The command that moves the `riga` branch (Cloudflare Pages `wivo-riga`
+ * The command that moves the `riga` branch (Cloudflare Pages `wivo-dentiks`
  * builds Riga's phone app from it) to the installer's commit, so the phone and
  * the installer are the same version. Never forced: git refuses it unless the
  * commit is ahead of where `riga` is, so `riga` only ever follows `testing`.
@@ -111,4 +127,22 @@ export function forbiddenIn(text, key) {
 export function phoneBranchCommand(sha) {
   if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`not a full commit: ${sha}`)
   return `git push origin ${sha}:refs/heads/riga`
+}
+
+/** Riga's installer reads its updates here and nowhere else (docs/RELEASE.md). */
+export const RIGA_FEED = 'https://github.com/SniperInSuit/wivo-riga-releases/releases/download/stable'
+
+/**
+ * The packaged app-update.yml (electron-builder writes it from the publish
+ * setting): a generic feed at Riga's own release, never main's GitHub
+ * releases. Null when it is right.
+ * @param {string} text
+ */
+export function appUpdateYmlProblem(text) {
+  if (!text.trim()) return 'missing: the installer would have no update feed'
+  if (/provider:\s*github/.test(text)) return "it points at GitHub's release feed (main's), which must never reach Riga"
+  if (!/provider:\s*generic/.test(text)) return 'it is not a generic feed'
+  const url = /url:\s*['"]?([^'"\s]+)/.exec(text)?.[1]
+  if (url !== RIGA_FEED) return `it reads ${url ?? 'no address'}, not ${RIGA_FEED}`
+  return null
 }

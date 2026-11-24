@@ -36,8 +36,9 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { appendFileSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
-import type { UpdateState, UpdaterSplashState } from '../types/update'
-import { releaseCheckDeps, verifyDownloadedApp } from './releaseCheck'
+import type { UpdateInfo, UpdateState, UpdaterSplashState } from '../types/update'
+import { BUILD, feedUrlFor, releaseCheckDeps, verifyDownloadedApp } from './releaseCheck'
+import { PINNED_ROOTS, updateSourcesFor } from '../../shared/release/release'
 
 /**
  * Test mode (`npm run dev:test`) never checks, downloads or installs a
@@ -213,6 +214,10 @@ function closeSplash(): void {
 }
 
 // ── Shared wiring ────────────────────────────────────────────────────────────
+let configuredOnce = false
+/** When the feed last answered, for Settings (null: not yet this session). */
+let lastCheckedAt: string | null = null
+
 function configure(): void {
   autoUpdater.autoDownload = true
   // OFF on purpose: a file staged in an earlier session is not installed at
@@ -227,6 +232,15 @@ function configure(): void {
     error: (...a: unknown[]) => log('ERROR', ...a),
     debug: (...a: unknown[]) => log('DEBUG', ...a),
   } as never
+  // A clinic's own installer (Riga's) reads its own release, never main's
+  // GitHub releases (docs/RELEASE.md). Set here as well as in its
+  // app-update.yml, so the build id alone decides.
+  const feed = feedUrlFor(BUILD)
+  if (feed) {
+    autoUpdater.setFeedURL({ provider: 'generic', url: feed })
+    if (!configuredOnce) log('INFO', `build ${BUILD}: updates from ${feed}`)
+  }
+  configuredOnce = true
   // Lets a non-packaged run talk to a feed, for testing. Off unless asked.
   if (process.env['WIVO_UPDATER_DEV'] === '1') {
     autoUpdater.forceDevUpdateConfig = true
@@ -246,9 +260,10 @@ async function signedByWivo(file: string | undefined, version: string): Promise<
     return false
   }
   try {
-    const r = await verifyDownloadedApp(file, version, releaseCheckDeps(join(app.getPath('userData'), 'release-floor.json')))
+    const r = await verifyDownloadedApp(file, version, releaseCheckDeps(join(app.getPath('userData'), 'release-floor.json'), app.getVersion()))
     if (r.ok) {
-      log('INFO', r.checked ? `${version}: Wivo's signature checks out` : `${version}: not checked, no root keys pinned yet`)
+      log('INFO', r.checked ? `${version}: Wivo's signature checks out (build ${BUILD})` : `${version}: not checked, no root keys pinned yet`)
+      if (r.ok && r.schema) log('INFO', `${version} expects the database at ${r.schema}`)
       return true
     }
     log('ERROR', `${version}: refused, not Wivo's signed release (${r.reason})`)
@@ -424,8 +439,14 @@ export function wireUpdater(): void {
   }
 
   autoUpdater.on('checking-for-update', () => pushState({ stage: 'checking' }))
-  autoUpdater.on('update-not-available', () => pushState({ stage: 'idle' }))
-  autoUpdater.on('update-available', info => pushState({ stage: 'available', version: info.version }))
+  autoUpdater.on('update-not-available', () => {
+    lastCheckedAt = new Date().toISOString()
+    pushState({ stage: 'idle' })
+  })
+  autoUpdater.on('update-available', info => {
+    lastCheckedAt = new Date().toISOString()
+    pushState({ stage: 'available', version: info.version })
+  })
   autoUpdater.on('download-progress', p =>
     pushState({
       stage: 'downloading',
@@ -464,6 +485,19 @@ export function registerUpdaterIpc(): void {
   // replayed, so without this a reopened window never learns about a staged
   // update.
   ipcMain.handle('wivo:update-state', () => lastState)
+
+  // Settings → Updates: where this installer's updates come from, and whether
+  // they must be Wivo's signed releases. Public facts only.
+  ipcMain.handle('wivo:update-info', (): UpdateInfo => {
+    const feed = feedUrlFor(BUILD)
+    return {
+      build: BUILD,
+      source: feed ? new URL(feed).host + new URL(feed).pathname.replace(/\/releases\/download\/stable$/, '') : null,
+      signedOnly: PINNED_ROOTS.length > 0,
+      hasSource: updateSourcesFor(BUILD).length > 0,
+      lastCheckedAt,
+    }
+  })
 
   // 'ready' is reached only after Wivo's signature checked out when it was staged.
   ipcMain.handle('wivo:install-now', () => {

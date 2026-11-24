@@ -11,9 +11,19 @@
  */
 const { build } = require('../package.json')
 
+/**
+ * Riga's own releases (docs/RELEASE.md): the `stable` release of a repository
+ * of its own, never main's GitHub releases. Written into the installer's
+ * app-update.yml; the app sets the same feed from its build id
+ * (src/main/releaseCheck.ts feedUrlFor), and scripts/rigaBuild.test.ts keeps
+ * the two equal.
+ */
+const RIGA_FEED = 'https://github.com/SniperInSuit/wivo-riga-releases/releases/download/stable'
+
 module.exports = {
   ...build,
   directories: { ...build.directories, output: 'dist-riga' },
   extraResources: build.extraResources.filter(r => r.from !== '.env'),
   artifactName: 'Wivo-Riga-Setup-${version}.${ext}',
+  publish: [{ provider: 'generic', url: RIGA_FEED }],
 }

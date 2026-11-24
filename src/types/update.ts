@@ -47,6 +47,23 @@ export type UpdateState =
       version?: string
     }
 
+/**
+ * Settings → Updates: which installer this is and where its updates come
+ * from (docs/RELEASE.md). Public facts, nothing secret.
+ */
+export interface UpdateInfo {
+  /** `riga` for Riga's installer, `main` otherwise. */
+  build: string
+  /** `github.com/SniperInSuit/wivo-riga-releases`, or null for main's feed. */
+  source: string | null
+  /** Root keys are pinned: an update installs only as Wivo's signed release. */
+  signedOnly: boolean
+  /** There is a signed list to check against (false: every update is refused). */
+  hasSource: boolean
+  /** When the feed last answered this session. */
+  lastCheckedAt: string | null
+}
+
 /** What the splash window needs. A subset, so it cannot grow a dependency. */
 export interface UpdaterSplashState {
   stage: UpdateState['stage']

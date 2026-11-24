@@ -12,6 +12,11 @@ interface ImportMetaEnv {
   readonly VITE_SENTRY_DSN?: string
   /** Phone app only (lib/push.ts). Without it "Notifications on this phone" says push is not set up. */
   readonly VITE_VAPID_PUBLIC_KEY?: string
+  /**
+   * The clinic's own phone app, shown in "What's new" (lib/releaseNotes.ts).
+   * Riga's build: https://wivo-dentiks.pages.dev (riga.env, Cloudflare). Without it, app.wivodent.com.
+   */
+  readonly VITE_PHONE_URL?: string
 }
 
 // Preload bridge (src/preload/index.ts). Optional: during `dev` the renderer can
@@ -35,6 +40,8 @@ interface Window {
     ) => () => void
     installNow: () => Promise<void>
     checkNow: () => Promise<void>
+    /** Where this installer's updates come from (docs/RELEASE.md). Older preloads lack it. */
+    updateInfo?: () => Promise<import('../../types/update').UpdateInfo>
     /** Older builds of the preload do not have it. */
     busy?: () => Promise<{ downloads: number; otherWindows: number }>
     onSplashState: (

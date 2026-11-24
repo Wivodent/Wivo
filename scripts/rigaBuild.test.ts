@@ -7,14 +7,16 @@ import { createRequire } from 'node:module'
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 // @ts-expect-error plain .mjs without types
-import { PRODUCTION_REF, TEST_REF, forbiddenIn, parseRigaEnv, phoneBranchCommand, refOf } from './riga-env.mjs'
+import { PRODUCTION_REF, RIGA_FEED, TEST_REF, appUpdateYmlProblem, forbiddenIn, parseRigaEnv, phoneBranchCommand, refOf } from './riga-env.mjs'
+import { listAddress, updateSourcesFor } from '../shared/release/release'
 
 const RIGA = 'abcdefghijklmnopqrst'
 const URL = `https://${RIGA}.supabase.co`
 const jwt = (payload: Record<string, unknown>) =>
   `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.sig_nature`
 const ANON = jwt({ iss: 'supabase', ref: RIGA, role: 'anon' })
-const file = (url = URL, key = ANON) => `VITE_SUPABASE_URL=${url}\nVITE_SUPABASE_ANON_KEY=${key}\n`
+const PHONE = 'https://wivo-dentiks.pages.dev'
+const file = (url = URL, key = ANON, phone = PHONE) => `VITE_SUPABASE_URL=${url}\nVITE_SUPABASE_ANON_KEY=${key}\n${phone === null ? '' : `VITE_PHONE_URL=${phone}\n`}`
 
 describe('riga.env', () => {
   it('accepts Riga\'s URL with its anon key, and a publishable key', () => {
@@ -23,7 +25,7 @@ describe('riga.env', () => {
     expect(parseRigaEnv(file()).ref).toBe(RIGA)
   })
   it('accepts a byte-order mark, CRLF, quotes and a trailing slash', () => {
-    const text = `﻿VITE_SUPABASE_URL="${URL}/"\r\nVITE_SUPABASE_ANON_KEY='${ANON}'\r\n`
+    const text = `﻿VITE_SUPABASE_URL="${URL}/"\r\nVITE_SUPABASE_ANON_KEY='${ANON}'\r\nVITE_PHONE_URL=${PHONE}/\r\n`
     const r = parseRigaEnv(text)
     expect(r.problems).toEqual([])
     expect(r.url).toBe(URL)
@@ -40,7 +42,7 @@ describe('riga.env', () => {
   it('refuses other names, duplicates, a missing value and a wrong address', () => {
     expect(parseRigaEnv(file() + 'RESEND_API_KEY=x\n').problems.join()).toContain('RESEND_API_KEY')
     expect(parseRigaEnv(file() + `VITE_SUPABASE_URL=${URL}\n`).problems.join()).toContain('twice')
-    expect(parseRigaEnv('').problems.length).toBe(2)
+    expect(parseRigaEnv('').problems.length).toBe(3)
     expect(parseRigaEnv(file('http://localhost:54321')).problems.join()).toContain('supabase.co')
     expect(parseRigaEnv(file(`https://${RIGA}.supabase.co.evil.com`)).problems.length).toBeGreaterThan(0)
   })
@@ -58,6 +60,16 @@ describe('riga.env', () => {
     const src = readFileSync('src/renderer/src/lib/testCopy.ts', 'utf8')
     expect(src).toContain(`PRODUCTION_REF = '${PRODUCTION_REF}'`)
     expect(src).toContain(`TEST_REF = '${TEST_REF}'`)
+  })
+})
+
+describe("Riga's phone address (What's new)", () => {
+  it('is required, https and a host only, and comes back without a trailing slash', () => {
+    expect(parseRigaEnv(file()).phoneUrl).toBe(PHONE)
+    expect(parseRigaEnv(file(URL, ANON, null)).problems.join()).toContain('VITE_PHONE_URL is missing')
+    expect(parseRigaEnv(file(URL, ANON, 'http://wivo-dentiks.pages.dev')).problems.length).toBe(1)
+    expect(parseRigaEnv(file(URL, ANON, `${PHONE}/job/1`)).problems.length).toBe(1)
+    expect(parseRigaEnv(file(URL, ANON, URL)).problems.join()).toContain('Supabase')
   })
 })
 
@@ -85,6 +97,17 @@ describe('the packaging configuration', () => {
     expect(config.artifactName).toContain('Wivo-Riga-Setup')
     expect(config.files).toEqual(['out/**/*'])
   })
+  it("reads updates only from Riga's own release, the address the app checks the signature against", () => {
+    expect(config.publish).toEqual([{ provider: 'generic', url: RIGA_FEED }])
+    expect(listAddress(updateSourcesFor('riga')[0], 'stable')).toBe(`${RIGA_FEED}/updates.json`)
+    expect(RIGA_FEED).not.toMatch(/SniperInSuit\/Wivo\//)
+  })
+  it("the packaged app-update.yml is checked: Riga's generic feed, never main's GitHub releases", () => {
+    expect(appUpdateYmlProblem(`provider: generic\nurl: ${RIGA_FEED}\nupdaterCacheDirName: wivo-updater\n`)).toBeNull()
+    expect(appUpdateYmlProblem('owner: SniperInSuit\nrepo: Wivo\nprovider: github\n')).toMatch(/never reach Riga/)
+    expect(appUpdateYmlProblem('provider: generic\nurl: https://example.com/stable\n')).toMatch(/not https/)
+    expect(appUpdateYmlProblem('')).toMatch(/missing/)
+  })
   it('leaves package.json (the releases\' configuration) as it is', () => {
     const pkg = JSON.parse(readFileSync('package.json', 'utf8')) as { build: { extraResources: { from: string }[]; directories: { output: string } } }
     expect(pkg.build.extraResources.map(r => r.from)).toContain('.env')
@@ -92,7 +115,8 @@ describe('the packaging configuration', () => {
   })
   it('is run by a script that refuses to start without the checks', () => {
     const src = readFileSync('scripts/build-riga.mjs', 'utf8')
-    for (const needle of ["'testing'", 'parseRigaEnv', 'forbiddenIn', "'never'", 'MAIN_VITE_SENTRY_DSN', 'phoneBranchCommand(fullCommit)']) expect(src).toContain(needle)
+    for (const needle of ["'testing'", 'parseRigaEnv', 'forbiddenIn', "'never'", 'MAIN_VITE_SENTRY_DSN', 'phoneBranchCommand(fullCommit)',
+      "MAIN_VITE_WIVO_BUILD: 'riga'", 'VITE_PHONE_URL: rigaEnv.phoneUrl', 'appUpdateYmlProblem']) expect(src).toContain(needle)
   })
 })
 

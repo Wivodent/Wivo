@@ -9,7 +9,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { createHash } from 'crypto'
 import { b64urlEncode, encode, listAddress, type Fetcher, type RootKey, type Signer } from '../../shared/release/release'
-import { verifyDownloadedApp, type ReleaseCheckDeps } from './releaseCheck'
+import { buildOf, feedUrlFor, verifyDownloadedApp, type ReleaseCheckDeps } from './releaseCheck'
 
 async function key(): Promise<{ publicKey: string; sign: Signer }> {
   const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']) as CryptoKeyPair
@@ -26,7 +26,7 @@ const installer = join(dir, 'Wivo Setup 2.3.0.exe')
 const floorPath = join(dir, 'release-floor.json')
 let pinned: RootKey[]
 let files: Map<string, Uint8Array>
-let publish: (serial: number, sha512?: string) => Promise<void>
+let publish: (serial: number, sha512?: string, build?: string) => Promise<void>
 
 beforeAll(async () => {
   writeFileSync(installer, 'pretend this is an installer')
@@ -39,20 +39,21 @@ beforeAll(async () => {
   }, root.sign)
   const certificates = [await cert('update-c', update, 'update'), await cert('app-c', appKey, 'app')]
   files = new Map()
-  publish = async (serial, listedSha = sha512) => {
+  publish = async (serial, listedSha = sha512, build) => {
     const index = await encode('index', {
       v: 1, key_id: 'update-c', channel: 'stable', serial, generated_at: day(0), expires: day(14),
       versions: [], withdrawn: [], revocations: [], app: { version: '2.3.0', file: 'Wivo Setup 2.3.0.exe', sha512: listedSha, size },
     }, update.sign)
     const app = await encode('app', {
       v: 1, key_id: 'app-c', version: '2.3.0', file: 'Wivo Setup 2.3.0.exe', sha512: listedSha, size, created_at: day(-1),
+      ...(build ? { build, schema: '125_mail_quota.sql' } : {}),
     }, appKey.sign)
     files.set(listAddress(SOURCE, 'stable'), new TextEncoder().encode(JSON.stringify({ index, certificates, app })))
   }
 })
 
 const deps = (over: Partial<ReleaseCheckDeps> = {}): ReleaseCheckDeps => ({
-  pinned, sources: [SOURCE], floorPath, now: () => new Date(), channel: 'stable',
+  pinned, sources: [SOURCE], floorPath, now: () => new Date(), channel: 'stable', build: 'main', running: '2.2.0',
   fetch: (async (url, max) => { const b = files.get(url); return b && b.length <= max ? b : null }) as Fetcher,
   ...over,
 })
@@ -84,5 +85,38 @@ describe('an app update, before it installs', () => {
     expect(await verifyDownloadedApp(installer, '2.3.0', deps({ sources: [] }))).toEqual({ ok: false, reason: 'no_source' })
     expect(await verifyDownloadedApp(join(dir, 'missing.exe'), '2.3.0', deps())).toEqual({ ok: false, reason: 'unreadable' })
     expect(existsSync(floorPath)).toBe(true)
+  })
+
+  it('the same or an older version than the running one: refused, even when signed', async () => {
+    await publish(20)
+    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ running: '2.3.0' }))).toEqual({ ok: false, reason: 'not_newer' })
+    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ running: '2.10.0' }))).toEqual({ ok: false, reason: 'not_newer' })
+    expect(await verifyDownloadedApp(installer, 'not-a-version', deps())).toEqual({ ok: false, reason: 'not_newer' })
+  })
+
+  it("Riga's desktop installs a release signed for riga, and refuses main's", async () => {
+    await publish(21)
+    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ build: 'riga' }))).toEqual({ ok: false, reason: 'wrong_build' })
+    await publish(22, undefined, 'riga')
+    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ build: 'riga' })))
+      .toEqual({ ok: true, checked: true, schema: '125_mail_quota.sql' })
+    // and main's desktop refuses Riga's
+    await publish(23, undefined, 'riga')
+    expect(await verifyDownloadedApp(installer, '2.3.0', deps())).toEqual({ ok: false, reason: 'wrong_build' })
+  })
+})
+
+describe('which build, and where it reads its updates (docs/RELEASE.md)', () => {
+  it("only a plain id is a build; anything else is main's", () => {
+    expect(buildOf('riga')).toBe('riga')
+    expect(buildOf(undefined)).toBe('main')
+    expect(buildOf('')).toBe('main')
+    expect(buildOf('../riga')).toBe('main')
+  })
+
+  it("Riga's feed is the stable release of its own repository; main keeps package.json's", () => {
+    expect(feedUrlFor('riga')).toBe('https://github.com/SniperInSuit/wivo-riga-releases/releases/download/stable')
+    expect(feedUrlFor('main')).toBeNull()
+    expect(feedUrlFor('nobody')).toBeNull()
   })
 })

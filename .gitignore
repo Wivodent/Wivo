@@ -20,3 +20,6 @@ dist-mobile
 # Riga's temporary installer (docs/RIGA-TEMPORARY.md): its two public values, and its output
 riga.env
 dist-riga
+
+# Riga's signed releases (docs/RELEASE.md): built, signed and published from here
+release-riga
