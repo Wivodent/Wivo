@@ -61,9 +61,11 @@ const differences = async (d: PGlite, file = FILE): Promise<Diff[]> => (await d.
 
 describe('the schema check', () => {
   it('is current: what a database built from every migration has (else: WRITE_SCHEMA_CHECK=1)', () => {
-    expect(readFileSync(FILE, 'utf8')).toBe(check)
-    expect(readFileSync(TRIGGER_FILE, 'utf8')).toBe(triggerCheck)
-    expect(readFileSync(PRODUCTION_FILE, 'utf8')).toBe(productionCheck)
+    // A Windows checkout (core.autocrlf) has CRLF; the generated text has LF.
+    const lf = (f: string) => readFileSync(f, 'utf8').replace(/\r\n/g, '\n')
+    expect(lf(FILE)).toBe(check)
+    expect(lf(TRIGGER_FILE)).toBe(triggerCheck)
+    expect(lf(PRODUCTION_FILE)).toBe(productionCheck)
   })
 
   it('covers every kind it says it does', () => {

@@ -59,7 +59,7 @@ describe('no screen reads a client\'s details from the table', () => {
   it('every .from(\'customers\') .select(...) names only what a job shows', () => {
     const found: string[] = []
     for (const f of files(join(root, 'src/renderer/src'))) {
-      const name = relative(root, f)
+      const name = relative(root, f).replaceAll('\\', '/') // Windows paths too
       // The one exception: a database without sql/118 (fetchCustomers).
       if (name.endsWith('lib/customersRead.ts')) continue
       for (const m of readFileSync(f, 'utf8').matchAll(/\.from\('customers'\)([\s\S]{0,300}?)\.select\(([^)]*)\)/g)) {

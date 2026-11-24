@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { join } from 'node:path'
 import { APP_ALLOWED_HEADERS, callerVersionHeaders } from './appVersion'
 
@@ -12,7 +12,8 @@ const ROOT = execSync('git rev-parse --show-toplevel').toString().trim()
 
 /** The functions the app calls with supabase.functions.invoke(). */
 function invokedByTheApp(): string[] {
-  const out = execSync(`git grep -h -o "functions.invoke('[a-z-]*'" -- 'src/renderer/src'`, { cwd: ROOT }).toString()
+  // execFileSync, no shell: cmd.exe on Windows keeps single quotes in a pathspec and matches nothing.
+  const out = execFileSync('git', ['grep', '-h', '-o', "functions.invoke('[a-z-]*'", '--', 'src/renderer/src'], { cwd: ROOT }).toString()
   return [...new Set(out.trim().split('\n').map(l => /'([a-z-]+)'/.exec(l)![1]))].sort()
 }
 
