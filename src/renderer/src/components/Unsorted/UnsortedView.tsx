@@ -19,6 +19,7 @@ import { fileTypeLabel } from '../Files/JobFiles'
 import { describeError } from '../Patients/errors'
 import { usePermissions } from '../../hooks/usePermissions'
 import { t, dateLocale } from '@/lib/i18n'
+import { InfoButton } from '../ui/InfoButton'
 
 type Watched = { path: string; name: string; size: number; modifiedAt: number; key: string }
 
@@ -50,13 +51,14 @@ export function UnsortedView() {
       <div className="flex items-center gap-3">
         <Inbox size={18} className="text-accent" aria-hidden="true" />
         <h2 className="text-base font-semibold text-ink">{t('unsorted.unsorted')}</h2>
+        {/* What this page is, behind the "i": the name alone did not say it. */}
+        <InfoButton label={t('unsorted.unsorted')} text={t('unsorted.intro')} />
         <span className="ml-auto text-xs text-ink-muted truncate max-w-[40%]">{folder ?? t('unsorted.noFolder')}</span>
         <button type="button" onClick={async () => { await bridge.choose(); await refresh() }}
           className="btn-ghost text-xs border border-ink-faint/30 flex items-center gap-1">
           <FolderOpen size={12} aria-hidden="true" /> {folder ? t('unsorted.changeFolder') : t('unsorted.chooseFolder')}
         </button>
       </div>
-      <p className="text-xs text-ink-muted max-w-2xl">{t('unsorted.intro')}</p>
       {error && <p role="alert" className="text-sm text-rose-500">{error}</p>}
 
       {folder && files.length === 0 && <p className="text-sm text-ink-muted">{t('unsorted.nothingWaiting')}</p>}

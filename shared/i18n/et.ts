@@ -3273,7 +3273,7 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'unsorted.chooseFolder': "Vali skanneri kaust",
   'unsorted.changeFolder': "Muuda kausta",
   'unsorted.noFolder': "Kausta pole valitud",
-  'unsorted.unsorted': "Sorteerimata",
+  'unsorted.unsorted': "Skanneri failid",
   'unsorted.desktopOnly': "Skanneri kaust töötab töölauarakenduses.",
 
   // ── patientExport ─────────────────────────────────────────────────────────

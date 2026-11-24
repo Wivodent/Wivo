@@ -155,4 +155,5 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'setup.phonesIphone': "iPhone: откройте в Safari, нажмите «Поделиться», затем «На экран „Домой“».",
   'setup.phonesAndroid': "Android: откройте в Chrome, нажмите меню, затем «Установить приложение».",
   'setup.phonesNotify': "Откройте Wivo с главного экрана, войдите и включите уведомления, когда спросят.",
+  'unsorted.unsorted': "Файлы сканера",
 }

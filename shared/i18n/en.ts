@@ -3287,7 +3287,7 @@ export const en = {
   'unsorted.chooseFolder': "Choose the scanner folder",
   'unsorted.changeFolder': "Change folder",
   'unsorted.noFolder': "No folder chosen",
-  'unsorted.unsorted': "Unsorted",
+  'unsorted.unsorted': "Scanner files",
   'unsorted.desktopOnly': "The scanner folder works in the desktop app.",
 
   // ── patientExport ─────────────────────────────────────────────────────────
