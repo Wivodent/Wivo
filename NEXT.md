@@ -1,6 +1,6 @@
 # Mis edasi
 
-**Seis: v2.0.6 · 25.11.2026 · haru `testing` · commititud, pushimata**
+**Seis: v2.0.7 · 24.11.2026 · haru `testing` · commititud, pushimata**
 
 See fail kirjutatakse iga töö lõpus üle. Siin on alati see, mida ma viimases
 vestluses ütlesin — et uus arvuti või uus vestlus ei alustaks nullist.
@@ -10,6 +10,30 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 
 > **2.0 release work:** `docs/night-run/RUN-3.md` — production state,
 > open items (desktop release, dashboard settings, phone app, cleanup).
+
+---
+
+## 🔑 2.0.7: litsents jõuab uuendustega (pushimata)
+
+- **Mis:** `make-license.mjs sign|renew … --publish --clinic <id>` paneb
+  litsentsi kliiniku releaside juurde (`stable`, `licence.json`).
+  - Arvutid võtavad selle ~30 minuti jooksul.
+  - Omanik näeb teadet „Litsents uuendatud“.
+  - Kleepimine Seadetes jääb varuks.
+  - Kirjeldus: docs/RELEASE.md §7.
+- **Enne 2.0.7 ehitamist:** lisa `clinics/dentiks.json`-i `"orgId"`,
+  Dentiksi organisatsiooni UUID. Seaded → Litsents → Organisatsioon näitab
+  seda; see on ka litsentsi `--org`.
+  - Ilma selleta `--publish` keeldub.
+  - Ilma selleta ei võta ka uus, litsentsita arvuti litsentsi ise.
+- **Piirang:** rakendus võtab ainult **hilisema päeva** litsentsi. Sama päeva
+  parandus käib kleepimisega.
+- **Uus töö:** 15 uut tööliigi ikooni ja tsüaanid kaardid. Uus kliinik saab
+  vaikimisi tööliigid oma keeles.
+- **Wivo Network:** ainult plaan, `docs/WIVO-NETWORK.md`. Enne ehitamist
+  jurist.
+- **Admin-konsool:** „Make a new licence“ käsk lõpeb nüüd
+  `--publish --clinic <id>`-iga (`wivo-admin` commit `0f9ad98`).
 
 ---
 
@@ -25,7 +49,7 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
   4. Cloudflare Access GitHubiga;
   5. esimene sisselogimine.
 - **Plaan ja otsused:** `docs/ADMIN-CONSOLE.md` §8.
-- **Testid:** `npm test` konsooli kaustas, 43 testi. `npm run build` on puhas.
+- **Testid:** `npm test` konsooli kaustas, 45 testi. `npm run build` on puhas.
 
 ---
 
