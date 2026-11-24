@@ -1,5 +1,29 @@
 # Changelog
 
+## [2.1.0] — 2026-11-25
+
+**Settings as tiles, the redesigned job, price and payroll screens, Latvian payroll**
+
+"What's new": release-notes/2.1.0. Built from Kevin's designs (docs/design,
+not in the repo); details and every commit: docs/NIGHT-REPORT-2026-11-25.md.
+
+- **Fixes:** fields in Prices (Our cost, volume price) and Clinic details no
+  longer lose the focus after each letter; buttons and Settings groups of
+  modules outside the licence are hidden; no developer text in Prices; the
+  invoice e-mail's default letter in the clinic's language; no Estonian or
+  Estonian sample values in another country's clinic.
+- **Latvian payroll estimate** from one rules file (shared/payroll/countryTax.ts);
+  Estonia unchanged.
+- **New job:** Production and Patient & order rebuilt as sections.
+- **Settings:** a home page of tiles, "Set up your clinic", Prices, Job stages
+  and Taxes rebuilt; "Request a feature" by e-mail (`VITE_WIVO_CONTACT_EMAIL`).
+- **Payroll:** a person's summary and pay button first, the rest folded.
+- One icon set (lucide) instead of emoji.
+
+**Database:** sql/127_profile_latvian_tax.sql (Latvian dependents and
+pensioner). The app works without it: those two read as 0 and no, and saving
+them says it is not available yet.
+
 ## [2.0.4] — 2026-11-03
 
 **Chat attachments open in the viewer, and Wivo asks in its own words**
