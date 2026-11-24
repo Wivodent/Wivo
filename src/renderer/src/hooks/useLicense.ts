@@ -26,6 +26,7 @@ interface WivoLicenceBridge {
   licenseInstall?: (token: string) => Promise<LicenceStatus>
   licenseEnforced?: () => Promise<boolean>
   licenseModules?: () => Promise<string[]>
+  onLicenceUpdated?: (cb: (change: unknown) => void) => () => void
 }
 
 const bridge = (): WivoLicenceBridge | null =>
@@ -70,6 +71,10 @@ export function useLicense() {
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [refresh])
+
+  // A licence that arrived with the updates (main/licenceDelivery.ts): the
+  // modules and the dates change without anyone touching Settings.
+  useEffect(() => bridge()?.onLicenceUpdated?.(() => { void refresh() }), [refresh])
 
   const install = useCallback(async (token: string): Promise<LicenceStatus> => {
     const w = bridge()

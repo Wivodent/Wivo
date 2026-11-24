@@ -5,6 +5,7 @@ import { AnimatePresence } from 'framer-motion'
 import { TopBar } from './components/TopBar'
 import { Sidebar } from './components/Sidebar'
 import { LicenseBanner } from './components/LicenseBanner'
+import { LicenceUpdatedBanner } from './components/LicenceUpdatedBanner'
 import { UpdateStaleBanner } from './components/UpdateStaleBanner'
 import { DatabaseUpdateBanner } from './components/DatabaseUpdateBanner'
 import { ProfileProblemBanner } from './components/ProfileProblemBanner'
@@ -391,6 +392,7 @@ function AppContent() {
         />
 
         <LicenseBanner onOpenSettings={() => setView('settings')} />
+        <LicenceUpdatedBanner onOpenSettings={() => setView('settings')} />
         <UpdateStaleBanner />
         <DatabaseUpdateBanner />
         <ProfileProblemBanner />

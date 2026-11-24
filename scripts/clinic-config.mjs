@@ -22,7 +22,10 @@ export const MAIN_REPO = 'SniperInSuit/Wivo'
 /** The release in a clinic's repository that holds its installer, latest.yml and updates.json. */
 export const RELEASE_TAG = 'stable'
 
-export const CLINIC_FIELDS = ['id', 'name', 'releasesRepo', 'phoneUrl', 'supabaseRef', 'cloudflareProject', 'phoneBranch']
+export const CLINIC_FIELDS = ['id', 'name', 'releasesRepo', 'phoneUrl', 'supabaseRef', 'cloudflareProject', 'phoneBranch', 'orgId']
+
+/** A UUID, as make-license.mjs --org takes it. */
+export const isUuid = v => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
 
 /** A clinic id: what shared/release isBuildId accepts, and never main's. */
 export const isClinicId = v => typeof v === 'string' && /^[a-z][a-z0-9-]{0,30}$/.test(v) && v !== 'main'
@@ -75,6 +78,11 @@ export function parseClinic(text, id) {
   const branch = str('phoneBranch')
   if (!/^[a-z][a-z0-9-]{0,30}$/.test(branch)) problems.push('phoneBranch must be a branch name (lowercase letters, digits and -)')
   else if (branch === 'main' || branch === 'testing') problems.push(`phoneBranch may not be ${branch}: the clinic's phone app follows a branch of its own`)
+
+  // Optional: the organisation a licence for this clinic names (make-license.mjs --org).
+  // A delivered licence must name it (shared/license/published), and
+  // make-license.mjs --publish needs it.
+  if (c.orgId !== undefined && !isUuid(c.orgId)) problems.push('orgId must be the UUID of the organisation (Settings → Licence → Organisation)')
 
   if (problems.length) return { clinic: null, problems }
   return {

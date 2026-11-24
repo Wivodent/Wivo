@@ -92,6 +92,7 @@ if (!existsSync(envPath)) fail(`${envName} is missing: one line, VITE_SUPABASE_A
 const clinicEnv = parseClinicEnv(readFileSync(envPath, 'utf8'), clinic)
 if (clinicEnv.problems.length) fail(`${envName}:\n  ${clinicEnv.problems.join('\n  ')}`)
 console.log(`${clinic.name}: project ${clinic.supabaseRef} · phone ${clinic.phoneUrl} · updates ${FEED} · commit ${commit}`)
+if (!clinic.orgId) console.log(`Note: clinics/${clinic.id}.json has no orgId, so a machine with no licence yet takes no licence from the updates (docs/RELEASE.md §7).`)
 
 // 3. the build, with a clean environment
 const env = {}
@@ -108,6 +109,9 @@ Object.assign(env, {
   // installs only a release signed for its id (docs/RELEASE.md, src/main/releaseCheck.ts)
   MAIN_VITE_WIVO_BUILD: clinic.id,
   MAIN_VITE_WIVO_RELEASES_REPO: clinic.releasesRepo,
+  // A licence delivered with the updates must name these (src/main/licenceDelivery.ts)
+  MAIN_VITE_WIVO_API: clinic.supabaseUrl,
+  MAIN_VITE_WIVO_ORG: clinic.orgId ?? '',
   MAIN_VITE_SENTRY_DSN: '', // a clinic's errors do not go to a project of Tallinn's
   WIVO_CLINIC: clinic.id, // for scripts/electron-builder.clinic.cjs
   CSC_IDENTITY_AUTO_DISCOVERY: 'false',

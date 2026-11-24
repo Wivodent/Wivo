@@ -15,10 +15,10 @@
  */
 import { afterAll, describe, expect, it } from 'vitest'
 import { execFileSync } from 'node:child_process'
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createPublicKey, verify as nodeVerify } from 'node:crypto'
+import { createPrivateKey, createPublicKey, sign as nodeSign, verify as nodeVerify } from 'node:crypto'
 import {
   MODULE_KEYS, b64urlDecode, licenceAllowsApi, licenceApiOrigins, licenceModules,
   parseToken, signingInput,
@@ -338,5 +338,139 @@ writeFileSync(outFile, JSON.stringify({ signed: [{ id: s.id, signature_hex: sig.
     }
     for (const m of tool.matchAll(/pub: '([0-9a-f]{64})'/g)) expect(app).toContain(m[1])
     expect([...tool.matchAll(/pub: '([0-9a-f]{64})'/g)]).toHaveLength(2)
+  })
+})
+
+/**
+ * --publish --clinic <id>: the licence into the clinic's releases, where its
+ * desktops take it (scripts/publish-licence.mjs, docs/RELEASE.md §7). A
+ * stand-in gh (WIVO_GH) "uploads" into a folder that plays the public address
+ * (WIVO_RELEASE_FEED_DIR); the clinic comes from a test clinics/ folder
+ * (WIVO_CLINIC_ROOT) whose dentiks.json carries an orgId. The judging is the
+ * app's own (shared/license/published).
+ */
+describe('publishing a licence to a clinic', () => {
+  const DENTIKS_API = 'https://fwsrnsdrlrlmjfkkkhvp.supabase.co'
+  const pubDir = mkdtempSync(join(tmpdir(), 'wivo-licence-publish-'))
+  const FEED = join(pubDir, 'feed')
+  const CLINICS = join(pubDir, 'root')
+  const RELEASES = join(pubDir, 'releases')
+  const GH_LOG = join(pubDir, 'gh.log')
+  const FAKE_YK = join(pubDir, 'fake-ykman.mjs')
+  const FAKE_GH = join(pubDir, 'fake-gh.mjs')
+  const SEEN = join(pubDir, 'seen')
+  afterAll(() => { rmSync(pubDir, { recursive: true, force: true }) })
+
+  mkdirSync(FEED, { recursive: true })
+  mkdirSync(join(CLINICS, 'clinics'), { recursive: true })
+  const clinicFile = (extra: object) => writeFileSync(join(CLINICS, 'clinics', 'dentiks.json'), JSON.stringify({
+    id: 'dentiks', name: 'Dentiks', releasesRepo: 'SniperInSuit/wivo-dentiks-releases', phoneUrl: 'https://wivo.dentiks.lv',
+    supabaseRef: 'fwsrnsdrlrlmjfkkkhvp', cloudflareProject: 'wivo-dentiks', phoneBranch: 'riga', ...extra,
+  }))
+  writeFileSync(FAKE_YK, [
+    "import { readFileSync, writeFileSync } from 'node:fs'",
+    "import { createPrivateKey, sign } from 'node:crypto'",
+    'const [, , , , , , , inFile, outFile] = process.argv',
+    "const s = JSON.parse(readFileSync(inFile, 'utf8')).statements[0]",
+    "writeFileSync(process.env.FAKE_SEEN, 'signed')",
+    "writeFileSync(outFile, JSON.stringify({ signed: [{ id: s.id, signature_hex: sign(null, Buffer.from(s.hex, 'hex'), createPrivateKey(readFileSync(process.env.FAKE_KEY))).toString('hex') }] }))",
+  ].join('\n'))
+  writeFileSync(FAKE_GH, [
+    "import { appendFileSync, copyFileSync } from 'node:fs'",
+    "import { basename, join } from 'node:path'",
+    'const a = process.argv.slice(2)',
+    "appendFileSync(process.env.GH_LOG, JSON.stringify(a) + '\\n')",
+    "if (a[0] === '--version') process.exit(0)",
+    "if (a[0] === 'release' && a[1] === 'view') process.exit(process.env.FAKE_NO_RELEASE ? 1 : 0)",
+    "if (a[0] === 'release' && a[1] === 'upload') { copyFileSync(a[3], join(process.env.WIVO_RELEASE_FEED_DIR, basename(a[3]))); process.exit(0) }",
+    'process.exit(3)',
+  ].join('\n'))
+
+  const env = (extra: Record<string, string> = {}) => ({
+    ...process.env, WIVO_YKMAN: FAKE_YK, FAKE_KEY: KEY, FAKE_SEEN: SEEN, WIVO_YUBIKEY_PUBLIC_FOR_TEST: PUBLIC_HEX,
+    WIVO_GH: FAKE_GH, GH_LOG, WIVO_RELEASE_FEED_DIR: FEED, WIVO_CLINIC_ROOT: CLINICS, WIVO_RELEASE_ROOT: RELEASES, ...extra,
+  })
+  const tool = (args: string[], e = env()) => execFileSync('node', [SCRIPT, ...args], { encoding: 'utf8', env: e, stdio: ['ignore', 'pipe', 'pipe'] })
+  const publish = (extra: string[] = [], e = env(), org = ORG) => tool(['sign', '--org', org, '--name', 'Dentiks',
+    '--api', DENTIKS_API, '--modules', 'jobs,stock', '--quiet', '--publish', '--clinic', 'dentiks', ...extra], e)
+  const refused = (fn: () => unknown): { said: string; stdout: string } => {
+    try { fn() } catch (e) {
+      const err = e as { status?: number; stdout?: string; stderr?: string }
+      expect(err.status).not.toBe(0)
+      return { said: String(err.stdout ?? '') + String(err.stderr ?? ''), stdout: String(err.stdout ?? '') }
+    }
+    throw new Error('it was published')
+  }
+  const published = () => JSON.parse(readFileSync(join(FEED, 'licence.json'), 'utf8'))
+  const reset = (extra: object) => {
+    for (const f of [join(FEED, 'licence.json'), SEEN, GH_LOG]) rmSync(f, { force: true })
+    clinicFile(extra)
+  }
+
+  /** A token signed with the test key, as if published earlier. */
+  const crafted = (p: object): string => {
+    const b64 = Buffer.from(JSON.stringify(p)).toString('base64url')
+    const sig = nodeSign(null, Buffer.from(signingInput(b64, 2)), createPrivateKey(readFileSync(KEY)))
+    return `WIVO1.${b64}.${Buffer.from(sig).toString('base64url')}`
+  }
+
+  it('without an orgId in clinics/<id>.json: refused before the key is asked', () => {
+    reset({})
+    expect(refused(() => publish()).said).toMatch(/has no orgId/)
+    expect(existsSync(SEEN)).toBe(false)
+  })
+
+  it('another organisation, or not this clinic\'s database: refused before the key is asked', () => {
+    reset({ orgId: ORG })
+    expect(refused(() => publish([], env(), '00000000-0000-4000-8000-000000000001')).said).toMatch(/is not Dentiks's organisation/)
+    expect(refused(() => tool(['sign', '--org', ORG, '--name', 'D', '--api', API, '--modules', 'jobs', '--publish', '--clinic', 'dentiks'])).said)
+      .toMatch(/does not name Dentiks's database/)
+    expect(existsSync(SEEN)).toBe(false)
+  })
+
+  it('a file key, --publish without a clinic, --clinic without --publish: refused', () => {
+    expect(refused(() => publish(['--key', KEY])).said).toMatch(/needs a YubiKey signature/)
+    expect(refused(() => tool(['sign', '--org', ORG, '--name', 'D', '--api', API, '--modules', 'jobs', '--publish'])).said).toMatch(/--publish needs the clinic/)
+    expect(refused(() => tool(['sign', '--org', ORG, '--name', 'D', '--api', API, '--modules', 'jobs', '--key', KEY, '--clinic', 'dentiks'])).said).toMatch(/goes with --publish/)
+  })
+
+  it('the right one: signed, judged, uploaded to the stable release, read back', () => {
+    reset({ orgId: ORG })
+    const token = publish().trim()
+    expect(token).toMatch(/^WIVO1\.[^\s]+$/)
+    expect(verifies(token, 2)).toBe(true)
+    expect(published()).toEqual({ v: 1, clinic: 'dentiks', token })
+    expect(readFileSync(join(RELEASES, 'licence', 'licence.json'), 'utf8')).toBe(readFileSync(join(FEED, 'licence.json'), 'utf8'))
+    const gh = readFileSync(GH_LOG, 'utf8').trim().split('\n').map(l => JSON.parse(l))
+    expect(gh.pop()).toEqual(['release', 'upload', 'stable', join(RELEASES, 'licence', 'licence.json'), '--repo', 'SniperInSuit/wivo-dentiks-releases', '--clobber'])
+  })
+
+  it('renew publishes too, keeping the organisation and address', () => {
+    reset({ orgId: ORG })
+    const old = crafted({ v: 2, name: 'Dentiks', plan: 'labor', seats: 5, iat: '2020-01-01', exp: '2021-01-01', org: ORG, api: [DENTIKS_API], modules: ['jobs'] })
+    const token = tool(['renew', old, '--months', '12', '--quiet', '--publish', '--clinic', 'dentiks']).trim()
+    expect(published().token).toBe(token)
+  })
+
+  it('a second one on the same day, or after a later one: refused, the published one stays', () => {
+    reset({ orgId: ORG })
+    publish()
+    const first = published()
+    // The same terms sign to the same token (Ed25519 is deterministic): already there.
+    expect(publish().trim()).toBe(first.token)
+    expect(refused(() => publish(['--seats', '9'])).said).toMatch(/not_newer/)
+    expect(published()).toEqual(first)
+
+    const later = crafted({ v: 2, name: 'Dentiks', plan: 'labor', seats: 5, iat: '2099-01-01', exp: '2100-01-01', org: ORG, api: [DENTIKS_API], modules: ['jobs'] })
+    writeFileSync(join(FEED, 'licence.json'), JSON.stringify({ v: 1, clinic: 'dentiks', token: later }))
+    expect(refused(() => publish()).said).toMatch(/issued 2099-01-01/)
+  })
+
+  it('no stable release in the repository yet: not uploaded, and the token is still printed', () => {
+    reset({ orgId: ORG })
+    const r = refused(() => publish([], env({ FAKE_NO_RELEASE: '1' })))
+    expect(r.said).toMatch(/has no release "stable" yet/)
+    expect(r.stdout).toMatch(/^WIVO1\./)
+    expect(existsSync(join(FEED, 'licence.json'))).toBe(false)
   })
 })

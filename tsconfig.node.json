@@ -10,6 +10,6 @@
   },
   "include": [
     "electron.vite.config.*", "config/testCopyEnv.ts", "src/main/**/*", "src/preload/**/*", "src/types/**/*",
-    "shared/license/token.ts", "shared/privacy/scrub.ts", "shared/release/release.ts"
+    "shared/license/token.ts", "shared/license/published.ts", "shared/privacy/scrub.ts", "shared/release/release.ts"
   ]
 }

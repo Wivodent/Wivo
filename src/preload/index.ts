@@ -77,6 +77,11 @@ const wivoAPI = {
   licenseEnforced: (): Promise<boolean> => ipcRenderer.invoke('wivo:license-enforced'),
   /** The modules this clinic's licence allows (docs/MODULES-AND-RATINGS.md). */
   licenseModules: (): Promise<string[]> => ipcRenderer.invoke('wivo:license-modules'),
+  /** A licence that arrived with the updates and the owner has not seen yet, or null (main/licenceDelivery.ts). */
+  licenceChange: (): Promise<unknown> => ipcRenderer.invoke('wivo:licence-change'),
+  licenceChangeSeen: (): Promise<void> => ipcRenderer.invoke('wivo:licence-change-seen'),
+  /** Called when a delivered licence has just been installed. */
+  onLicenceUpdated: (cb: (change: unknown) => void): (() => void) => subscribe<unknown>('wivo:licence-updated', cb),
   /**
    * The API addresses the licence allows, SYNCHRONOUSLY. Empty = no limit.
    *

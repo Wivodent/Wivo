@@ -13,13 +13,14 @@
  * bar for a business tool.
  */
 import { app } from 'electron'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'fs'
 import { join, dirname } from 'path'
 import { verify as nodeVerify, createPublicKey } from 'crypto'
 import {
   licenceApiOrigins, licenceModules, licenceStatus, parseToken, signingInput,
   type LicenceModule, type LicencePayload, type LicenceStatus,
 } from '../../shared/license/token'
+import { parseLicenceChange, type LicenceChange } from '../../shared/license/published'
 
 /**
  * The raw 32-byte Ed25519 public keys, hex, that may sign a licence.
@@ -156,6 +157,50 @@ export function installLicence(token: string): LicenceStatus {
   mkdirSync(dirname(p), { recursive: true })
   writeFileSync(p, trimmed, 'utf-8')
   return currentLicence()
+}
+
+/**
+ * The installed licence when it is valid (signed by a pinned key), with its
+ * token: what a delivered licence is compared with (licenceDelivery.ts).
+ */
+export function installedLicence(): { token: string; payload: LicencePayload } | null {
+  const token = readLicenceToken()
+  const payload = verifiedPayload(token)
+  return token && payload ? { token, payload } : null
+}
+
+/** The app's signature check, for a delivered licence (shared/license/published). */
+export const verifyLicenceToken = (token: string): LicencePayload | null => verifiedPayload(token.trim())
+
+// ─── A licence that arrived with the updates (licenceDelivery.ts) ────────────
+// What changed is kept in a file until the owner has seen it: a technician's
+// machine may take the licence at night, and the owner opens it next week.
+
+const changePath = (): string => join(app.getPath('userData'), 'licence-change.json')
+
+export function recordLicenceChange(change: LicenceChange): void {
+  try {
+    writeFileSync(changePath(), JSON.stringify(change, null, 2), 'utf-8')
+  } catch {
+    // The notice is a courtesy; the licence is installed either way.
+  }
+}
+
+/** The change the owner has not seen yet, or null. */
+export function pendingLicenceChange(): LicenceChange | null {
+  try {
+    return existsSync(changePath()) ? parseLicenceChange(JSON.parse(readFileSync(changePath(), 'utf-8'))) : null
+  } catch {
+    return null
+  }
+}
+
+export function clearLicenceChange(): void {
+  try {
+    rmSync(changePath(), { force: true })
+  } catch {
+    // A notice shown twice is harmless.
+  }
 }
 
 /** Whether this build enforces licensing at all. Shown in Seaded. */

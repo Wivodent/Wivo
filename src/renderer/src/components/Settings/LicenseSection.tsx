@@ -8,19 +8,8 @@ import {
 } from '@shared/license/token'
 import { useLicense } from '../../hooks/useLicense'
 import { apiUrl } from '../../lib/supabase'
+import { MODULE_LABEL } from '../../lib/licenceChange'
 import { t } from '@/lib/i18n'
-
-/** The modules, in the order a clinic buys them (docs/ROADMAP.md). */
-const MODULE_LABEL: Record<LicenceModule, () => string> = {
-  jobs:     () => t('settings.moduleJobs'),
-  payroll:  () => t('settings.modulePayroll'),
-  stock:    () => t('settings.moduleStock'),
-  invoices: () => t('settings.moduleInvoices'),
-  patients: () => t('settings.modulePatients'),
-  stats:    () => t('settings.moduleStats'),
-  partners: () => t('settings.modulePartners'),
-  ratings:  () => t('settings.moduleRatings'),
-}
 
 export function LicenseSection() {
   const { status, enforced, loading, install, modules } = useLicense()

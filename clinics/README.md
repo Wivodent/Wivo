@@ -19,6 +19,7 @@ Names follow the clinic, never the country or the city.
 | `supabaseRef` | The clinic's own Supabase project. Never production's or the test copy's. | `fwsrnsdrlrlmjfkkkhvp` |
 | `cloudflareProject` | The Cloudflare Pages project of the phone app. | `wivo-dentiks` |
 | `phoneBranch` | The git branch that project builds. It only ever points at a commit already on `testing`. Never `main` or `testing`. | `riga` |
+| `orgId` | Optional. The clinic's organisation UUID, the `--org` of its licence (Settings → Licence → Organisation). A licence delivered with the updates must name it (docs/RELEASE.md §7), and `make-license.mjs --publish` needs it. | *(Kevin adds it)* |
 
 `scripts/clinicBuild.test.ts` checks every file here.
 

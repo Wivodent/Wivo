@@ -158,7 +158,46 @@ npm run release:publish -- --clinic dentiks --refresh
 
 `--days N` signs a shorter list.
 
-## 7. Files
+## 7. A licence, with the updates
+
+From 2.0.7 a clinic's desktops take a new licence from the clinic's own
+releases. Nobody pastes it. YubiKey C signs it, the same tool publishes it:
+
+```
+node scripts/make-license.mjs renew WIVO1.… --months 12 --publish --clinic dentiks
+node scripts/make-license.mjs sign --org <uuid> --name "Dentiks" --api https://<ref>.supabase.co --modules … --months 12 --publish --clinic dentiks
+```
+
+The tool checks before the key is asked to sign:
+- `clinics/<id>.json` has the clinic's `orgId`;
+- `--org` is that organisation;
+- `--api` names the clinic's database.
+
+After signing, it judges the token with the app's own rules
+(`shared/license/published.ts`). Then it uploads `licence.json` to the
+`stable` release and reads it back from the public address. The token is
+printed either way, so pasting stays possible.
+
+Each desktop checks `licence.json` with every update check: 30 seconds after
+start, every 30 minutes, and on "Check now". It installs the licence only when
+all of these hold:
+- the file names this clinic's build;
+- a pinned licence key (C or D) signed it;
+- it is a v2 key;
+- its organisation is the clinic's: the build's `orgId`, else the installed
+  licence's;
+- it names the address the app uses;
+- it was **issued on a later day** than the licence installed now.
+
+Anything else is refused. The machine keeps its licence, and `updater.log`
+says why. The owner then sees **"Licence updated"** with what changed: modules,
+users, expiry, plan. A licence fixed on the same day goes by pasting in Settings
+→ Licence, which stays the fallback.
+
+The licence is a public signed statement, like the release list. Nothing secret
+is in `licence.json`.
+
+## 8. Files
 
 | Where | What |
 |---|---|
@@ -167,3 +206,4 @@ npm run release:publish -- --clinic dentiks --refresh
 | `dist-<id>/` | the installer the build made (not tracked) |
 | `releases/<id>/<version>/` | the installer, `latest.yml`, `release.json`, then the signed `updates.json` (not tracked) |
 | `releases/<id>/refresh/` | a re-signed list |
+| `releases/<id>/licence/licence.json` | the last licence published with `--publish` (not tracked) |

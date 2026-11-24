@@ -39,6 +39,7 @@ import { join } from 'path'
 import type { UpdateInfo, UpdateState, UpdaterSplashState } from '../types/update'
 import { BUILD, CLINIC_SOURCE, SOURCES, feedUrlFor, releaseCheckDeps, verifyDownloadedApp } from './releaseCheck'
 import { PINNED_ROOTS } from '../../shared/release/release'
+import { checkDeliveredLicence } from './licenceDelivery'
 
 /**
  * Test mode (`npm run dev:test`) never checks, downloads or installs a
@@ -426,12 +427,23 @@ function runInstall(from: string, to: string): Promise<boolean> {
   })
 }
 
+// ── The licence, delivered with the updates (licenceDelivery.ts) ─────────────
+/** Checked with every update check; a new licence is announced to the window. */
+function checkLicence(): void {
+  void checkDeliveredLicence(log, change => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('wivo:licence-updated', change)
+  }).catch(err => log('ERROR', 'licence check failed', err))
+}
+
 // ── Background checking during the session ───────────────────────────────────
 export function wireUpdater(): void {
   if (TEST_MODE) {
     log('INFO', 'test mode: no update checks')
     return
   }
+  // Before the updater's own guard: the licence does not depend on it.
+  setTimeout(checkLicence, FIRST_CHECK_MS)
+  setInterval(checkLicence, EVERY_MS)
   configure()
   if (!autoUpdater.isUpdaterActive()) {
     log('INFO', 'updater inactive (not packaged) — background checks skipped')
@@ -513,6 +525,7 @@ export function registerUpdaterIpc(): void {
 
   ipcMain.handle('wivo:check-now', async () => {
     if (TEST_MODE) return
+    checkLicence()
     if (!autoUpdater.isUpdaterActive()) {
       pushState({
         stage: 'failed', code: 'devBuild',

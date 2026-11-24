@@ -8,7 +8,8 @@ import {
   setMainWindow, closeSplash, isInstalling,
 } from './updater'
 import {
-  currentLicence, installLicence, licensedApiOrigins, licensedModules, licensingEnforced,
+  clearLicenceChange, currentLicence, installLicence, licensedApiOrigins, licensedModules, licensingEnforced,
+  pendingLicenceChange,
 } from './license'
 import { registerWatchFolder } from './watchFolder'
 import { trackDownloads, mainBusy } from './busy'
@@ -184,6 +185,9 @@ app.whenReady().then(async () => {
   ipcMain.handle('wivo:license-install', (_e, token: string) => installLicence(token))
   ipcMain.handle('wivo:license-enforced', () => licensingEnforced())
   ipcMain.handle('wivo:license-modules', () => licensedModules())
+  // A licence that arrived with the updates, until the owner has seen it (licenceDelivery.ts).
+  ipcMain.handle('wivo:licence-change', () => pendingLicenceChange())
+  ipcMain.handle('wivo:licence-change-seen', () => clearLicenceChange())
   /**
    * SYNCHRONOUS, and the only sendSync in the app.
    *

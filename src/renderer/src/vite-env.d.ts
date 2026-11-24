@@ -56,6 +56,10 @@ interface Window {
      */
     licenseModules?: () => Promise<string[]>
     licensedApi?: () => string[]
+    /** A licence delivered with the updates, until the owner has seen it (main/licenceDelivery.ts). From 2.0.7. */
+    licenceChange?: () => Promise<unknown>
+    licenceChangeSeen?: () => Promise<void>
+    onLicenceUpdated?: (cb: (change: unknown) => void) => () => void
     htmlToPdf?: (html: string) => Promise<Uint8Array>
     readSound?: (file: string) => Promise<ArrayBuffer | null>
     // The scanner export folder — src/main/watchFolder.ts.

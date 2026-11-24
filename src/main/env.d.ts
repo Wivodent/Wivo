@@ -12,4 +12,11 @@ interface ImportMetaEnv {
   readonly MAIN_VITE_WIVO_BUILD?: string
   /** A clinic's build: its releases repository (`owner/name`), where its updates come from. */
   readonly MAIN_VITE_WIVO_RELEASES_REPO?: string
+  /**
+   * A clinic's build: its organisation (clinics/<id>.json orgId), the one a
+   * licence delivered with the updates must name (licenceDelivery.ts).
+   */
+  readonly MAIN_VITE_WIVO_ORG?: string
+  /** A clinic's build: its database address, the one a delivered licence must name. */
+  readonly MAIN_VITE_WIVO_API?: string
 }

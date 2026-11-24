@@ -17,6 +17,12 @@
  *
  * SIGN prints a token to paste into the customer's app, or to put on a stick.
  *
+ * `--publish --clinic <id>` (with sign or renew) also puts it in the clinic's
+ * own releases as licence.json, where its desktops take it at their next
+ * update check (scripts/publish-licence.mjs, docs/RELEASE.md §7). Only a
+ * YubiKey-signed licence for that clinic's organisation and database is
+ * published, and only after the app's own rules accept it.
+ *
  * ── WHO SIGNS ───────────────────────────────────────────────────────────────
  * By default YubiKey C (PIV slot 83, `licence-C-217c4193`): the PIN once and a
  * touch, through scripts/yubikey/setup-device.py `sign`, so the private key
@@ -186,7 +192,45 @@ function signOnYubikey(letter, message) {
   }
 }
 
-/** Issue a token from a payload built by sign() or renew(). `signer` is { key } or { yubikey }. */
+/**
+ * Whether a token is signed by a pinned licence key (C or D), as the app
+ * checks it: its payload, or null. In the tests, with a stand-in ykman, the
+ * test key counts instead.
+ */
+function verifyPinned(token) {
+  const parts = token.trim().split('.')
+  if (parts.length !== 3 || parts[0] !== 'WIVO1') return null
+  let payload
+  try { payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) } catch { return null }
+  const test = process.env.WIVO_YKMAN && process.env.WIVO_YUBIKEY_PUBLIC_FOR_TEST
+  const keys = test ? [test] : Object.values(YUBIKEYS).map(k => k.pub)
+  const sig = Buffer.from(parts[2], 'base64url')
+  const message = signedBytes(parts[1], payload?.v)
+  return keys.some(hex => { try { return nodeVerify(null, message, rawToPublicKey(hex), sig) } catch { return false } }) ? payload : null
+}
+
+/** --publish --clinic <id>: the clinic, or undefined. Refused before anything is signed. */
+function publishTarget(args) {
+  if (!args.includes('--publish')) {
+    if (args.includes('--clinic')) die('--clinic goes with --publish: make-license.mjs sign … --publish --clinic <id>')
+    return undefined
+  }
+  const id = flag(args, '--clinic')
+  if (!id) die('--publish needs the clinic: --publish --clinic <id> (clinics/<id>.json)')
+  if (flag(args, '--key') !== undefined) die('--publish needs a YubiKey signature: a FILE key is refused by every installed app.')
+  return id
+}
+
+/** Issue the token, and publish it when asked (after the clinic is checked, before the key is touched). */
+async function issueAndPublish(payload, args) {
+  const target = publishTarget(args)
+  const pub = target ? await import('./publish-licence.mjs') : null
+  const clinic = pub ? pub.checkBeforeSigning(root, target, payload) : null
+  const token = issue(payload, signerFrom(args), args.includes('--quiet'))
+  if (pub) await pub.publishLicence({ root, clinic, token, verify: verifyPinned })
+}
+
+/** Issue a token from a payload built by sign() or renew(). `signer` is { key } or { yubikey }. Returns it. */
 function issue(payload, signer, quiet) {
   const payloadB64 = b64url(Buffer.from(JSON.stringify(payload), 'utf8'))
   const message = signedBytes(payloadB64, payload.v)
@@ -218,6 +262,7 @@ function issue(payload, signer, quiet) {
   }
   console.log(token)
   if (!quiet) console.log('')
+  return token
 }
 
 /** `--key <pem>` is a file key; otherwise a YubiKey: C, or `--yubikey D`. */
@@ -258,7 +303,7 @@ function basePayload(args, old) {
   return { name, plan, seats, iat: iso(today), exp: iso(exp), months }
 }
 
-function sign(args) {
+async function sign(args) {
   const base = basePayload(args)
   const org = flag(args, '--org')
   if (!org) {
@@ -295,10 +340,10 @@ function sign(args) {
       + 'A key that promises a page which cannot work is worse than a missing module.')
   }
 
-  issue({
+  await issueAndPublish({
     v: 2, name: base.name, plan: base.plan, seats: base.seats,
     iat: base.iat, exp: base.exp, org, api, modules,
-  }, signerFrom(args), args.includes('--quiet'))
+  }, args)
 }
 
 /**
@@ -307,7 +352,7 @@ function sign(args) {
  * The whole point is that renewing cannot narrow a licence by accident. Typing
  * the module list again every year is how a clinic loses Stock in January.
  */
-function renew(args) {
+async function renew(args) {
   const token = args.find(a => a.startsWith('WIVO1.'))
   if (!token) die('renew needs the old token: make-license.mjs renew WIVO1.… --months 12')
   const parts = token.trim().split('.')
@@ -328,7 +373,7 @@ function renew(args) {
     // A v1 key renewed stays v1 and keeps meaning "everything": turning it
     // into a v2 key here would have to invent an org and an address.
     : { v: 1, name: base.name, plan: base.plan, seats: base.seats, iat: base.iat, exp: base.exp }
-  issue(payload, signerFrom(args), args.includes('--quiet'))
+  await issueAndPublish(payload, args)
 }
 
 /** Check a token against a public key, the way the app does. */
@@ -356,8 +401,8 @@ function verify(args) {
 
 const [cmd, ...rest] = process.argv.slice(2)
 if (cmd === 'keygen') keygen(rest)
-else if (cmd === 'sign') sign(rest)
-else if (cmd === 'renew') renew(rest)
+else if (cmd === 'sign') await sign(rest)
+else if (cmd === 'renew') await renew(rest)
 else if (cmd === 'verify') verify(rest)
 else {
   console.log('Usage:')
@@ -367,7 +412,9 @@ else {
   console.log('        [--months 12] [--seats 5|unlimited] [--quiet]')
   console.log('        signed by YubiKey C (PIN, touch); [--yubikey D] for the spare,')
   console.log('        or [--key <pem>] for a FILE key (development and testing only)')
-  console.log('  node scripts/make-license.mjs renew WIVO1.… [--months 12] [--yubikey D|--key <pem>]')
+  console.log('        [--publish --clinic <id>]: also into the clinic releases (licence.json),')
+  console.log('        where its desktops take it within 30 minutes')
+  console.log('  node scripts/make-license.mjs renew WIVO1.… [--months 12] [--yubikey D|--key <pem>] [--publish --clinic <id>]')
   console.log('  node scripts/make-license.mjs verify WIVO1.… --public <hex|file>')
   console.log('')
   console.log(`  modules: ${MODULES.join(', ')}`)

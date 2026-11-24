@@ -188,11 +188,24 @@ node scripts/make-license.mjs sign \
 
 ## 1.9 Kuidas uuendatud litsents kliinikuni jõuab
 
-**Praegu ainult kleepimine.** Seaded → Litsents, `installLicence` on olemas.
-Võti on tekst, mahub e-kirja ja sõnumisse.
+**2.0.7-st: uuendustega, automaatselt.** Kaks sammu:
+1. `make-license.mjs … --publish --clinic <id>` paneb allkirjastatud litsentsi
+   kliiniku enda releaside juurde (`stable`, fail `licence.json`).
+2. Iga arvuti võtab selle järgmisel uuenduste kontrollil, umbes 30 minuti
+   jooksul.
 
-**Tõmbamine tuleb hiljem ja siis sama kanali kaudu nagu uuendused**, mitte
-eraldi URL-ina.
+Rakendus võtab litsentsi vastu ainult siis, kui kõik need kehtivad:
+- allkiri on C või D võtmelt;
+- `org` on kliiniku oma;
+- `api` nimetab rakenduse aadressi;
+- väljaandmise kuupäev (`iat`) on **hilisem** kui praegusel litsentsil.
+
+Muidu keeldub ja kirjutab põhjuse `updater.log`-i. Omanik näeb teadet
+„Litsents uuendatud“ koos sellega, mis muutus. Reeglid ja kasutus:
+`shared/license/published.ts` ja docs/RELEASE.md §7.
+
+**Kleepimine (Seaded → Litsents) jääb varuvariandiks**: näiteks sama päeva
+parandus, mida automaatne tee ei võta, või arvuti, millel pole internetti.
 
 ## 1.10 Kui litsents aegub
 

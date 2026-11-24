@@ -71,7 +71,15 @@ describe('clinics/<id>.json', () => {
     const { name: _, ...noName } = SETTINGS
     expect(parseClinic(JSON.stringify(noName), 'dentiks').problems).toEqual(['name is missing'])
     expect(parseClinic('{', 'dentiks').problems).toEqual(['it is not JSON'])
-    expect(CLINIC_FIELDS).toEqual(Object.keys(SETTINGS))
+    expect(CLINIC_FIELDS).toEqual([...Object.keys(SETTINGS), 'orgId'])
+  })
+
+  it('orgId is optional, and when given, a UUID (a delivered licence must name it, docs/RELEASE.md §7)', () => {
+    expect(clinicWith().clinic?.orgId).toBeUndefined()
+    expect(clinicWith({ orgId: '3f1c2a9e-5b7d-4e2a-9c1f-0a1b2c3d4e5f' }).clinic?.orgId).toBe('3f1c2a9e-5b7d-4e2a-9c1f-0a1b2c3d4e5f')
+    for (const orgId of ['', 'dentiks', 42, '3f1c2a9e5b7d4e2a9c1f0a1b2c3d4e5f']) {
+      expect(clinicWith({ orgId }).problems, String(orgId)).toEqual(['orgId must be the UUID of the organisation (Settings → Licence → Organisation)'])
+    }
   })
 
   it('the phone address: https and a host only, never a Supabase address', () => {
