@@ -250,6 +250,18 @@ export async function fetchClinicSettings(clinicId: string): Promise<ClinicSetti
  * there first, theirs wins and we read it back rather than overwriting a
  * colleague's configuration with ours.
  */
+/** The clinic's default language (clinics.default_language), or null when it cannot be read. */
+export async function fetchClinicLanguage(clinicId: string): Promise<'en' | 'et' | 'ru' | null> {
+  try {
+    const { data, error } = await supabase.from('clinics').select('default_language').eq('id', clinicId).maybeSingle()
+    if (error) return null
+    const lang = (data as { default_language?: unknown } | null)?.default_language
+    return lang === 'en' || lang === 'et' || lang === 'ru' ? lang : null
+  } catch {
+    return null
+  }
+}
+
 export async function seedClinicSettings(
   clinicId: string,
   row: Omit<ClinicSettingsRow, 'clinic_id'>

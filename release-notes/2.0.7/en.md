@@ -11,3 +11,10 @@ changed. **Settings → Licence** shows the licence in full.
 
 Wivo checks that the licence is Wivo's and is meant for your clinic before it
 installs it. Pasting a key in Settings → Licence still works as before.
+
+## Smaller changes
+
+- **New job:** the work types have new icons, one drawing for each kind of
+  work, on light cards that turn dark blue when chosen.
+- A **new clinic** starts with its work types in its own language: an English
+  clinic gets English names.

@@ -45,13 +45,20 @@ export interface SelectableCardProps {
   /** 'tile' — big, centred, glyph above the label. 'row' — compact, left-aligned.
    *  Default 'row'. */
   size?: 'tile' | 'row'
+  /**
+   * 'cyan' — the work-type cards: a light cyan card (#ECFEFF), the logo's dark
+   * navy (#0F1B3A) when chosen, the icon staying cyan on both. Its own colours
+   * rather than the theme's, so the cyan icons read the same in every theme.
+   */
+  tone?: 'default' | 'cyan'
   className?: string
 }
 
 export function SelectableCard({
   selected, onToggle, label, sublabel, hex, imageSrc, icon, badge,
-  disabled = false, multi = true, disabledReason, size = 'row', className = '',
+  disabled = false, multi = true, disabledReason, size = 'row', tone = 'default', className = '',
 }: SelectableCardProps): JSX.Element {
+  const cyan = tone === 'cyan'
   const reasonId = useId()
   const btnRef = useRef<HTMLButtonElement>(null)
   const hasArt = Boolean(imageSrc || icon || hex)
@@ -108,7 +115,11 @@ export function SelectableCard({
         // with a 1px border, but then every toggle reflows the grid by a pixel
         // and a page of cards visibly twitches — the opposite of what a steady
         // hand needs. The weight is constant; only the colour changes.
-        selected
+        cyan
+          ? (selected
+              ? 'border-2 border-[#0F1B3A] bg-[#0F1B3A] shadow-card'
+              : 'border-2 border-[#CFFAFE] bg-[#ECFEFF] hover:border-[#67E8F9]')
+          : selected
           // The teal wash from the mockup: a tint light enough that the label
           // still carries the contrast, with the border doing the shouting.
           ? 'border-2 border-accent bg-accent/[0.09] shadow-card'
@@ -119,7 +130,7 @@ export function SelectableCard({
       ].join(' ')}
     >
       {selected && (
-        <Check className="w-5 h-5 text-accent absolute top-2 right-2" aria-hidden="true" />
+        <Check className={`w-5 h-5 absolute top-2 right-2 ${cyan ? 'text-[#22D3EE]' : 'text-accent'}`} aria-hidden="true" />
       )}
 
       {hasArt && (
@@ -128,7 +139,7 @@ export function SelectableCard({
             'flex items-center justify-center rounded-xl flex-shrink-0 overflow-hidden',
             tile ? 'w-14 h-14' : 'w-11 h-11 rounded-lg',
           ].join(' ')}
-          style={{ backgroundColor: hex ? `${hex}1f` : undefined }}
+          style={{ backgroundColor: hex && !cyan ? `${hex}1f` : undefined }}
           aria-hidden="true"
         >
           {imageSrc ? (
@@ -150,13 +161,15 @@ export function SelectableCard({
         {selected && <span className="sr-only">{t('wizard.selected3')}</span>}
         <span
           className={`block text-base leading-snug ${
-            selected ? 'font-semibold text-ink' : 'font-medium text-ink-soft'
+            cyan
+              ? (selected ? 'font-semibold text-white' : 'font-medium text-[#0F1B3A]')
+              : selected ? 'font-semibold text-ink' : 'font-medium text-ink-soft'
           }`}
         >
           {label}
         </span>
         {sublabel && (
-          <span className="block mt-0.5 text-base text-ink-muted">{sublabel}</span>
+          <span className={`block mt-0.5 text-base ${cyan ? (selected ? 'text-white/70' : 'text-[#475569]') : 'text-ink-muted'}`}>{sublabel}</span>
         )}
       </span>
 

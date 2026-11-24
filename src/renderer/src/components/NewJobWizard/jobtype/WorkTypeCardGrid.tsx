@@ -6,16 +6,20 @@
  * this grid must follow without a code change. That also means the icon lookup
  * below can only ever be a hint — it inspects the type's own identity tokens
  * (nimi + match synonyms, the same signal workTypeRules() classifies on) and
- * falls back to a neutral shape for anything a lab invents. An icon is
+ * falls back to the plain tooth for anything a lab invents. An icon is
  * decoration; getting it "wrong" costs nothing, so the matcher stays permissive.
+ *
+ * The icons are the 15 line drawings of WorkKindIcon (Kevin, November 2026),
+ * on cyan cards: light (#ECFEFF), dark navy (#0F1B3A) when chosen. They
+ * replace the pictures (assets/jobs) here; other screens keep those.
  */
 import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { WorkType } from '@shared/pricing/workTypes'
-import { workTypeImage, slugifyWorkType } from '@/lib/workTypeImages'
+import { slugifyWorkType } from '@/lib/workTypeImages'
 import { SelectableCard } from '../ui/SelectableCard'
 import { WIZARD_BTN } from '../wizardTheme'
-import { ToothGlyph, toothGlyphFor } from './ToothGlyph'
+import { WorkKindIcon, workKindFor } from './WorkKindIcon'
 import { t } from '@/lib/i18n'
 
 /** How many cards show before "Näita rohkem". Two full rows on a wide screen. */
@@ -110,15 +114,8 @@ export function WorkTypeCardGrid({
             onToggle={() => onToggle(type.nimi)}
             label={type.nimi}
             sublabel={priceLabel(type)}
-            hex={type.hex}
-            imageSrc={workTypeImage(type.nimi, type.pilt)}
-            icon={
-              <ToothGlyph
-                name={toothGlyphFor(identityTokens(type))}
-                size={38}
-                style={{ color: type.hex }}
-              />
-            }
+            icon={<WorkKindIcon kind={workKindFor(identityTokens(type))} size={44} />}
+            tone="cyan"
             size="tile"
             multi
           />

@@ -25,9 +25,10 @@ import {
 } from '../stores/useSettings'
 import { applyRemoteStages, getStages, setStagePusher } from '../context/PipelineContext'
 import {
-  fetchClinicSettings, seedClinicSettings, pushClinicSettings,
+  fetchClinicLanguage, fetchClinicSettings, seedClinicSettings, pushClinicSettings,
   subscribeClinicSettings, type ClinicPatch, type ClinicSettingsRow
 } from '../lib/clinicSettings'
+import { defaultWorkTypesFor, isUntouchedDefaultList } from '@shared/pricing/workTypes'
 import { t } from '@/lib/i18n'
 
 export type SyncState =
@@ -121,10 +122,15 @@ export function ClinicSettingsSync(): null {
             // policy will not accept.
             emit({ status: 'local', reason: t('clinicSettingsSync.clinicSettingsHaveNotBeenSaved') })
           } else {
-            row = await seedClinicSettings(clinicId, {
-              ...clinicSliceOf(getSettingsSnapshot()),
-              pipeline_stages: getStages(),
-            })
+            const slice = clinicSliceOf(getSettingsSnapshot())
+            // A new clinic's own list in its own language (an English clinic
+            // gets English names) — but only when this machine still has the
+            // untouched default: a lab's own list moves up as it is.
+            if (isUntouchedDefaultList(slice.work_types)) {
+              slice.work_types = defaultWorkTypesFor(await fetchClinicLanguage(clinicId))
+            }
+            if (cancelled) return
+            row = await seedClinicSettings(clinicId, { ...slice, pipeline_stages: getStages() })
           }
         }
         if (cancelled) return

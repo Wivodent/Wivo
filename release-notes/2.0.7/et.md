@@ -11,3 +11,10 @@ muutus. **Seaded → Litsents** näitab litsentsi tervikuna.
 
 Enne paigaldamist kontrollib Wivo, et litsents on Wivo oma ja mõeldud just teie
 kliinikule. Võtme kleepimine Seaded → Litsents töötab endiselt nagu enne.
+
+## Väiksemad muudatused
+
+- **Uus töö:** tööliikidel on uued ikoonid, iga tööliigi jaoks oma joonis,
+  heledatel kaartidel, mis valides muutuvad tumesiniseks.
+- **Uus kliinik** saab vaikimisi tööliigid oma keeles: inglise kliinik
+  ingliskeelsed nimed.

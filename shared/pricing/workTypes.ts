@@ -118,6 +118,51 @@ export const DEFAULT_WORK_TYPES: WorkType[] = [
 export const UNKNOWN_WORK_TYPE: WorkType = { nimi: 'Muu / määramata', hex: '#94A3B8' }
 
 /**
+ * The default types' names in the other languages, in DEFAULT_WORK_TYPES'
+ * order. A new clinic starts with its list in its own language
+ * (clinics.default_language; ClinicSettingsSync): an English clinic gets
+ * English names. They are data the clinic then owns and renames, not
+ * interface text, so they are here and not in i18n.
+ */
+const DEFAULT_NAMES: Record<'en' | 'ru', readonly string[]> = {
+  en: [
+    'Implant crown', 'Implant bridge', 'Crown', 'Bridge', 'Veneer', 'Laminate veneer', 'Inlay', 'Onlay',
+    'Filling', 'Denture', 'All-on-X', 'Night guard / splint', 'Retainer', 'Indirect bonding tray (IBT)', 'Surgical guide',
+  ],
+  ru: [
+    'Коронка на импланте', 'Мост на имплантах', 'Коронка', 'Мост', 'Винир', 'Ламинат', 'Вкладка', 'Накладка',
+    'Пломба', 'Протез', 'All-on-X', 'Каппа / сплинт', 'Ретейнер', 'Каппа непрямой фиксации (IBT)', 'Хирургический шаблон',
+  ],
+}
+
+/**
+ * The default list in a clinic's language. The Estonian name and its
+ * synonyms stay as synonyms (`match`), with the English name: the wizard's
+ * rules (workTypeRules) and the seeding (seedMissingTypes) read those words,
+ * so "Коронка" behaves exactly like "Kroon".
+ */
+export function defaultWorkTypesFor(lang: 'en' | 'et' | 'ru' | null | undefined): WorkType[] {
+  if (lang !== 'en' && lang !== 'ru') return DEFAULT_WORK_TYPES.map(type => ({ ...type }))
+  return DEFAULT_WORK_TYPES.map((type, i) => {
+    const nimi = DEFAULT_NAMES[lang][i]
+    const words = [type.nimi, ...(type.match ?? []), DEFAULT_NAMES.en[i]].map(w => w.toLowerCase())
+    const match = [...new Set(words)].filter(w => w !== nimi.toLowerCase())
+    return { ...type, nimi, match }
+  })
+}
+
+/**
+ * Whether a list is still the untouched Estonian default: the same names in
+ * the same order, nothing priced, no picture, no costs. Only such a list is
+ * replaced by the clinic's language; a lab's own list is never renamed.
+ */
+export function isUntouchedDefaultList(list: readonly WorkType[]): boolean {
+  return list.length === DEFAULT_WORK_TYPES.length
+    && list.every((type, i) => type.nimi === DEFAULT_WORK_TYPES[i].nimi
+      && type.hind == null && type.soodushind == null && !type.pilt && !(type.kulud?.length) && !(type.astmed?.length))
+}
+
+/**
  * Work types that are seeded into a list written before they existed.
  *
  * `tooTuubid` is the LAB's list, not ours: adding to DEFAULT_WORK_TYPES only
@@ -274,6 +319,11 @@ export function resolveWorkType(too: string | null | undefined, types: WorkType[
   // 1. Exact match (case-insensitive)
   const exact = types.find(r => r.nimi.toLowerCase() === needle)
   if (exact) return exact
+  // 1b. Exactly a synonym: in an English clinic's list "Kroon" is Crown's
+  // synonym, and must not be taken by "Implant crown", whose synonym
+  // "implantkroon" merely contains it (defaultWorkTypesFor).
+  const synonym = types.find(r => (r.match ?? []).some(m => m.toLowerCase() === needle))
+  if (synonym) return synonym
   // 2. Longest name first — "Implantkroon" must match before "Kroon"
   const sorted = [...types].sort((a, b) => b.nimi.length - a.nimi.length)
   return sorted.find(r =>

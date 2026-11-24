@@ -30,3 +30,7 @@ Reeglid:
   rakendus uuesti käivitada** (dev-serveris piisab salvestamisest)
 
 Nime saab ka käsitsi üle kirjutada: Seaded → Hinnad → töö tüübi kaardil "Pildi fail".
+
+Uue töö vormi tööliikide kaardid neid pilte ei kasuta: seal on oma joonised
+(`components/NewJobWizard/jobtype/WorkKindIcon.tsx`, 15 tööliiki). Pildid on
+endiselt töö kaardil ja Seadetes.
