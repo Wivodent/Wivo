@@ -37,7 +37,9 @@ import { usePermissions } from '../../hooks/usePermissions'
 import { describeError } from '../Patients/errors'
 import { payoutColumns, payoutLineColumns } from '../../lib/exports'
 import { auditedCsvExport, auditedZipExport } from '../../lib/exportAudit'
-import { clinicCountry, hasEstonianTax } from '../../lib/country'
+import { clinicCountry, hasEstonianTax, payrollTaxSystem } from '../../lib/country'
+import { latviaRulesFor } from '@shared/payroll/countryTax'
+import { LatviaTaxProfilePicker, LatviaPayslipPanel, latviaSlipFor } from './LatviaPay'
 import { payExportRows, peopleColumns, lineColumns } from '../../lib/payExport'
 
 /**
@@ -78,6 +80,10 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
   // Estonian tax only in an Estonian clinic (lib/country). Anywhere else: gross,
   // before tax, with no payslip estimate and no net agreements.
   const estonianTax = hasEstonianTax(clinicCountry(auth.clinic))
+  // Latvia: the law's rates (shared/payroll/countryTax), the person's booklet,
+  // dependents and pension status. Any other country: gross only.
+  const latvia = payrollTaxSystem(clinicCountry(auth.clinic)) === 'LV'
+  const lvRules = latviaRulesFor(new Date().getFullYear())
   // Payout lines are stored, so they are written in the clinic's language, not the viewer's.
   const lineLang = auth.clinic?.default_language ?? 'et'
 
@@ -279,7 +285,14 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
   const contractorTotal = perWorker
     .filter(x => x.worker.toosuhe === 'ettevote')
     .reduce((s, x) => s + x.total, 0)
-  const employerTax = employerTaxAmount(employeeGross, settings.tooandjaMaksudProtsent)
+  // Latvia: per person, because a pensioner's rate and the minimum-wage base
+  // differ from one person to the next.
+  const employerTax = latvia
+    ? perWorker
+      .filter(x => (x.worker.toosuhe ?? 'tootaja') === 'tootaja')
+      .reduce((s, x) => s + latviaSlipFor(x.gross, x.worker).employerSocial, 0)
+    : employerTaxAmount(employeeGross, settings.tooandjaMaksudProtsent)
+  const employerPct = latvia ? lvRules.employerSocialPct : settings.tooandjaMaksudProtsent
   // The accountant's monthly export (lib/payExport): the month's confirmed
   // payouts only, so it can't change afterwards. Who still has unconfirmed pay
   // this month is said next to the button.
@@ -450,7 +463,7 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
         {t('workers.only')} <strong className="text-ink-muted">{t('workers.done')}</strong> {t('workers.jobsWithAnAssignedTechnicianOr')}
       </p>
 
-      {!estonianTax && (
+      {!estonianTax && !latvia && (
         <p className="text-xs text-ink-muted max-w-3xl leading-relaxed">{t('workers.payIsGrossHere')}</p>
       )}
       {isOwner && unconfirmed.length > 0 && accountantRows.people.length > 0 && (
@@ -487,7 +500,7 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
           {/* Only the payroll half carries employer taxes. */}
           <div className="pl-6 border-l border-ink-faint/20">
             <p className="text-xs text-ink-muted">
-              {estonianTax ? t('workers.employerTaxes') : t('workers.employerContributions')} ({settings.tooandjaMaksudProtsent}%)
+              {estonianTax || latvia ? t('workers.employerTaxes') : t('workers.employerContributions')} ({employerPct}%)
             </p>
             <p className="text-base font-semibold text-ink tabular-nums">
               {employerTax.toFixed(2)} €
@@ -516,7 +529,7 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
             )}
           </div>
 
-          {settings.tooandjaMaksudProtsent === 0 && employeeGross > 0 && (
+          {!latvia && settings.tooandjaMaksudProtsent === 0 && employeeGross > 0 && (
             <p className="text-[11px] text-orange-500 max-w-xs leading-relaxed">
               {t('workers.theEmployerTaxRateIs0')}
             </p>
@@ -695,7 +708,7 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
                   {total.toFixed(2)} €
                 </span>
                 <span className="block text-[10px] text-ink-faint">
-                  {worker.toosuhe === 'ettevote' ? t('workers.invoiceAmount') : netBasis ? t('workers.netTakeHome') : estonianTax ? t('workers.gross') : t('workers.grossBeforeTax')}
+                  {worker.toosuhe === 'ettevote' ? t('workers.invoiceAmount') : netBasis ? t('workers.netTakeHome') : estonianTax || latvia ? t('workers.gross') : t('workers.grossBeforeTax')}
                 </span>
                 {netBasis && gross > 0 && (
                   <span className="block text-[10px] text-ink-faint tabular-nums">
@@ -730,6 +743,22 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
                     rates={taxRates}
                     worker={taxProfileOf(worker)}
                   />
+                )}
+                {isOwner && onPayroll && latvia && (
+                  <section>
+                    <h4 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
+                      {t('workers.lvTaxProfile')}
+                    </h4>
+                    <LatviaTaxProfilePicker profileId={worker.id} worker={worker} />
+                  </section>
+                )}
+                {onPayroll && latvia && total > 0 && (
+                  <section className="max-w-sm">
+                    <h4 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
+                      {t('workers.payslipEstimate')}
+                    </h4>
+                    <LatviaPayslipPanel slip={latviaSlipFor(gross, worker)} />
+                  </section>
                 )}
                 {isOwner && (
                   <RushPicker profileId={worker.id} value={worker.kiirtoo_kordaja ?? null} />

@@ -23,7 +23,7 @@ import { calculateFinance, profitOf, type Coverage } from '../../lib/finance'
 import { workTypeImage } from '../../lib/workTypeImages'
 import { employerCost, employerTaxAmount } from '../../lib/earnings'
 import { useAuth } from '../../context/AuthContext'
-import { clinicCountry, hasEstonianTax } from '../../lib/country'
+import { clinicCountry, hasEstonianTax, employerRatePct } from '../../lib/country'
 import { StatTile } from '../ui/StatTile'
 import type { Period, DateRange } from './useDashboardStats'
 import { periodMetrics, rangeFor, elapsedEndOf, unitSplitLabel, teethSplitLabel, MONEY_HINT } from '../../lib/periodMetrics'
@@ -41,6 +41,8 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
   const { settings } = useSettings()
   // A net agreement is Estonian (lib/country): elsewhere everyone's pay is gross.
   const estonianTax = hasEstonianTax(clinicCountry(useAuth().clinic))
+  // The employer's share for the clinic's cost: Settings in Estonia, the law's rate in Latvia.
+  const employerPct = employerRatePct(clinicCountry(useAuth().clinic), settings.tooandjaMaksudProtsent)
   const wt = useWorkTypes()
   const { data: invoices = [], isError: invoicesMissing } = useInvoices()
   const { data: payments = [] } = usePayments()
@@ -105,7 +107,7 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
       maksuvaba_tulu: w.maksuvaba_tulu,
     })),
     taxRates: {
-      tooandjaMaksudProtsent: settings.tooandjaMaksudProtsent,
+      tooandjaMaksudProtsent: employerPct,
       tulumaksProtsent: settings.tulumaksProtsent,
       maksuvabaTuluKuus: settings.maksuvabaTuluKuus,
       tootajaTootuskindlustusProtsent: settings.tootajaTootuskindlustusProtsent,
@@ -123,16 +125,16 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
     // Rent does not accrue for days that have not happened. Counts use the
     // whole period; overheads use only the elapsed part of it.
     overheadEnd: elapsedEndOf(range),
-  }), [jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers, wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob, settings.yldkulud, settings.toopaevadNadalas, settings.tooandjaMaksudProtsent, settings.tulumaksProtsent, settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent, settings.kogumispensionProtsent, doneStageKey, range, estonianTax])
+  }), [jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers, wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob, settings.yldkulud, settings.toopaevadNadalas, employerPct, settings.tulumaksProtsent, settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent, settings.kogumispensionProtsent, doneStageKey, range, estonianTax])
 
   // Margin against the FULL cost of employment, not gross pay: the taxes are
   // real money leaving the account.
   // Employer tax applies to WAGES only. A contractor's invoice already carries
   // its own tax treatment, and grossing it up here would invent a liability.
-  const employerTax = employerTaxAmount(fin.labourEmployeeGross, settings.tooandjaMaksudProtsent)
+  const employerTax = employerTaxAmount(fin.labourEmployeeGross, employerPct)
   const p = useMemo(
-    () => profitOf(fin, settings.tooandjaMaksudProtsent),
-    [fin, settings.tooandjaMaksudProtsent],
+    () => profitOf(fin, employerPct),
+    [fin, employerPct],
   )
   // grossMargin already nets off material + consumables. Overheads come off on
   // top, so the headline is profit rather than contribution — but ONLY when
@@ -285,7 +287,7 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
               employerTax > 0 ? t(estonianTax ? 'dashboard.taxes' : 'dashboard.contributions', { employerTax: employerTax.toFixed(2) }) : null,
               fin.labourContractor > 0 ? t('dashboard.contractorInvoices', { labourContractor: fin.labourContractor.toFixed(2) }) : null,
             ].filter(Boolean).join(' · ') || (
-              settings.tooandjaMaksudProtsent > 0 ? undefined : t('dashboard.employerTaxRateIs0')
+              employerPct > 0 ? undefined : t('dashboard.employerTaxRateIs0')
             )}
           />
           <StatTile money size="sm" icon={Package} label={t('dashboard.materialsAndSupplies')} value={fin.materialCost + fin.consumableCost} accent="#F97316"

@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions.
--- Expected rows: 2152.
+-- Expected rows: 2153.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -222,6 +222,7 @@ with expected(kind, key, def) as (values
     ('constraint', 'public.profiles.profiles_role_check', 'CHECK ((role = ANY (ARRAY[''owner''::text, ''worker''::text, ''patient''::text])))'),
     ('constraint', 'public.profiles.profiles_tasu_arvestus_valid', 'CHECK ((tasu_arvestus = ANY (ARRAY[''bruto''::text, ''neto''::text])))'),
     ('constraint', 'public.profiles.profiles_toosuhe_valid', 'CHECK ((toosuhe = ANY (ARRAY[''tootaja''::text, ''ettevote''::text])))'),
+    ('constraint', 'public.profiles.profiles_ulalpeetavad_valid', 'CHECK (((ulalpeetavad IS NULL) OR ((ulalpeetavad >= 0) AND (ulalpeetavad <= 20))))'),
     ('constraint', 'public.push_subscription.push_subscription_endpoint_key', 'UNIQUE (endpoint)'),
     ('constraint', 'public.push_subscription.push_subscription_endpoint_known', 'CHECK ((is_push_endpoint(endpoint) AND (length(p256dh) <= 200) AND (length(auth) <= 200)))'),
     ('constraint', 'public.push_subscription.push_subscription_org_id_fkey', 'FOREIGN KEY (org_id) REFERENCES clinics(id) ON DELETE CASCADE'),
@@ -715,7 +716,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.partner_visible_text(j jobs)', 'security invoker, stable, search_path=public, body md5 638cdde9f3d98bdcd6f5d940ad7fa061'),
     ('function', 'public.partner_work_items(p_items jsonb)', 'security invoker, immutable, search_path=public, body md5 f7346aed5d53cfb8919357ce53db36d6'),
     ('function', 'public.patient_export(p_patient uuid)', 'security definer, volatile, search_path=public, body md5 6379815bfd6cc5768198a9e8fc07712f'),
-    ('function', 'public.pay_settings()', 'security definer, stable, search_path=public, body md5 86dc03ffe0eab6340107c8a485b73014'),
+    ('function', 'public.pay_settings()', 'security definer, stable, search_path=public, body md5 c37dd7705689ddfb0560dadb249035bd'),
     ('function', 'public.pending_bug_reports(p_limit integer)', 'security definer, stable, search_path=public, body md5 0ffbd82011d46a08cdbc7bc18773ef63'),
     ('function', 'public.pending_notification_emails(p_limit integer)', 'security definer, stable, search_path=public, body md5 c2f104b5db6d0030187c701b5a92c5b2'),
     ('function', 'public.pending_pushes(p_limit integer)', 'security definer, stable, search_path=public, body md5 288f6f44b6b7d251e65f19138679a2cd'),

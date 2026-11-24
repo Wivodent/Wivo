@@ -102,6 +102,10 @@ export interface Profile {
   kogumispension_protsent?: number | null
   /** Maksuvaba tulu € kuus. NULL = kliiniku vaikeväärtus, 0 = ei rakendata. */
   maksuvaba_tulu?: number | null
+  /** Latvia (sql/127): dependents for the payroll estimate. NULL = 0. Absent before sql/127. */
+  ulalpeetavad?: number | null
+  /** Latvia (sql/127): receives an old-age pension. NULL = no. Absent before sql/127. */
+  pensionar?: boolean | null
   /**
    * Isiklikud vaateseaded — Statistika paneelid jm. Vt sql/055 ja lib/uiPrefs.
    *
@@ -234,7 +238,7 @@ export async function updateProfile(
   userId: string,
   updates: Partial<Pick<Profile,
     'full_name' | 'toosuhe' | 'kiirtoo_kordaja' |
-    'tasu_arvestus' | 'kogumispension_protsent' | 'maksuvaba_tulu'>>
+    'tasu_arvestus' | 'kogumispension_protsent' | 'maksuvaba_tulu' | 'ulalpeetavad' | 'pensionar'>>
 ): Promise<void> {
   // Nothing read back: the pay fields are not readable from the table (sql/117).
   const { error } = await supabase

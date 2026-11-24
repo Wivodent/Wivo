@@ -10,7 +10,12 @@ import type { Profile } from './supabase'
 
 export const PAY_FIELDS = ['toosuhe', 'tasu_arvestus', 'kogumispension_protsent', 'maksuvaba_tulu', 'kiirtoo_kordaja'] as const
 
-export type PaySettings = { profile_id: string } & Pick<Profile, (typeof PAY_FIELDS)[number]>
+/**
+ * The two Latvian fields (sql/127) come only from pay_settings() and are absent
+ * before that migration; they are not in PAY_FIELDS, so the fallback read of an
+ * older database never names a column it does not have.
+ */
+export type PaySettings = { profile_id: string } & Pick<Profile, (typeof PAY_FIELDS)[number] | 'ulalpeetavad' | 'pensionar'>
 
 /**
  * What the database lets this person see. A database without sql/117 has no

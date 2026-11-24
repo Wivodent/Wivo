@@ -1,3 +1,4 @@
+import { taxSystemOf, latviaRulesFor } from '@shared/payroll/countryTax'
 /**
  * The clinic's country (`clinics.country`, sql/070) and what follows from it
  * (docs/ARCHITECTURE-INSTANCES.md §9, "Riga's workers and pay", option a).
@@ -33,3 +34,15 @@ const EXAMPLES: Record<string, FieldExamples> = {
 
 export const fieldExamples = (country: string): FieldExamples =>
   EXAMPLES[country] ?? { city: '', postcode: '', phone: '+', vat: '', bank: '', iban: '', company: '' }
+
+/** Which payroll rules apply: Estonia's (the clinic's own rates), Latvia's (the law's), or none (gross only). */
+export { taxSystemOf as payrollTaxSystem } from '@shared/payroll/countryTax'
+
+/**
+ * The employer's share on top of gross, as a percentage, for the clinic's cost.
+ * Estonia and any other country: the rate in Settings. Latvia: the law's rate
+ * for the year (a pensioner's lower rate is applied per person on Payroll).
+ */
+export function employerRatePct(country: string, settingsPct: number, year = new Date().getFullYear()): number {
+  return taxSystemOf(country) === 'LV' ? latviaRulesFor(year).employerSocialPct : settingsPct
+}

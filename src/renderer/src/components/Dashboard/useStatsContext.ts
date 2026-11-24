@@ -46,7 +46,7 @@ import { funFacts, type FunFacts } from '../../lib/funFacts'
 import type { PermissionKey } from '../../hooks/usePermissions'
 import { t } from '@/lib/i18n'
 import { useAuth } from '../../context/AuthContext'
-import { clinicCountry, hasEstonianTax } from '../../lib/country'
+import { clinicCountry, hasEstonianTax, employerRatePct } from '../../lib/country'
 
 /**
  * Which expensive slice a panel needs. See `PanelMeta.needs`.
@@ -122,6 +122,8 @@ export function useStatsContext(
   const { settings } = useSettings()
   // A net agreement is Estonian (lib/country): elsewhere everyone's pay is gross.
   const estonianTax = hasEstonianTax(clinicCountry(useAuth().clinic))
+  // The employer's share for the clinic's cost: Settings in Estonia, the law's rate in Latvia.
+  const employerPct = employerRatePct(clinicCountry(useAuth().clinic), settings.tooandjaMaksudProtsent)
   const wt = useWorkTypes()
   const { can } = usePermissions()
   const { data: invoices = [], isError: invoicesMissing } = useInvoices()
@@ -187,7 +189,7 @@ export function useStatsContext(
         maksuvaba_tulu: w.maksuvaba_tulu,
       })),
       taxRates: {
-        tooandjaMaksudProtsent: settings.tooandjaMaksudProtsent,
+        tooandjaMaksudProtsent: employerPct,
         tulumaksProtsent: settings.tulumaksProtsent,
         maksuvabaTuluKuus: settings.maksuvabaTuluKuus,
         tootajaTootuskindlustusProtsent: settings.tootajaTootuskindlustusProtsent,
@@ -209,14 +211,14 @@ export function useStatsContext(
   }, [
     wantsFinance, jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers,
     wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob,
-    settings.yldkulud, settings.toopaevadNadalas, settings.tooandjaMaksudProtsent, settings.tulumaksProtsent,
+    settings.yldkulud, settings.toopaevadNadalas, employerPct, settings.tulumaksProtsent,
     settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent,
     settings.kogumispensionProtsent, doneStageKey, range, estonianTax,
   ])
 
   const profit = useMemo(
-    () => profitOf(fin, settings.tooandjaMaksudProtsent),
-    [fin, settings.tooandjaMaksudProtsent],
+    () => profitOf(fin, employerPct),
+    [fin, employerPct],
   )
 
   const EMPTY_INVOICES: InvoiceMetrics = {

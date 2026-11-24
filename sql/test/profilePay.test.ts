@@ -17,7 +17,7 @@ let B: Tenant
 let tech: string
 let former: string
 
-const PAY = ['toosuhe', 'tasu_arvestus', 'kogumispension_protsent', 'maksuvaba_tulu', 'kiirtoo_kordaja']
+const PAY = ['toosuhe', 'tasu_arvestus', 'kogumispension_protsent', 'maksuvaba_tulu', 'kiirtoo_kordaja', 'ulalpeetavad', 'pensionar']
 
 async function member(t: Tenant, perms: readonly string[], orgRole = 'technician', name?: string): Promise<string> {
   const id = await createUser(db, name)

@@ -9,7 +9,8 @@ import type { OverheadPeriood } from '@shared/pricing/priceBook'
 import type { ThemeKey } from '../stores/useSettings'
 import { usePipeline } from '../context/PipelineContext'
 import { useAuth, type Clinic } from '../context/AuthContext'
-import { clinicCountry, hasEstonianTax, invoicesAvailable, fieldExamples } from '../lib/country'
+import { clinicCountry, hasEstonianTax, invoicesAvailable, fieldExamples, payrollTaxSystem } from '../lib/country'
+import { latviaRulesFor } from '@shared/payroll/countryTax'
 import { usePermissions } from '../hooks/usePermissions'
 import { useClinicSyncState } from './ClinicSettingsSync'
 import { WORK_TYPE_PALETTE, sortedTiers, type WorkType, type PriceMode, type WorkTypeCost } from '../config/workTypes'
@@ -1290,6 +1291,8 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
   // Estonian tax only in an Estonian clinic (lib/country): elsewhere the employee's
   // side is the accountant's, and the employer's share is called contributions.
   const estonianTax = hasEstonianTax(clinicCountry(auth.clinic))
+  const latviaTax = payrollTaxSystem(clinicCountry(auth.clinic)) === 'LV'
+  const lvRules = latviaRulesFor(new Date().getFullYear())
   const { can, moduleOn } = usePermissions()
 
   const [group, setGroup] = useState<GroupKey>(initialGroup)
@@ -1999,12 +2002,28 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
                 onChange={v => setNumber('makseTahtaegPaevades', v)}
                 hint={t('settingsPage.daysFromTheInvoiceDateTo')}
               />
+              {/* Latvia's rates are the law's (shared/payroll/countryTax): shown,
+                  not typed. Every other country keeps its own employer rate. */}
+              {latviaTax ? (
+                <div className="col-span-2 rounded-xl bg-bg-sidebar/60 px-3 py-2.5">
+                  <p className="text-sm font-semibold text-ink">{t('settingsPage.lvTaxTitle', { year: lvRules.year })}</p>
+                  <p className="text-xs text-ink-muted leading-relaxed mt-1">
+                    {t('settingsPage.lvTaxRules', {
+                      employee: lvRules.employeeSocialPct, employer: lvRules.employerSocialPct,
+                      pEmployee: lvRules.pensionerEmployeeSocialPct, pEmployer: lvRules.pensionerEmployerSocialPct,
+                      income: lvRules.incomeTaxPct, minimum: lvRules.nonTaxableMinimum,
+                      dependent: lvRules.dependentAllowance, minWage: lvRules.minimumWage,
+                    })}
+                  </p>
+                </div>
+              ) : (
               <NumField
                 label={estonianTax ? t('settingsPage.employerTaxes') : t('settingsPage.employerContributions')} suffix="%" min={0} max={100} step={0.1}
                 value={settings.tooandjaMaksudProtsent}
                 onChange={v => setNumber('tooandjaMaksudProtsent', v)}
                 hint={estonianTax ? t('settingsPage.addedToGrossPayToShow') : t('settingsPage.employerContributionsHint')}
               />
+              )}
               {/* The employee side. Needed only when someone's pay is entered
                   NET — then bruto, and with it the clinic's real cost, has to
                   be computed backwards from take-home pay. Left at 0 they do

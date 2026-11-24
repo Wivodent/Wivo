@@ -4038,6 +4038,20 @@ export const en = {
   'settings.tokenKliinik': "Clinic name",
   'wizard.materialsLine': "Materials",
   'wizard.noteLine': "Note",
+  'workers.lvTaxProfile': "Tax profile (Latvia)",
+  'workers.lvTaxBooklet': "Tax booklet with us",
+  'workers.lvDependents': "Dependents",
+  'workers.lvPensioner': "Pensioner",
+  'workers.lvYes': "Yes",
+  'workers.lvNo': "No",
+  'workers.lvTaxProfileHelp': "With the tax booklet here, {minimum} € a month is tax-free. Each dependent takes another {dependent} € off. A pensioner pays a lower social tax.",
+  'workers.lvSocialEmployee': "Social tax {pct}%",
+  'workers.lvIncomeTax': "Income tax {pct}%",
+  'workers.lvEmployerSocial': "Employer social tax {pct}%",
+  'workers.lvMinWageNote': "Gross is below the minimum wage, so social tax is calculated on {min} €.",
+  'workers.lvEstimateNote': "Estimate based on Latvian rates {year}. Not an accounting payslip.",
+  'settingsPage.lvTaxTitle': "Payroll taxes: Latvia {year}",
+  'settingsPage.lvTaxRules': "Set automatically from the clinic's country. Social tax: employee {employee}%, employer {employer}% (pensioner {pEmployee}% / {pEmployer}%). Income tax {income}%. Tax-free with the booklet: {minimum} € a month, plus {dependent} € per dependent. Social tax is calculated on at least the minimum wage, {minWage} €.",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */
