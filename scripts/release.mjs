@@ -1,28 +1,33 @@
 #!/usr/bin/env node
 /**
- * Riga's signed desktop releases (docs/RELEASE.md). Run by Kevin on his
- * Windows machine, never in CI. Three steps, each its own command:
+ * A clinic's signed desktop releases (docs/RELEASE.md). The clinic is named
+ * on every command and everything about it comes from clinics/<id>.json
+ * (clinics/README.md): its releases repository, its build id, its phone
+ * branch. Run by Kevin on his Windows machine, never in CI. Three steps, each
+ * its own command:
  *
- *   npm run release:riga                    build the installer (scripts/build-riga.mjs)
- *                                           and release-riga/<version>/: the installer,
- *                                           latest.yml, release.json. Nothing signed.
- *   npm run release:riga:sign               YubiKey C (PIN once, two touches) signs the list
- *     [-- --yubikey D] [--days 14]          and the release statement; both are checked with
- *                                           the app's own code before updates.json is written.
- *   npm run release:riga:publish            uploads them to GitHub (gh, Kevin's sign-in) and
- *                                           reads them back from the public address.
+ *   npm run release -- --clinic dentiks            build the installer (scripts/build-clinic.mjs)
+ *                                                  and releases/<id>/<version>/: the installer,
+ *                                                  latest.yml, release.json. Nothing signed.
+ *   npm run release:sign -- --clinic dentiks       YubiKey C (PIN once, two touches) signs the list
+ *     [--yubikey D] [--days 30]                    and the release statement; both are checked with
+ *                                                  the app's own code before updates.json is written.
+ *   npm run release:publish -- --clinic dentiks    uploads them to the clinic's repository (gh, Kevin's
+ *                                                  sign-in) and reads them back from the public address.
  *
- *   npm run release:riga:sign -- --refresh      a new list for the published release (one touch)
- *   npm run release:riga:publish -- --refresh   publishes that list
- *   npm run release:riga:publish -- --check     only reads back what is published
+ *   release:sign -- --clinic <id> --refresh        a new list for the published release (one touch)
+ *   release:publish -- --clinic <id> --refresh     publishes that list
+ *   release:publish -- --clinic <id> --check       only reads back what is published
  *
  * `--first` on the build and sign steps: nothing is published yet.
+ * `--release-version x.y.z` on sign and publish: another version than package.json's.
+ * (In PowerShell npm may drop the `--`; the options still arrive, scripts/clinic-config.mjs cliOptions.)
  *
  * It reads no secret and holds none: the private keys stay on the YubiKeys,
- * and gh keeps its own sign-in. For the tests (scripts/releaseRiga.test.ts),
+ * and gh keeps its own sign-in. For the tests (scripts/releaseTool.test.ts),
  * and only when WIVO_YKMAN names a stand-in: WIVO_RELEASE_TEST_TRUST (made-up
  * roots and certificates), WIVO_RELEASE_FEED_DIR (a folder instead of the
- * network), WIVO_RELEASE_ROOT (instead of release-riga/), WIVO_GH (instead of gh).
+ * network), WIVO_RELEASE_ROOT (instead of releases/<id>/), WIVO_GH (instead of gh).
  */
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash, createPublicKey, verify as nodeVerify } from 'node:crypto'
@@ -30,31 +35,40 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync,
 import { dirname, join, resolve } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { fileURLToPath } from 'node:url'
+import { cliOptions, loadClinic, phoneBranchCommand } from './clinic-config.mjs'
 import {
-  BUILD, RELEASE_TAG, RIGA_REPO, SIGNERS, SLOTS, appPayload, certificatePayload, indexPayload, keysFor, latestYml,
+  RELEASE_TAG, SIGNERS, SLOTS, appPayload, certificatePayload, indexPayload, keysFor, latestYml,
   listDays, loadTs, migrationFiles, migrationsAfter, releaseUrl, uploadPlan, versionProblem,
-} from './release-riga-lib.mjs'
+} from './release-lib.mjs'
 import { loadRelease } from './yubikey/load-release.mjs'
 import { signStatements } from './yubikey/sign-statements.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const TESTING = Boolean(process.env.WIVO_YKMAN) // the test hooks below count only with a stand-in ykman
-const RELEASES = (TESTING && process.env.WIVO_RELEASE_ROOT) || join(ROOT, 'release-riga')
 const FEED_DIR = TESTING ? process.env.WIVO_RELEASE_FEED_DIR : undefined
 const GH = (TESTING && process.env.WIVO_GH) || 'gh'
 
 const fail = msg => { console.error(`\nRefused: ${msg}\n`); process.exit(1) }
 const args = process.argv.slice(2)
 const cmd = args[0]
-const has = name => args.includes(name)
-const flag = name => { const i = args.indexOf(name); return i >= 0 && args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : undefined }
+const { has, flag } = cliOptions(args, process.env)
+
+const { clinic, problem } = loadClinic(ROOT, flag('--clinic'))
+if (problem) fail(problem)
+/** The build id the release statement carries: the desktop installs only a release for its own. */
+const BUILD = clinic.id
+const REPO = clinic.releasesRepo
+const NAME = clinic.name
+const ON = `-- --clinic ${clinic.id}` // the clinic, as the next command names it
+const RELEASES = (TESTING && process.env.WIVO_RELEASE_ROOT) || join(ROOT, 'releases', clinic.id)
+const SHOWN = `releases/${clinic.id}` // RELEASES, as the messages show it
 
 const R = await loadRelease()
 const trust = TESTING && process.env.WIVO_RELEASE_TEST_TRUST
   ? JSON.parse(readFileSync(process.env.WIVO_RELEASE_TEST_TRUST, 'utf8'))
   : { roots: R.PINNED_ROOTS, certificates: [...(await loadTs(join(ROOT, 'shared/release/certificates.ts'))).ROOT_A_CERTIFICATES] }
-const SOURCE = R.updateSourcesFor(BUILD)[0]
-if (!SOURCE) fail("shared/release has no update address for Riga's build")
+const SOURCE = R.updateSourcesFor(BUILD, R.clinicReleaseSource(REPO))[0]
+if (!SOURCE) fail(`clinics/${clinic.id}.json: releasesRepo "${REPO}" is not a clinic's releases repository`)
 
 const pkgVersion = () => JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
 const git = (...a) => execFileSync('git', a, { cwd: ROOT, encoding: 'utf8' }).trim()
@@ -102,7 +116,7 @@ function rawPublicKey(b64url) {
 /** Signs on the YubiKey and checks each signature against that key's certified public key. */
 function signOnKey(letter, statements) {
   console.log(`\nYubiKey ${letter} (${SIGNERS[letter]}) signs ${statements.length === 1 ? 'one statement' : `${statements.length} statements`}: the PIN once, then touch the key each time it blinks.`)
-  const r = signStatements({ serial: SIGNERS[letter], what: `Wivo for Riga, signed by YubiKey ${letter}`, statements })
+  const r = signStatements({ serial: SIGNERS[letter], what: `Wivo for ${NAME}, signed by YubiKey ${letter}`, statements })
   if (!r.ok) fail(`${r.message} Nothing was written.`)
   for (const s of statements) {
     const sig = r.signatures.get(s.id)
@@ -135,7 +149,7 @@ async function build() {
   const version = pkgVersion()
   if (!R.isVersion(version)) fail(`package.json's version "${version}" is not x.y.z`)
   const branch = git('rev-parse', '--abbrev-ref', 'HEAD')
-  if (branch !== 'testing') fail(`the branch is "${branch}"; Riga's releases are built from testing`)
+  if (branch !== 'testing') fail(`the branch is "${branch}"; a clinic's releases are built from testing`)
   if (git('status', '--porcelain') !== '') fail('the working tree has changes; commit them first, so the release is a known commit')
 
   const published = await readPublished()
@@ -144,13 +158,13 @@ async function build() {
   const problem = versionProblem(published?.app?.version ?? null, version, R.compareVersions)
   if (problem) fail(problem)
 
-  console.log(`Riga release ${version} · published now: ${published?.app?.version ?? 'nothing'}\n`)
-  const r = spawnSync(process.execPath, [join(ROOT, 'scripts/build-riga.mjs')], { cwd: ROOT, stdio: 'inherit' })
+  console.log(`${NAME} release ${version} · ${REPO} · published now: ${published?.app?.version ?? 'nothing'}\n`)
+  const r = spawnSync(process.execPath, [join(ROOT, 'scripts/build-clinic.mjs'), '--clinic', clinic.id], { cwd: ROOT, stdio: 'inherit' })
   if (r.status !== 0) process.exit(r.status ?? 1)
 
-  const file = `Wivo-Riga-Setup-${version}.exe`
-  const exe = join(ROOT, 'dist-riga', file)
-  if (!existsSync(exe)) fail(`dist-riga/${file} is missing after the build`)
+  const file = `Wivo-${clinic.id}-Setup-${version}.exe`
+  const exe = join(ROOT, `dist-${clinic.id}`, file)
+  if (!existsSync(exe)) fail(`dist-${clinic.id}/${file} is missing after the build`)
   const facts = fileFacts(exe)
   const migrations = migrationFiles(readdirSync(join(ROOT, 'sql')))
   const schema = migrations[migrations.length - 1]
@@ -169,13 +183,13 @@ async function build() {
     built_at: new Date().toISOString(),
   }, null, 2) + '\n')
 
-  console.log(`\nRelease ${version} is ready to sign: release-riga/${version}/`)
+  console.log(`\nRelease ${version} is ready to sign: ${SHOWN}/${version}/`)
   console.log(`  Installer: ${file}\n  SHA-256:   ${facts.sha256}`)
   console.log(`  Database:  this version expects ${schema}`)
-  if (!published) console.log("  First release: Riga's database must already be at that migration (its baseline). Settings → Database shows it.")
-  else if (newMigrations.length) console.log(`  NEW since ${published.app?.version}: ${newMigrations.join(', ')}\n  Run them in Riga's database BEFORE signing (docs/RELEASE.md §5).`)
+  if (!published) console.log(`  First release: ${NAME}'s database must already be at that migration (its baseline). Settings → Database shows it.`)
+  else if (newMigrations.length) console.log(`  NEW since ${published.app?.version}: ${newMigrations.join(', ')}\n  Run them in ${NAME}'s database BEFORE signing (docs/RELEASE.md §5).`)
   else console.log(`  No new migrations since ${published.app?.version}.`)
-  console.log('\nNext: npm run release:riga:sign   (YubiKey C)')
+  console.log(`\nNext: npm run release:sign ${ON}   (YubiKey C)`)
 }
 
 // ─── sign ─────────────────────────────────────────────────────────────────────
@@ -199,14 +213,15 @@ async function sign() {
     const dir = join(RELEASES, 'refresh')
     mkdirSync(dir, { recursive: true })
     writeFileSync(join(dir, 'updates.json'), JSON.stringify(list, null, 2) + '\n')
-    console.log('\nSigned and checked: release-riga/refresh/updates.json\nNext: npm run release:riga:publish -- --refresh')
+    console.log(`\nSigned and checked: ${SHOWN}/refresh/updates.json\nNext: npm run release:publish ${ON} --refresh`)
     return
   }
 
-  const version = flag('--version') ?? pkgVersion()
+  const version = flag('--release-version') ?? pkgVersion()
   const dir = releaseDir(version)
-  if (!existsSync(join(dir, 'release.json'))) fail(`release-riga/${version}/release.json is missing: run npm run release:riga first`)
+  if (!existsSync(join(dir, 'release.json'))) fail(`${SHOWN}/${version}/release.json is missing: run npm run release ${ON} first`)
   const rel = JSON.parse(readFileSync(join(dir, 'release.json'), 'utf8'))
+  if (rel.build !== BUILD) fail(`${SHOWN}/${version} was built for "${rel.build}", not ${BUILD}. Build again.`)
   const facts = fileFacts(join(dir, rel.file))
   if (facts.sha512 !== rel.sha512 || facts.size !== rel.size) fail(`${rel.file} has changed since it was built. Build again.`)
   if (!published && !rel.first) fail(`nothing is published at ${SOURCE}/${RELEASE_TAG}/ any more (or it can't be reached), but this release was built after one. Check the connection.`)
@@ -215,13 +230,13 @@ async function sign() {
   if (problem) fail(problem)
 
   if (rel.new_migrations.length) {
-    console.log(`\nThis release needs these migrations in Riga's database:\n  ${rel.new_migrations.join('\n  ')}`)
-    if (!has('--migrations-applied') && !(await confirm("Are they applied in Riga's database (after the test copy)? Type yes: "))) {
+    console.log(`\nThis release needs these migrations in ${NAME}'s database:\n  ${rel.new_migrations.join('\n  ')}`)
+    if (!has('--migrations-applied') && !(await confirm(`Are they applied in ${NAME}'s database (after the test copy)? Type yes: `))) {
       fail("apply them first (docs/RELEASE.md §5). Nothing was signed.")
     }
   }
 
-  const app = appPayload({ keyId: keys.app.id, version, file: rel.file, sha512: rel.sha512, size: rel.size, schema: rel.schema, now })
+  const app = appPayload({ keyId: keys.app.id, version, file: rel.file, sha512: rel.sha512, size: rel.size, schema: rel.schema, now, build: BUILD })
   const index = indexPayload({
     keyId: keys.update.id, serial: (published?.index.serial ?? 0) + 1, now, days,
     app: { version, file: rel.file, sha512: rel.sha512, size: rel.size }, previous: published?.index,
@@ -231,7 +246,7 @@ async function sign() {
   console.log(`\nWhat is signed:\n  Wivo ${version} for ${BUILD}, commit ${rel.commit.slice(0, 10)}\n  ${rel.file}, ${rel.size} bytes\n  SHA-256 ${rel.sha256}\n  list serial ${index.serial}, expires ${index.expires}`)
   const sigs = signOnKey(letter, [
     { id: 'index', label: `The list, serial ${index.serial}, expires ${index.expires.slice(0, 10)} (update key)`, slot: SLOTS.update, bytes: pi.statement, publicKey: keys.update.publicKey, keyId: keys.update.id },
-    { id: 'app', label: `Wivo ${version} for Riga, the installer's hash (app key)`, slot: SLOTS.app, bytes: pa.statement, publicKey: keys.app.publicKey, keyId: keys.app.id },
+    { id: 'app', label: `Wivo ${version} for ${NAME}, the installer's hash (app key)`, slot: SLOTS.app, bytes: pa.statement, publicKey: keys.app.publicKey, keyId: keys.app.id },
   ])
   const list = {
     index: R.assemble('index', pi.payloadB64, sigs.get('index')),
@@ -241,7 +256,7 @@ async function sign() {
   const ok = await appAccepts(list, version, facts, published)
   if (!ok.ok) fail(`the signed release does not pass the app's own check (${ok.reason}). Nothing was written.`)
   writeFileSync(join(dir, 'updates.json'), JSON.stringify(list, null, 2) + '\n')
-  console.log(`\nSigned, and checked with the app's own code: release-riga/${version}/updates.json\nNext: npm run release:riga:publish`)
+  console.log(`\nSigned, and checked with the app's own code: ${SHOWN}/${version}/updates.json\nNext: npm run release:publish ${ON}`)
 }
 
 // ─── publish ──────────────────────────────────────────────────────────────────
@@ -260,17 +275,17 @@ async function readBack(files) {
     }
     if (!wrong.length) return true
     if (attempt < 3) { console.log(`  not yet the same: ${wrong.join(', ')}; trying again in 20 s`); await new Promise(r => setTimeout(r, FEED_DIR ? 10 : 20_000)) }
-    else console.error(`  still not the same: ${wrong.join(', ')}. GitHub may take a minute: npm run release:riga:publish -- --check`)
+    else console.error(`  still not the same: ${wrong.join(', ')}. GitHub may take a minute: npm run release:publish ${ON} --check`)
   }
   return false
 }
 
 async function publish() {
   const refresh = has('--refresh')
-  const version = flag('--version') ?? pkgVersion()
+  const version = flag('--release-version') ?? pkgVersion()
   const dir = refresh ? join(RELEASES, 'refresh') : releaseDir(version)
   const list = join(dir, 'updates.json')
-  if (!existsSync(list)) fail(`${refresh ? 'release-riga/refresh' : `release-riga/${version}`}/updates.json is missing: sign first`)
+  if (!existsSync(list)) fail(`${SHOWN}/${refresh ? 'refresh' : version}/updates.json is missing: sign first`)
   const signed = R.parsePublishedList(new Uint8Array(readFileSync(list)))
   if (!signed) fail('updates.json is not a list')
   const published = await readPublished()
@@ -296,16 +311,16 @@ async function publish() {
   }
 
   if (gh(['--version'], true).status !== 0) fail('gh (GitHub CLI) is missing: winget install --id GitHub.cli -e, then gh auth login')
-  if (gh(['release', 'view', RELEASE_TAG, '--repo', RIGA_REPO], true).status !== 0) {
-    console.log(`Creating the release "${RELEASE_TAG}" in ${RIGA_REPO}…`)
-    const c = gh(['release', 'create', RELEASE_TAG, '--repo', RIGA_REPO, '--title', 'Wivo for Riga',
-      '--notes', "Signed desktop releases for Riga's Wivo (docs/RELEASE.md). The app installs them only after checking Wivo's signature.", '--latest'])
-    if (c.status !== 0) fail(`could not create the release. Does https://github.com/${RIGA_REPO} exist, public, and is gh signed in (gh auth status)? docs/RIGA-ROLLOUT.md`)
+  if (gh(['release', 'view', RELEASE_TAG, '--repo', REPO], true).status !== 0) {
+    console.log(`Creating the release "${RELEASE_TAG}" in ${REPO}…`)
+    const c = gh(['release', 'create', RELEASE_TAG, '--repo', REPO, '--title', `Wivo for ${NAME}`,
+      '--notes', `Signed desktop releases of Wivo for ${NAME}. The app installs them only after checking Wivo's signature.`, '--latest'])
+    if (c.status !== 0) fail(`could not create the release. Does https://github.com/${REPO} exist, public, and is gh signed in (gh auth status)? docs/CLINIC-ROLLOUT.md`)
   }
 
   const plan = refresh
-    ? [['release', 'upload', RELEASE_TAG, list, '--repo', RIGA_REPO, '--clobber']]
-    : uploadPlan({ installer: join(dir, rel.file), blockmap: rel.blockmap ? join(dir, rel.blockmap) : null, list, feed: join(dir, 'latest.yml') })
+    ? [['release', 'upload', RELEASE_TAG, list, '--repo', REPO, '--clobber']]
+    : uploadPlan({ installer: join(dir, rel.file), blockmap: rel.blockmap ? join(dir, rel.blockmap) : null, list, feed: join(dir, 'latest.yml'), repo: REPO })
   for (const argv of plan) {
     console.log(`gh ${argv.slice(0, 3).join(' ')} ${argv.slice(3, -3).map(p => p.split(/[\\/]/).pop()).join(' ')}`)
     if (gh(argv).status !== 0) fail('the upload stopped (above says why). Run the same command again: uploads replace what is there.')
@@ -314,10 +329,10 @@ async function publish() {
   console.log('\nReading it back from the public address…')
   const same = await readBack(refresh ? [['updates.json', list]] : [['updates.json', list], ['latest.yml', join(dir, 'latest.yml')]])
   if (!refresh) {
-    console.log(`\n${same ? 'Published' : 'Uploaded'}: Wivo ${version} for Riga.`)
-    console.log(`  Installer: ${releaseUrl(rel.file)}\n  SHA-256:   ${rel.sha256}`)
-    console.log(`\nRiga's desktops find it within 30 minutes and install it at their next start.`)
-    console.log(`Riga's phone app, from the same commit (push testing first):\n\n  git push origin ${rel.commit}:refs/heads/riga\n`)
+    console.log(`\n${same ? 'Published' : 'Uploaded'}: Wivo ${version} for ${NAME}.`)
+    console.log(`  Installer: ${releaseUrl(REPO, rel.file)}\n  SHA-256:   ${rel.sha256}`)
+    console.log(`\n${NAME}'s desktops find it within 30 minutes and install it at their next start.`)
+    console.log(`${NAME}'s phone app (Cloudflare ${clinic.cloudflareProject}), from the same commit (push testing first):\n\n  ${phoneBranchCommand(rel.commit, clinic.phoneBranch)}\n`)
   } else console.log(same ? '\nThe new list is published.' : '\nUploaded; check again in a minute.')
   if (!same) process.exit(2)
 }
@@ -326,6 +341,6 @@ if (cmd === 'build') await build()
 else if (cmd === 'sign') await sign()
 else if (cmd === 'publish') await publish()
 else {
-  console.log('Usage: npm run release:riga | release:riga:sign [-- --yubikey D --days 14 --refresh] | release:riga:publish [-- --refresh --check]')
+  console.log('Usage: npm run release -- --clinic <id> [--first] | release:sign -- --clinic <id> [--yubikey D --days 30 --refresh] | release:publish -- --clinic <id> [--refresh --check]')
   process.exit(1)
 }

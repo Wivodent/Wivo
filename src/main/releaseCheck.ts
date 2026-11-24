@@ -16,14 +16,15 @@
  * desktop that has seen a newer list refuses an older one (TUF: rollback).
  *
  * Which build this is (`MAIN_VITE_WIVO_BUILD`, docs/RELEASE.md) decides where
- * the updates come from and which release statements count: Riga's installer
- * reads only Riga's address and installs only a release signed for `riga`.
+ * the updates come from and which release statements count: a clinic's
+ * installer (clinics/<id>.json) reads only its own releases
+ * (`MAIN_VITE_WIVO_RELEASES_REPO`) and installs only a release signed for its id.
  */
 import { createHash } from 'crypto'
 import { createReadStream, readFileSync, statSync, writeFileSync } from 'fs'
 import {
-  MAIN_BUILD, PINNED_ROOTS, MAX_INDEX_BYTES, checkAppUpdate, compareVersions, isBuildId, isVersion, limitedFetcher,
-  listAddress, parsePublishedList, updateSourcesFor,
+  MAIN_BUILD, PINNED_ROOTS, MAX_INDEX_BYTES, checkAppUpdate, clinicReleaseSource, compareVersions, isBuildId, isVersion,
+  limitedFetcher, listAddress, parsePublishedList, updateSourcesFor,
   type Channel, type Fetcher, type RootKey, type SerialFloor,
 } from '../../shared/release/release'
 
@@ -31,7 +32,7 @@ import {
 const CHANNEL: Channel = 'stable'
 
 /**
- * This installer's build: `riga` from scripts/build-riga.mjs, else main's.
+ * This installer's build: the clinic's id from scripts/build-clinic.mjs, else main's.
  * Anything that isn't a plain id counts as main's, which reads no clinic's
  * address.
  */
@@ -41,14 +42,20 @@ export function buildOf(value: string | undefined): string {
 
 export const BUILD = buildOf(import.meta.env.MAIN_VITE_WIVO_BUILD)
 
+/** A clinic's build: its own releases, built in (null for main's, or when none was given). */
+export const CLINIC_SOURCE = BUILD === MAIN_BUILD ? null : clinicReleaseSource(import.meta.env.MAIN_VITE_WIVO_RELEASES_REPO)
+
+/** Where this desktop reads the signed list. */
+export const SOURCES = updateSourcesFor(BUILD, CLINIC_SOURCE)
+
 /**
  * Where electron-updater reads `latest.yml` for this build: the `stable`
  * release next to the signed list, or null to keep package.json's feed
  * (main's GitHub releases).
  */
-export function feedUrlFor(build: string): string | null {
+export function feedUrlFor(build: string, clinicSource: string | null): string | null {
   if (build === MAIN_BUILD) return null
-  const source = updateSourcesFor(build)[0]
+  const source = updateSourcesFor(build, clinicSource)[0]
   return source ? listAddress(source, CHANNEL).replace(/\/updates\.json$/, '') : null
 }
 
@@ -71,7 +78,7 @@ export interface ReleaseCheckDeps {
 }
 
 export const releaseCheckDeps = (floorPath: string, running: string): ReleaseCheckDeps => ({
-  pinned: PINNED_ROOTS, sources: updateSourcesFor(BUILD), fetch: limitedFetcher(fetch), floorPath, now: () => new Date(),
+  pinned: PINNED_ROOTS, sources: SOURCES, fetch: limitedFetcher(fetch), floorPath, now: () => new Date(),
   channel: CHANNEL, build: BUILD, running,
 })
 

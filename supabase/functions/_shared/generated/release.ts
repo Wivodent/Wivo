@@ -163,8 +163,9 @@ export interface AppRelease {
   size: number
   created_at: string
   /**
-   * Which build this installer is (docs/RELEASE.md): `riga` for Riga's
-   * installer, absent for `main`'s. A desktop installs only a release of its
+   * Which build this installer is (docs/RELEASE.md): the clinic's id
+   * (clinics/<id>.json, e.g. `dentiks`) for a clinic's installer, absent for
+   * `main`'s. A desktop installs only a release of its
    * own build, so a release made for one clinic, or main's, never installs in
    * another, even when it is validly signed.
    */
@@ -434,22 +435,34 @@ export const PINNED_ROOTS: RootKey[] = [
  */
 export const UPDATE_SOURCES: string[] = []
 
+/** main's own GitHub repository: its CI publishes there. A clinic's releases never live there. */
+export const MAIN_RELEASE_REPO = 'SniperInSuit/Wivo'
+
 /**
- * Builds that get their own desktop releases, and where (docs/RELEASE.md). A
- * clinic-specific installer (today Riga's, with its project's address built
- * in) reads its updates only here: a GitHub repository of its own, whose
- * release tagged `stable` holds `latest.yml`, `updates.json` and the
- * installer. `releases/download/<tag>/<file>` is exactly `listAddress`'s
- * `<source>/<channel>/<file>`. main's CI publishes elsewhere and cannot write
- * here.
+ * Where a clinic's desktop reads its releases (docs/RELEASE.md): a public
+ * GitHub repository of the clinic's own (clinics/<id>.json `releasesRepo`,
+ * built into the installer), whose release tagged `stable` holds
+ * `latest.yml`, `updates.json` and the installer.
+ * `releases/download/<tag>/<file>` is exactly `listAddress`'s
+ * `<source>/<channel>/<file>`. Null for anything that is not `owner/name`, and
+ * for main's repository: main's CI publishes there and cannot write to a
+ * clinic's.
  */
-export const BUILD_UPDATE_SOURCES: Readonly<Record<string, readonly string[]>> = {
-  riga: ['https://github.com/SniperInSuit/wivo-riga-releases/releases/download'],
+export function clinicReleaseSource(repo: unknown): string | null {
+  if (typeof repo !== 'string' || !/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(repo)) return null
+  if (repo.toLowerCase() === MAIN_RELEASE_REPO.toLowerCase()) return null
+  return `https://github.com/${repo}/releases/download`
 }
 
-/** Where a build's desktop reads its updates: its own address, else UPDATE_SOURCES. */
-export function updateSourcesFor(build: string): string[] {
-  return [...(BUILD_UPDATE_SOURCES[build] ?? (build === MAIN_BUILD ? UPDATE_SOURCES : []))]
+/**
+ * Where a build's desktop reads its updates: main's, UPDATE_SOURCES; a
+ * clinic's, its own releases (`clinicSource`, from clinicReleaseSource) and
+ * nothing else. A clinic's build without one reads nothing, so installs
+ * nothing.
+ */
+export function updateSourcesFor(build: string, clinicSource: string | null = null): string[] {
+  if (build === MAIN_BUILD) return [...UPDATE_SOURCES]
+  return clinicSource ? [clinicSource] : []
 }
 
 /**
@@ -553,7 +566,8 @@ export type CheckedApp =
  *   2. a release statement signed by a certified app key, not revoked, says
  *      the same version, file, sha512 and size;
  *   3. that statement is for this desktop's own `build` (docs/RELEASE.md), so
- *      main's release never installs in Riga's app, nor the reverse.
+ *      main's release never installs in a clinic's app, one clinic's never
+ *      in another's, nor the reverse.
  * `sha512` is electron-updater's form: base64 of the raw digest.
  */
 export async function checkAppUpdate(args: {

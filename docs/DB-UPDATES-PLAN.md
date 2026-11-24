@@ -1,9 +1,11 @@
-# Riga's database updates through `wivo-update`: the plan
+# A clinic's database updates through `wivo-update`: the plan (first: Dentiks)
 
 **Status: a plan only (2026-11-25), no code.** For the next night's build.
 Phase 1, parts 2, 3 and 5 of docs/ARCHITECTURE-INSTANCES.md §9, narrowed to
 what Riga needs first. Desktop releases are already signed and automatic
-(docs/RELEASE.md); this is the database's half.
+(docs/RELEASE.md); this is the database's half. Names follow the clinic: the
+first is Dentiks, in Riga (clinics/dentiks.json); "Riga" below means its
+project and its people.
 
 **Lühidalt (Kevin):** suur osa on juba olemas (pearaamat, kontroll, ühe
 tehinguga paigaldus, Seadete vaade, värske kood). Puudu on neli asja: (1)
@@ -25,11 +27,11 @@ Funktsioonide uuendused (token) jäävad hilisemaks. Otsused §7.
 | Fresh second-factor code (`fresh_second_factor`, `update_approval`) | sql/120 | built, in Riga's baseline |
 | `wivo-update`: `check` (scheduled job or approver) and `install` (approver, code < 5 min): list checked, package checked against list and signature, planned against the ledger, every migration and its ledger row in **one transaction**, `transactionSafe` refusal, read-only checks after, every attempt recorded | `supabase/functions/_shared/wivoUpdate.ts`, `wivo-update/index.ts` | built, tested against the real migrations (PGlite); **not deployed anywhere** |
 | Settings → Updates, the clinic's database: installed version, list freshness, last check, Check now, last installs, accepted keys; "Database update ready" with Install + fresh code | `DatabaseUpdatesSection.tsx` and the banner | built; shows nothing until `wivo_instance` has a row |
-| Riga's signed list and address | `release-riga.mjs`, `BUILD_UPDATE_SOURCES.riga` | built tonight; the list's `versions` (database packages) is empty, and is carried over from list to list |
+| The clinic's signed list and address | `scripts/release.mjs --clinic dentiks`, `clinics/dentiks.json` `releasesRepo` → `clinicReleaseSource` | built; the list's `versions` (database packages) is empty, and is carried over from list to list |
 
 ## 2. What is missing
 
-1. **Packages.** `release:riga` builds no `wivo-update-<v>.json`. Needed:
+1. **Packages.** `npm run release -- --clinic <id>` builds no `wivo-update-<v>.json`. Needed:
    collect `sql/NNN_*.sql` (all of them: packages are cumulative) and
    `sql/checks/*.sql`, run `transactionSafe` on each migration before signing
    (refuse, never strip), write the manifest (`from_min`, `manual_only`,
@@ -50,8 +52,9 @@ Funktsioonide uuendused (token) jäävad hilisemaks. Otsused §7.
      ledger is empty; recorded in `wivo_update_install`.
    This replaces the setup secret of §5f for Riga (no setup tool yet).
 3. **Where `wivo-update` reads.** Its generated `UPDATE_SOURCES` is empty.
-   Proposal: a function secret `WIVO_BUILD=riga`, and the function uses
-   `updateSourcesFor(build)`, as the desktop does. Safe because the address
+   Proposal: function secrets `WIVO_BUILD=dentiks` and
+   `WIVO_RELEASES_REPO=SniperInSuit/wivo-dentiks-releases` (from clinics/<id>.json),
+   and the function uses `updateSourcesFor(build, clinicReleaseSource(repo))`, as the desktop does. Safe because the address
    is not trusted (signatures and the stored channel and serial floor are).
    Alternative: generate the copy per clinic at deploy (decision 2).
 4. **Desktop waits for its database.** The release statement already carries
@@ -64,7 +67,7 @@ Funktsioonide uuendused (token) jäävad hilisemaks. Otsused §7.
    Vault's `sb_secret` key, as `send-notifications`): a migration that
    schedules it only when `wivo_instance` has a row.
 6. **Deploying `wivo-update` to Riga** (Kevin, once, by CLI, `--no-verify-jwt`),
-   and RIGA-SETUP/ROLLOUT steps for it.
+   and CLINIC-SETUP/ROLLOUT steps for it.
 7. **Not now:** Edge Functions in a package (functions token, §5c, slice 3):
    a package with `functions/` is refused (`functions_not_yet`); function
    changes stay a manual deploy by Kevin. Automatic installs (after Riga runs,
@@ -144,7 +147,7 @@ Findings are fixed and re-tested before the first package goes to Riga.
 
 ## 6. Build order (next night)
 
-1. Packages in `release-riga.mjs` (+ tests: the signed manifest bytes are what
+1. Packages in `scripts/release.mjs` (+ tests: the signed manifest bytes are what
    `checkPackage` verifies; a non-transaction-safe migration is refused before
    signing).
 2. The adopt step in `wivoUpdate.ts` + a small migration for anything it needs
@@ -153,7 +156,7 @@ Findings are fixed and re-tested before the first package goes to Riga.
 3. `WIVO_BUILD` in `wivo-update/index.ts` (+ test: unknown build → no source).
 4. Desktop waits for `schema` (+ tests).
 5. The scheduled check migration.
-6. Docs: RELEASE.md §5 replaced, RIGA-ROLLOUT steps (deploy `wivo-update`,
+6. Docs: RELEASE.md §5 replaced, CLINIC-ROLLOUT steps (deploy `wivo-update`,
    adopt, first database package on the test project, then Riga).
 7. The security review (§5) before anything is deployed to Riga.
 
@@ -161,8 +164,8 @@ Findings are fixed and re-tested before the first package goes to Riga.
 
 1. **Adopt instead of a setup secret** for Riga's hand-built database (2.2).
    Recommended: yes; the setup tool comes later for new clinics.
-2. **Where `wivo-update` learns Riga's address:** a function secret
-   `WIVO_BUILD=riga` (recommended: no per-clinic code) or a per-clinic copy
+2. **Where `wivo-update` learns the clinic's address:** function secrets
+   `WIVO_BUILD=dentiks` and `WIVO_RELEASES_REPO` (recommended: no per-clinic code) or a per-clinic copy
    generated at deploy.
 3. **Functions stay manual** until the functions token (slice 3).
    Recommended: yes; most releases change no function.

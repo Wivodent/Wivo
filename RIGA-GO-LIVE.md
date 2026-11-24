@@ -232,7 +232,7 @@ OK to delete.
   - the installer comes from `testing`, which pins the root keys, so it
     **refuses an unsigned app update**: until the release tool exists, every
     update to Riga is a new installer, installed by hand;
-  - the database baseline goes in with `psql` (docs/RIGA-SETUP.md), not
+  - the database baseline goes in with `psql` (docs/CLINIC-SETUP.md), not
     through `wivo-update`.
 - **The security review:** the full review (5f) may come after the start,
   **within two weeks, by 2026-12-07**. **On Sunday 22.11, before Riga's
@@ -242,7 +242,7 @@ OK to delete.
   - no `service_role` key or other secret in the installer or its `.env`;
   - Storage rules for the new file types `ct` and `project`.
 - **E-mail:** Riga's own Resend account (free plan, 100 e-mails a day), from
-  the domain `dentiks.lv`. docs/RIGA-SETUP.md holds the DNS records for Ilja,
+  the domain `dentiks.lv`. docs/CLINIC-SETUP.md holds the DNS records for Ilja,
   the sending key in Riga's Supabase function secrets, and Supabase Auth's
   SMTP through Riga's Resend. **When the daily limit is reached, it has to be
   in the log and visible to the owner.** Auth's own e-mails (invites,

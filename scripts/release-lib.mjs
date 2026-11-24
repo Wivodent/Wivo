@@ -1,18 +1,18 @@
 /**
- * The pure parts of Riga's release tool (scripts/release-riga.mjs,
- * docs/RELEASE.md), so scripts/releaseRiga.test.ts can run them. Nothing here
- * reads a file, a key or the network.
+ * The pure parts of the clinics' release tool (scripts/release.mjs,
+ * docs/RELEASE.md), so scripts/releaseTool.test.ts can run them. Nothing here
+ * reads a key or the network; the clinic comes from clinics/<id>.json
+ * (scripts/clinic-config.mjs).
  */
 import { readFileSync } from 'node:fs'
 import { transform } from 'esbuild'
+import { RELEASE_TAG } from './clinic-config.mjs'
 
-/** Where Riga's releases are published: a repository of their own, the release tagged `stable`. */
-export const RIGA_REPO = 'SniperInSuit/wivo-riga-releases'
-export const RELEASE_TAG = 'stable'
-export const BUILD = 'riga'
+/** A clinic's releases: the release tagged `stable` of its own repository (clinics/<id>.json releasesRepo). */
+export { RELEASE_TAG }
 
-/** The list expires 14 days after signing (ARCHITECTURE-INSTANCES.md §5g); at most 30. */
-export const LIST_DAYS = 14
+/** The list expires 30 days after signing, the most it may (ARCHITECTURE-INSTANCES.md §5g; Kevin's decision, November 2026). */
+export const LIST_DAYS = 30
 export const MAX_LIST_DAYS = 30
 
 /** The signing YubiKeys: C signs, D is the spare (scripts/yubikey/keys.mjs). */
@@ -106,9 +106,10 @@ export function indexPayload({ keyId, serial, now, days, app, previous }) {
   }
 }
 
-/** The release statement the app key signs: this installer, for Riga's build. */
-export function appPayload({ keyId, version, file, sha512, size, schema, now }) {
-  return { v: 1, key_id: keyId, version, file, sha512, size, created_at: now.toISOString(), build: BUILD, ...(schema ? { schema } : {}) }
+/** The release statement the app key signs: this installer, for this clinic's build (its id). */
+export function appPayload({ keyId, version, file, sha512, size, schema, now, build }) {
+  if (!build || build === 'main') throw new Error('a clinic release names its clinic')
+  return { v: 1, key_id: keyId, version, file, sha512, size, created_at: now.toISOString(), build, ...(schema ? { schema } : {}) }
 }
 
 /**
@@ -116,9 +117,10 @@ export function appPayload({ keyId, version, file, sha512, size, schema, now }) 
  * the signed list, then latest.yml last, so no desktop is ever pointed at an
  * installer the list doesn't name yet.
  */
-export function uploadPlan({ installer, blockmap, list, feed }) {
-  const up = files => ['release', 'upload', RELEASE_TAG, ...files, '--repo', RIGA_REPO, '--clobber']
+export function uploadPlan({ installer, blockmap, list, feed, repo }) {
+  if (!repo) throw new Error('uploadPlan needs the clinic\'s repository')
+  const up = files => ['release', 'upload', RELEASE_TAG, ...files, '--repo', repo, '--clobber']
   return [up(blockmap ? [installer, blockmap] : [installer]), up([list]), up([feed])]
 }
 
-export const releaseUrl = file => `https://github.com/${RIGA_REPO}/releases/download/${RELEASE_TAG}/${file}`
+export const releaseUrl = (repo, file) => `https://github.com/${repo}/releases/download/${RELEASE_TAG}/${file}`

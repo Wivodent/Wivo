@@ -1,7 +1,7 @@
 /**
  * Ask a YubiKey to sign statements, through Yubico's `ykman script` and
  * setup-device.py `sign`: the PIN once (hidden), then a touch for each. Used by
- * scripts/make-license.mjs and scripts/release-riga.mjs. Works the same on
+ * scripts/make-license.mjs and scripts/release.mjs. Works the same on
  * Windows and on a Mac: the only outside program is ykman.
  *
  * `WIVO_YKMAN` names another program: a full path to ykman when it is not on

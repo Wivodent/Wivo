@@ -98,18 +98,18 @@ describe('the notes in release-notes/', () => {
 
   it("a clinic's build names its own phone app, in the text and in the link (Riga)", () => {
     for (const lang of ['en', 'et'] as const) {
-      const json = JSON.stringify(releaseNotes('2.0.0', lang, 'https://wivo-dentiks.pages.dev')?.blocks)
-      expect(json, lang).toContain('"href":"https://wivo-dentiks.pages.dev"')
-      expect(json, lang).toContain('"text":"wivo-dentiks.pages.dev"')
+      const json = JSON.stringify(releaseNotes('2.0.0', lang, 'https://wivo.dentiks.lv')?.blocks)
+      expect(json, lang).toContain('"href":"https://wivo.dentiks.lv"')
+      expect(json, lang).toContain('"text":"wivo.dentiks.lv"')
       expect(json, lang).not.toContain('wivodent.com')
     }
   })
 
   it('the phone address comes from the build, and only a plain https address counts', () => {
-    expect(phoneUrl('https://wivo-dentiks.pages.dev/')).toBe('https://wivo-dentiks.pages.dev')
+    expect(phoneUrl('https://wivo.dentiks.lv/')).toBe('https://wivo.dentiks.lv')
     expect(phoneUrl(undefined)).toBe('https://app.wivodent.com')
     expect(phoneUrl('')).toBe('https://app.wivodent.com')
-    expect(phoneUrl('http://wivo-dentiks.pages.dev')).toBe('https://app.wivodent.com')
+    expect(phoneUrl('http://wivo.dentiks.lv')).toBe('https://app.wivodent.com')
     expect(phoneUrl('javascript:alert(1)')).toBe('https://app.wivodent.com')
     expect(phoneUrl('https://x.pages.dev/path')).toBe('https://app.wivodent.com')
   })

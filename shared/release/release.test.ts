@@ -7,7 +7,7 @@ import { describe, it, expect, beforeAll } from 'vitest'
 import {
   encode, prepare, assemble, trustFrom, checkCertificate, checkSigned, checkPackage, checkIndex, checkListed, isStale, planInstall, compareVersions, isPackagePath, canonicalJson,
   b64urlEncode, b64urlDecode, sha256Hex, signedText, statement, PREFIX, MAX_PACKAGE_BYTES, MAX_INDEX_BYTES,
-  PINNED_ROOTS, UPDATE_SOURCES, BUILD_UPDATE_SOURCES, updateSourcesFor, listAddress, packageAddress, parsePublishedList, listedRevocations,
+  PINNED_ROOTS, UPDATE_SOURCES, MAIN_RELEASE_REPO, clinicReleaseSource, updateSourcesFor, listAddress, packageAddress, parsePublishedList, listedRevocations,
   limitedFetcher, checkAppUpdate, type IndexEntry, type AppRelease, type PublishedList,
   type Certificate, type Manifest, type Index, type RootKey, type Signer, type Revocation,
 } from './release'
@@ -378,18 +378,20 @@ describe('the published list, and where it lives', () => {
     expect((await trustFrom(PINNED_ROOTS, [])).roots).toHaveLength(2)
   })
 
-  it("Riga's build reads its own repository's `stable` release; main reads nothing of Riga's (docs/RELEASE.md)", () => {
-    expect(updateSourcesFor('riga')).toEqual(['https://github.com/SniperInSuit/wivo-riga-releases/releases/download'])
-    expect(listAddress(updateSourcesFor('riga')[0], 'stable'))
-      .toBe('https://github.com/SniperInSuit/wivo-riga-releases/releases/download/stable/updates.json')
+  it("a clinic's build reads its own repository's `stable` release; main reads nothing of a clinic's (docs/RELEASE.md)", () => {
+    const own = clinicReleaseSource('SniperInSuit/wivo-dentiks-releases')
+    expect(own).toBe('https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download')
+    expect(updateSourcesFor('dentiks', own)).toEqual([own])
+    expect(listAddress(updateSourcesFor('dentiks', own)[0], 'stable'))
+      .toBe('https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable/updates.json')
     expect(updateSourcesFor('main')).toEqual(UPDATE_SOURCES)
-    expect(updateSourcesFor('main')).not.toContain(updateSourcesFor('riga')[0])
+    expect(updateSourcesFor('main', own)).not.toContain(own)
+    // A clinic's build without its repository reads nothing, so installs nothing.
     expect(updateSourcesFor('somewhere-else')).toEqual([])
-    // An update source is never main's own release repository.
-    for (const sources of Object.values(BUILD_UPDATE_SOURCES)) for (const s of sources) {
-      expect(s).toMatch(/^https:\/\//)
-      expect(s).not.toMatch(/github\.com\/SniperInSuit\/Wivo\//i)
-    }
+    // A clinic's source is never main's own release repository, nor anything but owner/name.
+    expect(clinicReleaseSource(MAIN_RELEASE_REPO)).toBeNull()
+    expect(clinicReleaseSource('sniperinsuit/WIVO')).toBeNull()
+    for (const bad of ['', 'x', 'a/b/c', '../a', 'https://evil.example/a', 'a/b?c', undefined, 42]) expect(clinicReleaseSource(bad), String(bad)).toBeNull()
   })
 
   it('the list and its packages sit side by side, per channel', () => {
@@ -541,22 +543,22 @@ describe('a desktop release, before it installs (5e)', () => {
     expect((await checkAppUpdate({ list: await published(), version: '2.3.0', sha512: SHA512, size: 1000, pinned: [], now: NOW, channel: 'stable', floor: {}, build: 'main' })).ok).toBe(false)
   })
 
-  // docs/RELEASE.md: main's releases never reach Riga's desktops, nor the reverse.
-  it("a release for another build is refused, even validly signed: main's in Riga's app, Riga's in main's", async () => {
+  // docs/RELEASE.md: main's releases never reach a clinic's desktops, nor the reverse.
+  it("a release for another build is refused, even validly signed: main's in a clinic's app, a clinic's in main's", async () => {
     const main = await published()
-    expect(await check(main, { build: 'riga' })).toEqual({ ok: false, reason: 'wrong_build' })
-    const riga = await published({ release: { build: 'riga' } })
-    expect(await check(riga, { build: 'riga' })).toMatchObject({ ok: true, release: { build: 'riga' } })
-    expect(await check(riga, { build: 'main' })).toEqual({ ok: false, reason: 'wrong_build' })
-    expect(await check(await published({ release: { build: 'other-clinic' } }), { build: 'riga' })).toEqual({ ok: false, reason: 'wrong_build' })
+    expect(await check(main, { build: 'dentiks' })).toEqual({ ok: false, reason: 'wrong_build' })
+    const clinic = await published({ release: { build: 'dentiks' } })
+    expect(await check(clinic, { build: 'dentiks' })).toMatchObject({ ok: true, release: { build: 'dentiks' } })
+    expect(await check(clinic, { build: 'main' })).toEqual({ ok: false, reason: 'wrong_build' })
+    expect(await check(await published({ release: { build: 'other-clinic' } }), { build: 'dentiks' })).toEqual({ ok: false, reason: 'wrong_build' })
   })
 
   it('a build name that is not a plain id makes the statement malformed', async () => {
-    expect(await check(await published({ release: { build: 'Riga/../main' } }), { build: 'riga' })).toEqual({ ok: false, reason: 'malformed' })
+    expect(await check(await published({ release: { build: 'Dentiks/../main' } }), { build: 'dentiks' })).toEqual({ ok: false, reason: 'malformed' })
   })
 
   it('the statement carries the database it expects, signed with it', async () => {
-    expect(await check(await published({ release: { build: 'riga', schema: '125_mail_quota.sql' } }), { build: 'riga' }))
+    expect(await check(await published({ release: { build: 'dentiks', schema: '125_mail_quota.sql' } }), { build: 'dentiks' }))
       .toMatchObject({ ok: true, release: { schema: '125_mail_quota.sql' } })
   })
 })

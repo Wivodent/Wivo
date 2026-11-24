@@ -52,9 +52,9 @@ export type UpdateState =
  * from (docs/RELEASE.md). Public facts, nothing secret.
  */
 export interface UpdateInfo {
-  /** `riga` for Riga's installer, `main` otherwise. */
+  /** The clinic's id for a clinic's installer (`dentiks`), `main` otherwise. */
   build: string
-  /** `github.com/SniperInSuit/wivo-riga-releases`, or null for main's feed. */
+  /** `github.com/SniperInSuit/wivo-dentiks-releases`, or null for main's feed. */
   source: string | null
   /** Root keys are pinned: an update installs only as Wivo's signed release. */
   signedOnly: boolean

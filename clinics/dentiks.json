@@ -1,0 +1,9 @@
+{
+  "id": "dentiks",
+  "name": "Dentiks",
+  "releasesRepo": "SniperInSuit/wivo-dentiks-releases",
+  "phoneUrl": "https://wivo.dentiks.lv",
+  "supabaseRef": "fwsrnsdrlrlmjfkkkhvp",
+  "cloudflareProject": "wivo-dentiks",
+  "phoneBranch": "riga"
+}

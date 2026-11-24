@@ -1,4 +1,13 @@
-# Riia seadistus: samm-sammult
+# Kliiniku seadistus: samm-sammult (näide: Dentiks Riias)
+
+**Uue kliiniku oma projekt, telefon ja installer.** Nimed käivad kliiniku järgi,
+mitte riigi või linna järgi. Selle juhendi näide on esimene kliinik Dentiks
+(Riias), mis seadistati 23.11.2026. Selle päris väärtused on failis
+`clinics/dentiks.json`. Uue kliiniku jaoks tee kõik samamoodi: kus siin on
+`dentiks` või Dentiksi väärtus, pane uue kliiniku oma. Lõpuks lisa
+`clinics/<id>.json` (clinics/README.md). Mõned nimed tehti enne seda reeglit
+ja jäävad nii: Supabase'i projekt `wivo-riga`, Resendi võtmed `riga-…` ja
+Cloudflare'i haru `riga`. Uuel kliinikul on need `wivo-<id>`, `<id>-…` ja `<id>`.
 
 See on sinu käsiraamat, Kevin. **Üks käsk korraga**, Maci Terminalis, repo
 kaustast (`~/dev/Workly`), haru `testing`. Iga samm ütleb, mida pärast nägema
@@ -12,8 +21,11 @@ Taust: `RIGA-GO-LIVE.md` („Monday 23.11.2026") ja `docs/RIGA-TEMPORARY.md`
 > lülitid (1), `psql -P pager=off` (2.3), Vaulti ja funktsioonide võti on
 > `sb_secret` (3, 8.4), Resendi kirjed ja võtmete järjekord (6), mallide
 > teemarida (7.3), telefoni aadress on `wivo-dentiks.pages.dev` (5, 8.4, 10).
-> Juhend kirjutati Maci jaoks; Windowsi käsud on `docs/RIGA-ROLLOUT.md`-s.
-> Järgmised installerid: `docs/RELEASE.md` ja `docs/RIGA-ROLLOUT.md`.
+> **Hiljem:** Dentiksi telefon on kliiniku oma domeenil `https://wivo.dentiks.lv`
+> (Cloudflare'i kohandatud domeen). Allpool on see aadress kõikjal, kuhu
+> inimesed jõuavad: 5, 8.4 ja 10 (`docs/CLINIC-ROLLOUT.md` 1.5).
+> Juhend kirjutati Maci jaoks. Windowsi käsud on `docs/CLINIC-ROLLOUT.md`-s.
+> Järgmised installerid: `docs/RELEASE.md` ja `docs/CLINIC-ROLLOUT.md`.
 
 > **Parool ega võti ei lähe kunagi käsureale.** zsh-i ajalugu
 > (`~/.zsh_history`) on fail kettal. Iga samm allpool küsib parooli varjatult
@@ -218,10 +230,11 @@ järjekorras (kopa piir ei saa olla suurem kui üldine):
 Dashboard → **Authentication**:
 
 1. **URL Configuration**
-   - Site URL: `https://wivo-dentiks.pages.dev`
-   - Redirect URLs: lisa `https://wivo-dentiks.pages.dev/auth/confirm`
+   - Site URL: `https://wivo.dentiks.lv`
+   - Redirect URLs: lisa `https://wivo.dentiks.lv/auth/confirm`
 
-   Mõlemad on Riia telefoni aadress (Cloudflare `wivo-dentiks`, samm 10):
+   Mõlemad on kliiniku telefoni aadress (`phoneUrl`; Cloudflare `wivo-dentiks`,
+   selle kohandatud domeen, samm 10):
    kutse ja parooli link tulevad sinna tagasi.
 2. **Sign In / Providers → Email**
    - Confirm email: sees. Secure email change: sees.
@@ -375,7 +388,7 @@ secret**, ükshaaval:
 | `WIVO_SERVICE_SECRET_KEY` | sama `sb_secret_…` võti, mis sammus 3 Vaulti läks |
 | `RESEND_API_KEY` | `riga-functions` võti |
 | `NOTIFY_FROM` | `Wivo <no-reply@wivo.dentiks.lv>` |
-| `APP_LINK` | `https://wivo-dentiks.pages.dev/job/{id}` |
+| `APP_LINK` | `https://wivo.dentiks.lv/job/{id}` |
 | `VAPID_PUBLIC_KEY` | 8.3 esimene rida (ilma `VAPID_PUBLIC_KEY=`-ita) |
 | `VAPID_PRIVATE_KEY` | 8.3 teine rida |
 | `VAPID_SUBJECT` | `mailto:` + sinu aadress |
@@ -396,37 +409,51 @@ legacy JWT, samm 3), `404` = funktsioon pole üleval.
 
 ---
 
-## 9. Installer ja haru `riga`
+## 9. Installer ja telefoni haru (Dentiksil `riga`)
 
-**9.1. `riga.env`** repo kaustas (git ignoreerib), täpselt kaks rida:
+**9.1. Kliiniku fail `clinics/<id>.json`** (git jälgib seda, sees on ainult
+avalikud väärtused; clinics/README.md). Dentiksi fail:
+
+```json
+{
+  "id": "dentiks",
+  "name": "Dentiks",
+  "releasesRepo": "SniperInSuit/wivo-dentiks-releases",
+  "phoneUrl": "https://wivo.dentiks.lv",
+  "supabaseRef": "fwsrnsdrlrlmjfkkkhvp",
+  "cloudflareProject": "wivo-dentiks",
+  "phoneBranch": "riga"
+}
+```
+
+**9.2. Avalik võti `clinics/<id>.env`.** Git seda faili ei jälgi. Sees on üks rida:
 
 ```
-VITE_SUPABASE_URL=https://<REF>.supabase.co
 VITE_SUPABASE_ANON_KEY=<anon / publishable key>
 ```
 
-**9.2. Paketid:**
+**9.3. Paketid:**
 
 ```sh
 npm ci
 ```
 
-**9.3. Ehita:**
+**9.4. Ehita** (allkirjastatud release'i jaoks hoopis `docs/CLINIC-ROLLOUT.md`):
 
 ```sh
-npm run dist:riga
+npm run dist:clinic -- --clinic dentiks
 ```
 
-~5 minutit. Lõpus: installeri tee, commit, Riia ref, **SHA-256** ja käsk haru
-`riga` liigutamiseks. Kirjuta SHA-256 üles. Kui ta keeldub („Refused: …"),
+See võtab ~5 minutit. Lõpus näed installeri teed (`dist-dentiks/`), commiti,
+kliiniku refi, **SHA-256**-e ja käsku telefoni haru liigutamiseks. Kirjuta SHA-256 üles. Kui ta keeldub („Refused: …"),
 loe rida: iga rida ütleb, mida teha.
 
 > **Macis ei ole Windowsi installerit veel lõpuni proovitud.** Kui
 > electron-builder ütleb midagi `wine`-i kohta, ehita Windowsi masinas
-> (`docs/RIGA-TEMPORARY.md`, osa A, samad käsud PowerShellis) ja jätka siit.
+> (`docs/CLINIC-ROLLOUT.md`, samad käsud PowerShellis) ja jätka siit.
 
-**9.4. Telefon samast versioonist.** Cloudflare'i `wivo-dentiks` ehitab haru
-`riga`. Kopeeri käsk, mille `dist:riga` lõpus trükkis (sama commit mis
+**9.5. Telefon samast versioonist.** Cloudflare'i `wivo-dentiks` ehitab haru
+`riga` (`phoneBranch`). Kopeeri käsk, mille `dist:clinic` lõpus trükkis (sama commit mis
 installeril):
 
 ```sh
@@ -435,7 +462,7 @@ git push origin <installeri täispikk commit>:refs/heads/riga
 
 Esimene kord teeb haru. Edaspidi **iga uue installeriga** sama käsk uue
 commitiga. Ta pole kunagi `--force`: git keeldub, kui commit ei ole `riga`
-praegusest eespool, nii et `riga` järgib alati `testing`-ut. Kui `dist:riga`
+praegusest eespool, nii et `riga` järgib alati `testing`-ut. Kui `dist:clinic`
 ütles „First push testing", pushi enne `testing`.
 
 ---
@@ -447,6 +474,9 @@ Nagu `docs/RIGA-TEMPORARY.md` osa B, päris seadistuse (23.11) järgi:
 - **Pages, mitte Workers:** Workers & Pages → Create → **Pages** → Connect to
   Git. (Workersi vorm näeb sarnane välja, aga ehitab teist asja.)
 - **Project name: `wivo-dentiks`** → aadress `https://wivo-dentiks.pages.dev`.
+- **Custom domains → `wivo.dentiks.lv`** (kliiniku oma domeen; seda kasutavad
+  inimesed ja see on `phoneUrl`). Cloudflare ütleb, millise CNAME-i Ilja
+  DNS-i paneb; oota, kuni olek on **Active**.
 - **Production branch: `riga`** (mitte `testing`).
 - **Preview branches: None** (Settings → Builds → Branch control).
 - **Environment variables: Production'i all** (mitte Preview), neli:
@@ -454,11 +484,11 @@ Nagu `docs/RIGA-TEMPORARY.md` osa B, päris seadistuse (23.11) järgi:
   - `VITE_SUPABASE_ANON_KEY` = Riia anon / publishable key
   - `VITE_VAPID_PUBLIC_KEY` = 8.3 avalik võti (ilma selleta ei saa telefon
     pushi sisse lülitada)
-  - `VITE_PHONE_URL` = `https://wivo-dentiks.pages.dev` („What's new" näitab
+  - `VITE_PHONE_URL` = `https://wivo.dentiks.lv` („What's new" näitab
     seda, mitte app.wivodent.com-i; alates 2.0.5)
 
 Build command `npm run mobile:build`, output `dist-mobile`, `NODE_VERSION`
-`22`. Kontroll: ava `https://wivo-dentiks.pages.dev`, Network-vaates lähevad
+`22`. Kontroll: ava `https://wivo.dentiks.lv`, Network-vaates lähevad
 päringud ainult `<REF>.supabase.co`-sse.
 
 ---
@@ -617,7 +647,7 @@ Kõik peab olema ☑. Iga rida on üks proov päris projektis.
 - [ ] `net._http_response`: `send-notifications` vastab `200` (8.5)
 - [ ] Installeri SHA-256 klapib; Settings → Licence näitab Riia aadressi ja
       Jobs, Payroll, Stock; punast bännerit ei ole
-- [ ] Telefonis `wivo-dentiks.pages.dev`: päringud ainult `<REF>.supabase.co`-sse
+- [ ] Telefonis `wivo.dentiks.lv`: päringud ainult `<REF>.supabase.co`-sse
 - [ ] `riga` haru commit = installeri commit (Cloudflare → Deployments
       näitab sama lühikest commiti)
 
@@ -631,7 +661,7 @@ Kõik peab olema ☑. Iga rida on üks proov päris projektis.
 - [ ] Kutse jõuab kohale `no-reply@wivo.dentiks.lv`-ilt (Resend → Emails:
       *Delivered*)
 - [ ] „Forgot password?" töölaual → kiri tuleb, link avab
-      `wivo-dentiks.pages.dev/auth/confirm` ja uus parool töötab
+      `wivo.dentiks.lv/auth/confirm` ja uus parool töötab
 - [ ] Teavituse e-kiri: tehnikul on „E-mail me the same notifications"
       sees, töö liigub tema etapile → kiri tuleb minuti jooksul
 

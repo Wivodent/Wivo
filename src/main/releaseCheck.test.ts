@@ -94,29 +94,31 @@ describe('an app update, before it installs', () => {
     expect(await verifyDownloadedApp(installer, 'not-a-version', deps())).toEqual({ ok: false, reason: 'not_newer' })
   })
 
-  it("Riga's desktop installs a release signed for riga, and refuses main's", async () => {
+  it("a clinic's desktop installs a release signed for its clinic, and refuses main's and another clinic's", async () => {
     await publish(21)
-    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ build: 'riga' }))).toEqual({ ok: false, reason: 'wrong_build' })
-    await publish(22, undefined, 'riga')
-    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ build: 'riga' })))
+    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ build: 'dentiks' }))).toEqual({ ok: false, reason: 'wrong_build' })
+    await publish(22, undefined, 'dentiks')
+    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ build: 'dentiks' })))
       .toEqual({ ok: true, checked: true, schema: '125_mail_quota.sql' })
-    // and main's desktop refuses Riga's
-    await publish(23, undefined, 'riga')
+    // and main's desktop, or another clinic's, refuses Dentiks's
+    await publish(23, undefined, 'dentiks')
     expect(await verifyDownloadedApp(installer, '2.3.0', deps())).toEqual({ ok: false, reason: 'wrong_build' })
+    expect(await verifyDownloadedApp(installer, '2.3.0', deps({ build: 'another-clinic' }))).toEqual({ ok: false, reason: 'wrong_build' })
   })
 })
 
 describe('which build, and where it reads its updates (docs/RELEASE.md)', () => {
   it("only a plain id is a build; anything else is main's", () => {
-    expect(buildOf('riga')).toBe('riga')
+    expect(buildOf('dentiks')).toBe('dentiks')
     expect(buildOf(undefined)).toBe('main')
     expect(buildOf('')).toBe('main')
-    expect(buildOf('../riga')).toBe('main')
+    expect(buildOf('../dentiks')).toBe('main')
   })
 
-  it("Riga's feed is the stable release of its own repository; main keeps package.json's", () => {
-    expect(feedUrlFor('riga')).toBe('https://github.com/SniperInSuit/wivo-riga-releases/releases/download/stable')
-    expect(feedUrlFor('main')).toBeNull()
-    expect(feedUrlFor('nobody')).toBeNull()
+  it("a clinic's feed is the stable release of its own repository; main keeps package.json's", () => {
+    const own = 'https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download'
+    expect(feedUrlFor('dentiks', own)).toBe(`${own}/stable`)
+    expect(feedUrlFor('main', own)).toBeNull()
+    expect(feedUrlFor('dentiks', null)).toBeNull()
   })
 })

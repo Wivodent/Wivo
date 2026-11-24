@@ -37,8 +37,8 @@ import { autoUpdater } from 'electron-updater'
 import { appendFileSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import type { UpdateInfo, UpdateState, UpdaterSplashState } from '../types/update'
-import { BUILD, feedUrlFor, releaseCheckDeps, verifyDownloadedApp } from './releaseCheck'
-import { PINNED_ROOTS, updateSourcesFor } from '../../shared/release/release'
+import { BUILD, CLINIC_SOURCE, SOURCES, feedUrlFor, releaseCheckDeps, verifyDownloadedApp } from './releaseCheck'
+import { PINNED_ROOTS } from '../../shared/release/release'
 
 /**
  * Test mode (`npm run dev:test`) never checks, downloads or installs a
@@ -232,10 +232,10 @@ function configure(): void {
     error: (...a: unknown[]) => log('ERROR', ...a),
     debug: (...a: unknown[]) => log('DEBUG', ...a),
   } as never
-  // A clinic's own installer (Riga's) reads its own release, never main's
+  // A clinic's own installer reads its own release, never main's
   // GitHub releases (docs/RELEASE.md). Set here as well as in its
   // app-update.yml, so the build id alone decides.
-  const feed = feedUrlFor(BUILD)
+  const feed = feedUrlFor(BUILD, CLINIC_SOURCE)
   if (feed) {
     autoUpdater.setFeedURL({ provider: 'generic', url: feed })
     if (!configuredOnce) log('INFO', `build ${BUILD}: updates from ${feed}`)
@@ -489,12 +489,12 @@ export function registerUpdaterIpc(): void {
   // Settings → Updates: where this installer's updates come from, and whether
   // they must be Wivo's signed releases. Public facts only.
   ipcMain.handle('wivo:update-info', (): UpdateInfo => {
-    const feed = feedUrlFor(BUILD)
+    const feed = feedUrlFor(BUILD, CLINIC_SOURCE)
     return {
       build: BUILD,
       source: feed ? new URL(feed).host + new URL(feed).pathname.replace(/\/releases\/download\/stable$/, '') : null,
       signedOnly: PINNED_ROOTS.length > 0,
-      hasSource: updateSourcesFor(BUILD).length > 0,
+      hasSource: SOURCES.length > 0,
       lastCheckedAt,
     }
   })

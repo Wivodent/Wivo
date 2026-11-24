@@ -17,9 +17,14 @@ license-*.pem
 license-*.hex
 dist-mobile
 
-# Riga's temporary installer (docs/RIGA-TEMPORARY.md): its two public values, and its output
+# A clinic's installer (clinics/README.md): its public key, and its output
+clinics/*.env
+/dist-*/
+
+# A clinic's signed releases (docs/RELEASE.md): built, signed and published from here
+/releases/
+
+# Before clinics/: Riga's env file and installers, until Kevin moves or deletes them
 riga.env
 dist-riga
-
-# Riga's signed releases (docs/RELEASE.md): built, signed and published from here
 release-riga

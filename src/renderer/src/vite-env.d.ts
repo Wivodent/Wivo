@@ -14,7 +14,7 @@ interface ImportMetaEnv {
   readonly VITE_VAPID_PUBLIC_KEY?: string
   /**
    * The clinic's own phone app, shown in "What's new" (lib/releaseNotes.ts).
-   * Riga's build: https://wivo-dentiks.pages.dev (riga.env, Cloudflare). Without it, app.wivodent.com.
+   * A clinic's build: its phoneUrl (clinics/<id>.json, Cloudflare), e.g. https://wivo.dentiks.lv. Without it, app.wivodent.com.
    */
   readonly VITE_PHONE_URL?: string
 }

@@ -371,7 +371,7 @@ wivo-update-2.3.0.tar
   - for TUF's attacks (5g):
     - a `channel` (`stable` or `test`);
     - a `serial` that grows with every list;
-    - an **expiry, 14 days after signing.** The list is re-signed weekly and at every release.
+    - an **expiry, 30 days after signing** (Kevin, November 2026; was 14). The list is re-signed at every release, and with `--refresh` when a release is further away.
 - **The list is public and only grows.** A clinic, or its auditor, can see that it received the same package as everyone else, and read its SQL before approving. That makes a version made for one clinic visible.
 - **Wivo's only work per release is publishing.** It touches no clinic.
 
@@ -715,7 +715,7 @@ TUF is the reference design for software updates that stay safe even when the se
 |---|---|---|---|
 | **Arbitrary installation** | Installing something Wivo didn't sign | Covered: every package, list and release is signed and chains to a pinned root | Unchanged |
 | **Rollback** | Serving an old package, or an old list | Packages: covered by the ledger. **The list: a gap.** An old list could hide a withdrawal or a newer revocation. | The list has a `serial`. The clinic keeps the highest serial accepted from each key, and refuses a lower one, or the same serial with different content. |
-| **Freeze** | Keeping on serving an old, validly signed list, so clinics never see a security fix | **A gap:** the list had no expiry | The list expires 14 days after signing. An expired list is refused, installs wait, and owners and approvers are warned (below). |
+| **Freeze** | Keeping on serving an old, validly signed list, so clinics never see a security fix | **A gap:** the list had no expiry | The list expires 30 days after signing. An expired list is refused, installs wait, and owners and approvers are warned (below). |
 | **Endless data** | A response that never ends, filling memory or disk | Partly: a 50 MB cap on a package | The list states each package's exact size, so a download stops there. The list is capped at 1 MB and an installer at 500 MB. Revocations and certificates are capped too. |
 | **Slow retrieval** | Sending bytes so slowly that the check never ends | **A gap** | A time limit on every fetch: 30 seconds for the list, 2 minutes for a package. A check that never finishes leaves the list to expire, which raises the warning. |
 | **Extraneous dependencies** | Something installed that no signature covers | **A gap.** The Edge Functions import `supabase-js` and `denomailer` from esm.sh, jsr and deno.land, with jsr unpinned (`@2`) and no lockfile. Supabase fetches them while deploying, so the code that runs isn't fully covered by the package's signature. | A function in a package carries every dependency with it, so a deploy fetches nothing (below). |
@@ -732,14 +732,14 @@ TUF is the reference design for software updates that stay safe even when the se
 - `checkListed`, which refuses a package the fresh list doesn't name with exactly its bytes, or has withdrawn;
 - `isStale`, the warning's condition.
 
-**The expiry and the warning** (decided, Kevin 2026-11-05):
-- **What expires:** the list, 14 days after it is signed.
+**The expiry and the warning** (decided, Kevin 2026-11-05; the expiry changed to 30 days in November 2026):
+- **What expires:** the list, 30 days after it is signed (`npm run release:sign -- --clinic <id>`, docs/RELEASE.md §6).
   - Packages, certificates and releases don't need their own short expiry: they install only when a fresh list names them, with their exact hash.
-- **Re-signing:** `scripts/release.mjs refresh` makes the next list (the next serial, a new expiry), Kevin enters the PIN and touches the key, and it is published to both addresses. Every release also makes a new list.
-  - Weekly, about 2 minutes. The tool says when the published list has fewer than 7 days left.
-  - Before a long absence, the tool can sign one list for up to 30 days, and refuses anything longer.
+- **Re-signing:** `npm run release:sign -- --clinic <id> --refresh` makes the next list (the next serial, a new expiry), Kevin enters the PIN and touches the key, and `release:publish -- --clinic <id> --refresh` publishes it. Every release also makes a new list.
+  - About 2 minutes, before the published list runs out when no release is due.
+  - 30 days is also the most: the tool refuses anything longer.
   - **If Kevin can't re-sign in time,** every clinic is warned and installs wait. Nothing else stops.
-- **How soon a freeze shows:** a clinic always holds a list with 7–14 days left, so a freeze is seen within 7–14 days. A daily expiry would need decision 24.
+- **How soon a freeze shows:** within the list's 30 days at the latest. A daily expiry would need decision 24.
 - **Who checks, and when:**
   - A scheduled job in the clinic's own project (pg_cron, daily) asks `wivo-update` to **check only**: fetch the list, check it, record the result, install nothing. This is built in phase 1, so the warning doesn't depend on any desktop being open. Automatic installs (5b) later add an install step to the same job.
   - Opening Settings → Updates also asks for a check.

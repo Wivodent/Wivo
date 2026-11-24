@@ -13,11 +13,46 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 
 ---
 
+## 🏥 Release-tööriist on kliinikupõhine (haru `testing`, commititud, pushimata)
+
+**Nimed käivad kliiniku järgi, mitte riigi järgi.** Riia kliinik on **Dentiks**.
+Kõik kliinikupõhine on failis `clinics/dentiks.json`: releaside repo
+`SniperInSuit/wivo-dentiks-releases`, telefon `https://wivo.dentiks.lv` (kohandatud domeen),
+Supabase `fwsrnsdrlrlmjfkkkhvp`, Cloudflare `wivo-dentiks` ja telefoni haru
+`riga`, mis jääb seniks alles. Järgmise kliiniku jaoks piisab uuest failist
+(`clinics/README.md`).
+
+- **Käsud:** `npm run release -- --clinic dentiks [--first]` →
+  `npm run release:sign -- --clinic dentiks` →
+  `npm run release:publish -- --clinic dentiks`. Ilma kliinikuta tööriist
+  keeldub ja loetleb olemasolevad kliinikud. Ainult installer:
+  `npm run dist:clinic -- --clinic dentiks`. Kui PowerShell kaotab `--`,
+  saab tööriist valikud ikka kätte (`npm_config_clinic`).
+- **Avalik võti:** `clinics/dentiks.env` (git ignoreerib). Tõsta vana fail
+  ümber käsuga `Move-Item riga.env clinics\dentiks.env`.
+- **Rakendus:** ehitus paneb rakendusse kliiniku id (`MAIN_VITE_WIVO_BUILD=dentiks`)
+  ja releaside repo (`MAIN_VITE_WIVO_RELEASES_REPO`). `BUILD_UPDATE_SOURCES` on
+  koodist kadunud. `clinicReleaseSource` keeldub main'i repost ja kõigest,
+  mis pole kujul `owner/name`. Release'i lause peab nimetama kliinikut.
+- **Uuenduste nimekiri kehtib vaikimisi 30 päeva** (see on ka maksimum).
+- **Väljund:** `dist-dentiks/Wivo-dentiks-Setup-<v>.exe`, `releases/dentiks/<v>/`.
+  Vana `dist-riga\` jääb puutumata.
+- **Dokumendid:** `docs/CLINIC-ROLLOUT.md` (oli RIGA-ROLLOUT),
+  `docs/CLINIC-SETUP.md` (oli RIGA-SETUP, Dentiks näiteks) ja `docs/RELEASE.md`.
+- **Testid:** `scripts/clinicBuild.test.ts` ja `scripts/releaseTool.test.ts`
+  (endised rigaBuild/releaseRiga). Teised kliinikud ja main'i release'id jäävad
+  välja.
+
+Allpool olev hommikune raport on tööriista kohta veel vanade nimedega. Kehtivad
+käsud ja sammud on `docs/CLINIC-ROLLOUT.md`-s.
+
+---
+
 ## ☀️ Hommikune raport — öötöö 24.→25.11.2026 (haru `testing`, commititud, pushimata)
 
 **Riia 2.0.5 on valmis ehitamiseks: viimane käsitsi paigaldus, edasi uuenevad
 Riia arvutid ise, YubiKey C allkirjaga.** Sinu sammud, üks käsk korraga:
-**`docs/RIGA-ROLLOUT.md`**. Miks see turvaline on: `docs/RELEASE.md`.
+**`docs/CLINIC-ROLLOUT.md`** (oli RIGA-ROLLOUT). Miks see turvaline on: `docs/RELEASE.md`.
 
 ### Tehtud (commitid)
 
@@ -35,7 +70,7 @@ Testid: kõik failid rohelised Windowsis (osade kaupa: src 84, shared+supabase 4
 
 ### Mis ebaõnnestus või jäi tegemata
 
-- **`scripts/yubikey/setup-plan.test.mjs` ripub Windowsis vitesti all** juba moodulite laadimisel (sama ka ilma tänaste muudatusteta; Node laeb samad moodulid 30 ms-ga). Seetõttu **ripub ka `npm test` tervikuna** Windowsis. Jooksuta seni osade kaupa (`npx vitest run --mode unit src shared supabase config sql scripts/makeLicense scripts/rigaBuild scripts/releaseRiga`). Põhjus uurimata.
+- **`scripts/yubikey/setup-plan.test.mjs` ripub Windowsis vitesti all** juba moodulite laadimisel (sama ka ilma tänaste muudatusteta; Node laeb samad moodulid 30 ms-ga). Seetõttu **ripub ka `npm test` tervikuna** Windowsis. Jooksuta seni osade kaupa (`npx vitest run --mode unit src shared supabase config sql scripts/makeLicense scripts/clinicBuild scripts/releaseTool`). Põhjus uurimata.
 - **Päris YubiKey ja päris GitHub on proovimata** (mul pole võtit; võrku ma Riia repole ei pöördunud). Allkiri on testitud võlts-ykmaniga ja testvõtmega, avaldamine võlts-gh-ga.
 - **Täispikka `npm run release:riga`-d ma ei jooksutanud** (see oleks kustutanud sinu `dist-riga\` 2.0.4 installeri: ehitus puhastab nüüd `dist-riga`-t enne pakendamist). NSIS-i ehitasin eraldi kausta, `app-update.yml` kontrollitud.
 - Märkus: **praegune 2.0.4 Riia installer loeb main'i GitHubi release'e** (`provider: github, SniperInSuit/Wivo`) ja keeldub neist allkirja puudumise tõttu. Ohtu pole, aga sellepärast on 2.0.5 käsitsi.
@@ -43,12 +78,12 @@ Testid: kõik failid rohelised Windowsis (osade kaupa: src 84, shared+supabase 4
 
 ### Mida sina teed
 
-**`docs/RIGA-ROLLOUT.md`**, järjekorras: 1) repo `wivo-riga-releases` (Public, README-ga), Cloudflare'i `VITE_PHONE_URL`, `riga.env` kolmas rida; 2) `release:riga -- --first` → `:sign` (YubiKey C) → `:publish` → `git push origin testing`; 3) link + SHA-256 Iljale (vaikne paigaldus `/S`, **iga kasutaja enda kontos**); 4) 2.0.6 proov Gary arvutis; 5) `riga` haru samale commitile.
+**`docs/CLINIC-ROLLOUT.md`**, järjekorras: 1) repo `wivo-dentiks-releases` (Public, README-ga), Cloudflare'i `VITE_PHONE_URL`, `Move-Item riga.env clinics\dentiks.env`; 2) `npm run release -- --clinic dentiks --first` → `release:sign` (YubiKey C) → `release:publish` → `git push origin testing`; 3) link + SHA-256 Iljale (vaikne paigaldus `/S`, **iga kasutaja enda kontos**); 4) 2.0.6 proov Gary arvutis; 5) `riga` haru samale commitile.
 
 ### Kevin otsustab hommikul
 
-1. **Avaldamiskoht: eraldi avalik repo `SniperInSuit/wivo-riga-releases`, release `stable`.** Soovitan: jah. Cloudflare Pages lubab kuni 25 MiB faile (installer ~95 MB), R2 vajaks uut kontot ja tokenit; eraldi repo hoiab main'i CI Riiast struktuurselt eemal. Kui tahad teist nime, muuda see kolmes kohas (`BUILD_UPDATE_SOURCES`, `RIGA_FEED` kahes failis); testid hoiavad need võrdsed.
-2. **Nimekirja aegumine 14 päeva** (otsus 05.11). Riias loeb see ainult arvutile, mis laadib alla pärast aegumist. Soovitan: jätta 14, iga release annab uue; enne pikka äraolekut `--refresh --days 30`.
+1. ~~Avaldamiskoht~~ **Otsustatud:** eraldi avalik repo kliiniku kohta, Dentiksil `SniperInSuit/wivo-dentiks-releases`, release `stable` (`clinics/dentiks.json`).
+2. ~~Nimekirja aegumine~~ **Otsustatud:** 30 päeva vaikimisi.
 3. **Paigaldus jääb kasutajapõhiseks** (`perMachine: false`): uuendused ei vaja administraatorit. Ilja peab installeri käivitama iga kasutaja kontos. Soovitan: jah.
 4. **Tüübifilter nuppudena** (mitte senine valik ümber tõlgendatud). Kinnita Riiaga, kas see oli see, mida nad mõtlesid.
 5. **Andmebaasi uuendused** (`docs/DB-UPDATES-PLAN.md` §7, viis otsust): „adopt" Riia käsitsi tehtud baasile, `WIVO_BUILD` funktsiooni saladus, funktsioonid jäävad käsitsi, PITR Riia kulul, töölaud ootab baasi. Soovitused seal.
