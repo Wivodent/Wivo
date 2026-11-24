@@ -9,6 +9,7 @@ import { wizardWorkItems } from '../state/workItems'
 import { useWorkTypes } from '@/stores/useSettings'
 import { hasPrintedModel, implantsOnJob, jobFactsOf, switchesToSend } from '../state/workflowFields'
 import { StageBar, type StageBarItem } from '@/components/JobDetail/StageBar'
+import { stagePeopleOf } from '@/lib/stageAssign'
 import { WizardField } from '../ui/WizardField'
 import { WizardSelect } from '../ui/WizardSelect'
 import { WIZARD_HELP, FOCUS_RING } from '../wizardTheme'
@@ -52,7 +53,7 @@ export function WorkflowSection({ state, patch, isPhone = false }: Pick<WizardSt
 
   const label = (key: string) => stageMap[key]?.label ?? key
   const name = (id: string) => profiles.find(p => p.id === id)?.full_name || t('wizard.unnamed')
-  const everyone = profiles.map(p => ({ id: p.id, name: p.full_name || t('wizard.unnamed') }))
+  const everyone = stagePeopleOf(profiles, t('wizard.unnamed'))
   // The first stage is where the job starts: the database does not let it be skipped.
   const barItems: StageBarItem[] = plan.map((p, i) => ({
     key: p.stageKey,

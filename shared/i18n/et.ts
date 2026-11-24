@@ -3297,6 +3297,8 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'notifications.stageProgress': "Töö {code} liikus etappi {stage}",
   'notifications.newJobOnStage': "Uus töö {code}: sina oled etapis {stage}",
   'notifications.putOnStage': "Sind lisati töö {code} etappi {stage}",
+  'notifications.newJobOnStages': "Uus töö {code}: sina oled etappidel {stages}",
+  'notifications.putOnStages': "Sind pandi töö {code} etappidele {stages}",
   'notifications.filesAdded': "Uued failid tööl {code}",
   'notifications.emailHelp': "E-kirjas on ainult töö kood ja link, mitte kunagi patsiendi andmeid.",
   'notifications.emailMe': "Saada mulle samad teavitused ka e-kirjaga",

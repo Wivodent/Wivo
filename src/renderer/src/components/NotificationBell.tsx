@@ -10,7 +10,17 @@ import { useNotifications, type AppNotification } from '../hooks/useNotification
 import { usePipeline } from '../context/PipelineContext'
 import { t, dateLocale } from '@/lib/i18n'
 
-const text = (n: AppNotification, stageLabel: (key: string) => string): string => {
+/**
+ * The stages a stage_assigned notification names (sql/126): `stages` when the
+ * person was put on several at once, else the one `stage`.
+ */
+export function assignedStages(detail: Record<string, unknown>): string[] {
+  const list = Array.isArray(detail.stages) ? detail.stages.filter((s): s is string => typeof s === 'string' && s !== '') : []
+  if (list.length > 0) return list
+  return typeof detail.stage === 'string' && detail.stage !== '' ? [detail.stage] : []
+}
+
+export const text = (n: AppNotification, stageLabel: (key: string) => string): string => {
   const code = n.job_code ?? '—'
   if (n.kind === 'mfa_removed') {
     return n.detail.signed_out ? t('notifications.mfaRemovedLast') : t('notifications.mfaRemoved', { name: String(n.detail.name ?? '') })
@@ -25,7 +35,12 @@ const text = (n: AppNotification, stageLabel: (key: string) => string): string =
   // sql/123: the job moved (for someone else on it who asked); put on one of its stages.
   if (n.kind === 'stage_progress') return t('notifications.stageProgress', { code, stage: stageLabel(String(n.detail.to ?? '')) })
   if (n.kind === 'stage_assigned') {
-    const stage = stageLabel(String(n.detail.stage ?? ''))
+    const stages = assignedStages(n.detail).map(stageLabel)
+    if (stages.length > 1) {
+      const list = stages.join(', ')
+      return n.detail.new ? t('notifications.newJobOnStages', { code, stages: list }) : t('notifications.putOnStages', { code, stages: list })
+    }
+    const stage = stages[0] ?? ''
     return n.detail.new ? t('notifications.newJobOnStage', { code, stage }) : t('notifications.putOnStage', { code, stage })
   }
   if (n.kind === 'assigned') {

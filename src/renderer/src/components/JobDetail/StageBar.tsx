@@ -13,8 +13,8 @@
  * for a job, the form's state for a job not yet made).
  */
 import { useEffect, useRef, useState } from 'react'
-import { Check, Play, UserPlus } from 'lucide-react'
-import { initials, visiblePeople, withPerson } from '@/lib/stageAssign'
+import { Check, Play, User, UserPlus } from 'lucide-react'
+import { initials, stageFaces, visiblePeople, withPerson, type StagePerson } from '@/lib/stageAssign'
 import { t } from '@/lib/i18n'
 
 export type StageBarState = 'done' | 'current' | 'upcoming' | 'skipped'
@@ -34,7 +34,7 @@ export interface StageBarItem {
 
 export interface StageBarProps {
   items: StageBarItem[]
-  everyone: { id: string; name: string }[]
+  everyone: StagePerson[]
   /** May this person change who is on the stages? */
   editable: boolean
   /** 'lg': thumb-sized circles, a bottom sheet instead of a popup, scrolls sideways. */
@@ -48,6 +48,7 @@ export function StageBar({ items, everyone, editable, size = 'md', busy = false,
   const [open, setOpen] = useState<string | null>(null)
   const lg = size === 'lg'
   const nameOf = (id: string) => everyone.find(p => p.id === id)?.name ?? t('workflow.someone')
+  const named = (id: string) => everyone.find(p => p.id === id)?.named !== false
   const circle = lg ? 'h-11 w-11 text-sm' : 'h-7 w-7 text-[10px]'
 
   return (
@@ -56,7 +57,8 @@ export function StageBar({ items, everyone, editable, size = 'md', busy = false,
         {items.map((s, i) => {
           const reached = s.state === 'done' || s.state === 'current'
           const grey = s.state === 'skipped'
-          const { shown, more } = visiblePeople(s.people)
+          const faces = stageFaces(s.people, everyone)
+          const { shown, more } = visiblePeople(faces)
           const isOpen = open === s.key
           return (
             <li key={s.key} className={`relative flex min-w-0 flex-1 flex-col items-center ${grey ? 'opacity-50' : ''}`}>
@@ -85,7 +87,7 @@ export function StageBar({ items, everyone, editable, size = 'md', busy = false,
               </span>
 
               <div className="mt-1.5 flex min-h-[28px] items-center justify-center">
-                {s.people.length === 0 ? (
+                {faces.length === 0 ? (
                   editable ? (
                     <button type="button" onClick={() => setOpen(isOpen ? null : s.key)}
                       aria-label={t('workflow.addPerson')} title={t('workflow.addPerson')}
@@ -95,17 +97,17 @@ export function StageBar({ items, everyone, editable, size = 'md', busy = false,
                   ) : <span className="text-[11px] text-ink-faint">—</span>
                 ) : (
                   <button type="button" disabled={!editable} onClick={() => setOpen(isOpen ? null : s.key)}
-                    aria-label={s.people.map(nameOf).join(', ')}
+                    aria-label={faces.map(nameOf).join(', ')}
                     className="flex items-center -space-x-1.5 disabled:cursor-default">
                     {shown.map(id => (
                       <span key={id} title={nameOf(id)}
                         className={`${circle} flex items-center justify-center rounded-full bg-bg-sidebar font-semibold text-ink ring-2 ring-bg-card`}
                         style={s.started && s.startedBy === id ? { boxShadow: `0 0 0 2px ${s.hex}` } : undefined}>
-                        {initials(nameOf(id))}
+                        {named(id) ? initials(nameOf(id)) : <User size={lg ? 18 : 13} aria-hidden="true" />}
                       </span>
                     ))}
                     {more > 0 && (
-                      <span title={s.people.slice(2).map(nameOf).join(', ')}
+                      <span title={faces.slice(2).map(nameOf).join(', ')}
                         className={`${circle} flex items-center justify-center rounded-full bg-bg-sidebar font-semibold text-ink-muted ring-2 ring-bg-card`}>
                         +{more}
                       </span>
@@ -137,7 +139,7 @@ export function StageBar({ items, everyone, editable, size = 'md', busy = false,
 function StagePopup({ stage, items, everyone, sheet, busy, onClose, onPeople, onSkip }: {
   stage: StageBarItem
   items: StageBarItem[]
-  everyone: { id: string; name: string }[]
+  everyone: StagePerson[]
   sheet: boolean
   busy: boolean
   onClose: () => void
@@ -187,7 +189,7 @@ function StagePopup({ stage, items, everyone, sheet, busy, onClose, onPeople, on
               <div className={`flex items-center gap-2 rounded-lg px-1 ${sheet ? 'min-h-[44px]' : 'min-h-[30px]'}`}>
                 <label className="flex min-w-0 flex-1 items-center gap-2 text-sm text-ink">
                   <input type="checkbox" className={box} checked={on} disabled={busy}
-                    onChange={e => onPeople(stage.key, withPerson(stage.people, p.id, e.target.checked))} />
+                    onChange={e => onPeople(stage.key, withPerson(stageFaces(stage.people, everyone), p.id, e.target.checked))} />
                   <span className="truncate">{p.name}</span>
                 </label>
                 {on && others.length > 0 && (
@@ -202,7 +204,7 @@ function StagePopup({ stage, items, everyone, sheet, busy, onClose, onPeople, on
                   {others.map(o => (
                     <label key={o.key} className={`flex items-center gap-2 text-sm text-ink ${sheet ? 'min-h-[40px]' : 'min-h-[26px]'}`}>
                       <input type="checkbox" className={box} disabled={busy} checked={o.people.includes(p.id)}
-                        onChange={e => onPeople(o.key, withPerson(o.people, p.id, e.target.checked))} />
+                        onChange={e => onPeople(o.key, withPerson(stageFaces(o.people, everyone), p.id, e.target.checked))} />
                       {o.label}
                     </label>
                   ))}

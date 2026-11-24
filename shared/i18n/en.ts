@@ -3311,6 +3311,8 @@ export const en = {
   'notifications.stageProgress': "Job {code} moved to {stage}",
   'notifications.newJobOnStage': "New job {code}: you are on {stage}",
   'notifications.putOnStage': "You were put on {stage} of job {code}",
+  'notifications.newJobOnStages': "New job {code}: you are on its stages {stages}",
+  'notifications.putOnStages': "You were put on job {code}'s stages {stages}",
   'notifications.filesAdded': "New files on job {code}",
   'notifications.emailHelp': "The e-mail contains only the job code and a link, never patient details.",
   'notifications.emailMe': "E-mail me the same notifications",

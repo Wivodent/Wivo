@@ -85,6 +85,50 @@ Module `invoices`.
 Module `patients` (the calendar is inside it, one piece). Everything agreed
 but not in steps 1–3 lands here.
 
+## Stage statistics for the owner (after Riga is stable)
+
+**When:** once Riga has worked with stages long enough for the numbers to
+mean something: a few weeks of jobs through their templates. The owner, or
+someone given the permission, sees it; it fits module `stats`. **Roadmap entry
+only: no code yet.**
+
+**What it shows, per stage and per period:**
+- **How long a stage takes:** from "I started" (`job_stage.started_at`) to done
+  (`done_at`). Median and spread, not only the average, because one forgotten
+  job skews an average.
+- **How long a job waits:** from the moment it reaches a stage (the previous
+  stage's `done_at`, or the job's creation for the first stage) to "I started".
+- **Bottlenecks:** the stages where jobs wait longest, and where the most jobs
+  stand right now.
+- **A person's throughput:** how many stages a person finished in a period,
+  and how long they took.
+
+**From what:**
+- `job_stage` `started_at` and `done_at`, which sql/122–123 already record.
+- The move history in the audit log, where a stage is entered more than once:
+  going back clears a stage's own times (sql/123), so `job_stage` alone loses
+  the first pass.
+
+No new data is collected for the first version.
+
+**What the numbers do not say:**
+- **"I started" is optional.** Where nobody presses it, a stage has only
+  `done_at`. Then the time between stages is waiting and working together.
+  The page says how many stages had a start time.
+- **The time includes nights, weekends and other jobs.** It is calendar time,
+  not working time. It shows where jobs stand still, not how hard anyone works.
+
+**Decide before building:**
+- **The per-person figures.** They measure employees, so the staff are told
+  what is measured and why (the employer's duty to inform, GDPR). The
+  options: the owner sees them, or each person sees only their own, or both.
+- **Later: a "Pause" button for real working time.** A person presses "Pause"
+  and "Continue" on their stage, and the stage then has real working time, not
+  calendar time.
+  - The cost: one more thing to press, and data about each person's working
+    day, so the same duty to inform.
+  - Decide it once the first statistics show whether calendar time is enough.
+
 ## 3.0 — the partnership system, working end to end
 
 The partner bridge (phase 2) is **on hold, not cancelled** — the Tallinn

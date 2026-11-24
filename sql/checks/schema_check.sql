@@ -692,7 +692,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.notify_job_moved(p_job uuid, p_from text, p_to text)', 'security definer, volatile, search_path=public, body md5 2006a9f9176e57f2ea88e70a74c43fe5'),
     ('function', 'public.notify_member(p_org uuid, p_user uuid, p_job uuid, p_kind text, p_detail jsonb)', 'security definer, volatile, search_path=public, body md5 9fbefc313931811e2e682f802beb4ccb'),
     ('function', 'public.notify_org(p_org uuid, p_job uuid, p_kind text, p_detail jsonb)', 'security definer, volatile, search_path=public, body md5 9185f58de6dd6b64777c3fb80115610a'),
-    ('function', 'public.notify_stage_assigned(p_org uuid, p_job uuid, p_user uuid, p_stage text, p_new boolean)', 'security definer, volatile, search_path=public, body md5 b535bfba3ea687d70dda68b9c5a45993'),
+    ('function', 'public.notify_stage_assigned(p_org uuid, p_job uuid, p_user uuid, p_stage text, p_new boolean)', 'security definer, volatile, search_path=public, body md5 51616e06749a925dbcf10b13c0eacc03'),
     ('function', 'public.notify_stage_reached(p_org uuid, p_job uuid, p_tech uuid, p_designers uuid[], p_from text, p_to text, p_revision text)', 'security definer, volatile, search_path=public, body md5 49c87b9ffabadabcbf498bb516dce4ea'),
     ('function', 'public.on_auth_email_changed()', 'security definer, volatile, search_path=public, body md5 1400a6a0c183a500bc035a5fbc743a44'),
     ('function', 'public.on_clinic_default_template()', 'security definer, volatile, search_path=public, body md5 7e3b7d19a9221f847f152e715063d9fe'),

@@ -21,6 +21,7 @@ import {
   setJobStageSkipped, startJobStage, stageLines, useCanMove, useJobStages, useRefreshJobStages,
 } from '../../lib/jobStages'
 import { StageBar, type StageBarItem } from './StageBar'
+import { stagePeopleOf } from '@/lib/stageAssign'
 import { t } from '@/lib/i18n'
 
 export function JobStageBar({ job, size = 'md', canAddStage = true }: {
@@ -60,7 +61,7 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
 
   const label = (key: string) => stageMap[key]?.label ?? key
   const finished = job.status === doneStageKey
-  const everyone = profiles.map(p => ({ id: p.id, name: p.full_name || t('wizard.unnamed') }))
+  const everyone = stagePeopleOf(profiles, t('wizard.unnamed'))
   const current = lines.find(l => l.state === 'current')
   const turnIn = myTurnIn(lines, user?.id)
   const startable = !finished && current && (current.people.includes(user?.id ?? '') || !hasStagePeople(stages))

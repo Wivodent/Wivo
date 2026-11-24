@@ -201,7 +201,8 @@ describe('a job made from its template', () => {
     const j = await createJob({ id: doctor }, { patsient: 'P', template_id: crown })
     expect(await notes(doctor, j.id)).toEqual([])
     expect(await notes(itPerson, j.id)).toEqual([{ kind: 'stage_assigned', detail: { stage: 'vastuvott', new: true } }])
-    expect(await notes(tech1, j.id)).toEqual([{ kind: 'stage_assigned', detail: { stage: 'disain', new: true } }])
+    // sql/126: one notification naming every stage the person is on.
+    expect(await notes(tech1, j.id)).toEqual([{ kind: 'stage_assigned', detail: { stage: 'disain', new: true, stages: ['disain', 'freesimine'] } }])
     expect(await notes(tech2, j.id)).toEqual([{ kind: 'stage_assigned', detail: { stage: 'viimistlus', new: true } }])
     await db.query(`insert into public.push_subscription (org_id, user_id, endpoint, p256dh, auth) values ($1, $2, 'https://fcm.googleapis.com/fcm/send/w1', 'k', 'a')`,
       [A.clinicId, tech1])

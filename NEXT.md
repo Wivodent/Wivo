@@ -13,6 +13,29 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 
 ---
 
+## 🔧 Kolm väikest parandust (haru `testing`, commititud, pushimata)
+
+1. **Telefoni etapiriba „UN":** kood näitab tühjal etapil „+inimene" ikooni nii
+   telefonis kui töölaual. „UN" tuli inimeselt, kelle profiilil pole nime
+   (`Unnamed` → UN), või kes pole enam meeskonnas. Nüüd:
+   - nimeta konto näitab kasutajanime, ja kui ka seda pole, inimese ikooni;
+   - meeskonnast lahkunud inimest etapil ei näidata;
+   - etapp, kus pole ühtki praegust inimest, näitab „+inimene".
+
+   **Kontrolli Dentiksis Settings → Team:** kas mõnel kontol puudub nimi?
+2. **Üks teavitus mitme etapi kohta:** „Sind pandi töö X etappidele A, B, C".
+   **Migratsioon `sql/126_stage_assigned_once.sql`.** Jooksuta see **enne
+   testkoopias**, siis `notify pgrst, 'reload schema';`. Dentiksi baasi enne
+   järgmise release'i allkirjastamist: `npm run release -- --clinic dentiks`
+   nimetab selle ja `release:sign` küsib.
+
+   Ilma migratsioonita töötab kõik edasi nagu enne, ühe teavitusega etapi kohta.
+   Testid: `sql/test/stageAssignedOnce.test.ts`.
+3. **`docs/ROADMAP.md`:** omaniku statistika etappide kaupa ja hilisem otsus
+   nupu „Paus" kohta.
+
+---
+
 ## 🏥 Release-tööriist on kliinikupõhine (haru `testing`, commititud, pushimata)
 
 **Nimed käivad kliiniku järgi, mitte riigi järgi.** Riia kliinik on **Dentiks**.

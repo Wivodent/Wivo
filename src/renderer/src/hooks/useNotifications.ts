@@ -66,6 +66,10 @@ export function useNotifications() {
           playSound(kind === 'job_shared' || kind === 'files_added' || kind === 'assigned' || kind === 'stage_assigned' ? 'notify-new-work'
             : kind === 'stage_handover' || kind === 'stage_reached' ? 'notify-handoff' : 'notify-message')
         })
+      // sql/126: a later stage is added to a notification that is already
+      // there ("stages A, B, C"): the list refreshes, without a second sound.
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notification', filter: `user_id=eq.${user.id}` },
+        () => { qc.invalidateQueries({ queryKey: ['notifications', user.id] }) })
       .subscribe()
     return () => { void supabase.removeChannel(ch) }
   }, [user?.id, channelId, qc])
