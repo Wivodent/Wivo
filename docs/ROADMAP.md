@@ -128,6 +128,9 @@ the cloud with a way back. **Plan only, and after the demo.**
 nothing in Riga needs Kevin's attention every week. **Roadmap entry only: no
 code yet.**
 
+**The plan:** docs/ADMIN-CONSOLE.md (waiting for Kevin's OK). Its first version
+collects nothing from clinics.
+
 **What it is:** Kevin's own view of every clinic Wivo runs in, in one place.
 It is a separate Supabase project on Kevin's own account, holding no patient
 data. It is not a clinic's project and not production.
