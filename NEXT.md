@@ -1,6 +1,6 @@
 # Mis edasi
 
-**Seis: v2.0.4 · 21.11.2026 · haru `testing` · commititud, pushimata**
+**Seis: v2.0.5 · 25.11.2026 · haru `testing` · commititud, pushimata**
 
 See fail kirjutatakse iga töö lõpus üle. Siin on alati see, mida ma viimases
 vestluses ütlesin — et uus arvuti või uus vestlus ei alustaks nullist.
@@ -10,6 +10,49 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 
 > **2.0 release work:** `docs/night-run/RUN-3.md` — production state,
 > open items (desktop release, dashboard settings, phone app, cleanup).
+
+---
+
+## ☀️ Hommikune raport — öötöö 24.→25.11.2026 (haru `testing`, commititud, pushimata)
+
+**Riia 2.0.5 on valmis ehitamiseks: viimane käsitsi paigaldus, edasi uuenevad
+Riia arvutid ise, YubiKey C allkirjaga.** Sinu sammud, üks käsk korraga:
+**`docs/RIGA-ROLLOUT.md`**. Miks see turvaline on: `docs/RELEASE.md`.
+
+### Tehtud (commitid)
+
+| Ülesanne | Commit | Mis |
+|---|---|---|
+| A | `466721f` | `npm run release:riga` (ehitus nagu `dist:riga` + versioon peab tõusma), `release:riga:sign` (YubiKey C ykmaniga Windowsis: PIN + 2 puudutust; nimekiri update-võtmega 9c, release'i lause app-võtmega 82; iga allkiri kontrollitakse võtme avaliku võtmega ja tulemus rakenduse enda `checkAppUpdate`-iga enne kirjutamist), `release:riga:publish` (gh → `SniperInSuit/wivo-riga-releases`, release `stable`, loeb avalikust aadressist tagasi). Riia build (`MAIN_VITE_WIVO_BUILD=riga`) loeb ainult seda aadressi ja paigaldab ainult `riga` jaoks allkirjastatud release'i: **main'i release ei jõua Riiga kunagi** (kolm lukku, RELEASE.md §4). Vanem/sama versioon, allkirjata, vale võti, vale build → keeldub. Seadetes: paigas olev versioon, ootel versioon, allikas, viimane kontroll. Release'i lause ütleb vajaliku migratsiooni (`schema`); tööriist küsib enne allkirja. Testid: `scripts/releaseRiga.test.ts` (16, sh „võti allkirjastas täpselt need baidid, mida rakendus kontrollib"), `release.test.ts`, `releaseCheck.test.ts`, `rigaBuild.test.ts`. **Proovitud päriselt:** NSIS-installer kirjutab `app-update.yml`-i `provider: generic`, Riia aadress. |
+| B | `348104d` | 1) kommentaar ei jää laadima, kui faili üleslaadimine tühistatakse/ebaõnnestub; failil × kommentaaris. 2) töö failide juures päris tüübifilter (nupud „Kõik 7 · Skann 3 …"); senine valik oli alati ainult *uute* failide tüüp, nüüd „Uued failid:". 3) töö kustutamine telefonis (`jobs.delete`, „Kustutada? Jah", nagu töölaual). 4) „What's new" näitab `VITE_PHONE_URL`-i (Riia: `wivo-dentiks.pages.dev`); 2.0.5 märkmed (en, et). |
+| C | `1b5cd10` | RIGA-SETUP.md päris seadistuse järgi: `sb_secret` Vaulti + `WIVO_SERVICE_SECRET_KEY` (baseline jääb legacy-võtmega, sest sql/052/056 nõuavad `eyJ`-d, siis vahetus), `psql -P pager=off`, projekti lülitid, Cloudflare Pages `wivo-dentiks`, Resendi CNAME-id ja võtmed alles pärast kinnitust, mallide teemarida (`-->` eraldi real). CLAUDE.md nimetab `wivo-dentiks`-i. |
+| D | `5bb115f` | `docs/RIGA-ROLLOUT.md` |
+| E | `2732744` | `docs/DB-UPDATES-PLAN.md` (ainult plaan) |
+| — | `6d1afaa`, `508446e` | 4 testi, mis kukkusid ainult Windowsis (git grep shelliga, `\` teedes, CRLF), parandatud. |
+| — | viimane commit | versioon **2.0.5** |
+
+Testid: kõik failid rohelised Windowsis (osade kaupa: src 84, shared+supabase 47+12, scripts 3, config 1, sql 55 faili), mõlemad `tsc` puhtad.
+
+### Mis ebaõnnestus või jäi tegemata
+
+- **`scripts/yubikey/setup-plan.test.mjs` ripub Windowsis vitesti all** juba moodulite laadimisel (sama ka ilma tänaste muudatusteta; Node laeb samad moodulid 30 ms-ga). Seetõttu **ripub ka `npm test` tervikuna** Windowsis. Jooksuta seni osade kaupa (`npx vitest run --mode unit src shared supabase config sql scripts/makeLicense scripts/rigaBuild scripts/releaseRiga`). Põhjus uurimata.
+- **Päris YubiKey ja päris GitHub on proovimata** (mul pole võtit; võrku ma Riia repole ei pöördunud). Allkiri on testitud võlts-ykmaniga ja testvõtmega, avaldamine võlts-gh-ga.
+- **Täispikka `npm run release:riga`-d ma ei jooksutanud** (see oleks kustutanud sinu `dist-riga\` 2.0.4 installeri: ehitus puhastab nüüd `dist-riga`-t enne pakendamist). NSIS-i ehitasin eraldi kausta, `app-update.yml` kontrollitud.
+- Märkus: **praegune 2.0.4 Riia installer loeb main'i GitHubi release'e** (`provider: github, SniperInSuit/Wivo`) ja keeldub neist allkirja puudumise tõttu. Ohtu pole, aga sellepärast on 2.0.5 käsitsi.
+- Öösel jäi kaks vitesti protsessi taustale rippuma; peatasin need.
+
+### Mida sina teed
+
+**`docs/RIGA-ROLLOUT.md`**, järjekorras: 1) repo `wivo-riga-releases` (Public, README-ga), Cloudflare'i `VITE_PHONE_URL`, `riga.env` kolmas rida; 2) `release:riga -- --first` → `:sign` (YubiKey C) → `:publish` → `git push origin testing`; 3) link + SHA-256 Iljale (vaikne paigaldus `/S`, **iga kasutaja enda kontos**); 4) 2.0.6 proov Gary arvutis; 5) `riga` haru samale commitile.
+
+### Kevin otsustab hommikul
+
+1. **Avaldamiskoht: eraldi avalik repo `SniperInSuit/wivo-riga-releases`, release `stable`.** Soovitan: jah. Cloudflare Pages lubab kuni 25 MiB faile (installer ~95 MB), R2 vajaks uut kontot ja tokenit; eraldi repo hoiab main'i CI Riiast struktuurselt eemal. Kui tahad teist nime, muuda see kolmes kohas (`BUILD_UPDATE_SOURCES`, `RIGA_FEED` kahes failis); testid hoiavad need võrdsed.
+2. **Nimekirja aegumine 14 päeva** (otsus 05.11). Riias loeb see ainult arvutile, mis laadib alla pärast aegumist. Soovitan: jätta 14, iga release annab uue; enne pikka äraolekut `--refresh --days 30`.
+3. **Paigaldus jääb kasutajapõhiseks** (`perMachine: false`): uuendused ei vaja administraatorit. Ilja peab installeri käivitama iga kasutaja kontos. Soovitan: jah.
+4. **Tüübifilter nuppudena** (mitte senine valik ümber tõlgendatud). Kinnita Riiaga, kas see oli see, mida nad mõtlesid.
+5. **Andmebaasi uuendused** (`docs/DB-UPDATES-PLAN.md` §7, viis otsust): „adopt" Riia käsitsi tehtud baasile, `WIVO_BUILD` funktsiooni saladus, funktsioonid jäävad käsitsi, PITR Riia kulul, töölaud ootab baasi. Soovitused seal.
+6. **`setup-plan.test.mjs` rippumine:** uurin järgmises sessioonis või jätame Windowsis vahele (`exclude`)? Soovitan: uurida, see on YubiKey seadistuse test.
 
 ---
 
