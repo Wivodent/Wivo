@@ -17,6 +17,8 @@ interface ImportMetaEnv {
    * A clinic's build: its phoneUrl (clinics/<id>.json, Cloudflare), e.g. https://wivo.dentiks.lv. Without it, app.wivodent.com.
    */
   readonly VITE_PHONE_URL?: string
+  /** Wivo's own address for "Request a feature" and "Ask Wivo" (config/contact.ts). Without it those buttons are hidden. */
+  readonly VITE_WIVO_CONTACT_EMAIL?: string
 }
 
 // Preload bridge (src/preload/index.ts). Optional: during `dev` the renderer can

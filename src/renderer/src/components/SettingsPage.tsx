@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, Trash2, RotateCcw, Plus, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, Image as ImageIcon , KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
+import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, Image as ImageIcon , KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
 } from 'lucide-react'
 import { useSettings, THEMES, TEXT_SIZES } from '../stores/useSettings'
 import { NotificationChannels } from './Settings/NotificationChannels'
@@ -33,6 +33,8 @@ import { SoundSection } from './Settings/SoundSection'
 import { SecuritySection } from './Settings/SecuritySection'
 import { DeletedJobsSection } from './Settings/DeletedJobsSection'
 import { DraftNumberInput, DraftTextInput } from './ui/DraftInput'
+import { InfoButton } from './ui/InfoButton'
+import { wivoMailto } from '../config/contact'
 import { t, lang, setLang, intlLocale, LANGUAGES, type Lang } from '../lib/i18n'
 
 // Stage colour choices. Mid-tone on purpose: the pill tints the background to
@@ -768,17 +770,18 @@ function ProfileSection({ auth }: { auth: ReturnType<typeof useAuth> }) {
 }
 
 // ─── Work type price card ─────────────────────────────────────────────────────
-// A card rather than a table row because a price now carries several facts —
-// how it is charged, a full and a discount figure, and a picture — and a row
-// wide enough for all of them stops being readable.
+// docs/design prices.html: the picture and name small at the top with the
+// "per job / per tooth" switch, then three plain blocks — the price for the
+// client, the volume price, our cost. Big price fields; the explanations are
+// behind the page's "i". Every field keeps its text locally and saves on blur
+// or Enter (DraftInput), so typing never loses the focus.
 function WorkTypePriceCard({ type, onPatch }: {
   type: WorkType
   onPatch: (patch: Partial<WorkType>) => void
 }) {
-  const [showFile, setShowFile] = useState(false)
   const img = workTypeImage(type.nimi, type.pilt)
   const mode: PriceMode = type.hinnaTyyp ?? 'too'
-  const suffix = mode === 'hammas' ? t('settingsPage.tooth') : t('settingsPage.job')
+  const unit = mode === 'hammas' ? t('settingsPage.tooth') : t('settingsPage.job')
 
   const kulud = type.kulud ?? []
   const patchCost = (i: number, patch: Partial<WorkTypeCost>) =>
@@ -786,37 +789,40 @@ function WorkTypePriceCard({ type, onPatch }: {
   const removeCost = (i: number) => onPatch({ kulud: kulud.filter((_, n) => n !== i) })
   const addCost = () => onPatch({ kulud: [...kulud, { nimi: '', summa: 0, tyyp: 'too' }] })
 
-  const perJob = kulud.filter(k => k.tyyp === 'too').reduce((s, k) => s + k.summa, 0)
-  const perTooth = kulud.filter(k => k.tyyp === 'hammas').reduce((s, k) => s + k.summa, 0)
-  const costTotalHint = kulud.length === 0 ? null : [
-    perJob > 0 ? t('settingsPage.job2', { perJob: perJob.toFixed(2) }) : null,
-    perTooth > 0 ? t('settingsPage.tooth2', { perTooth: perTooth.toFixed(2) }) : null,
-  ].filter(Boolean).join(' + ')
+  const addTier = () => {
+    // Seeded FROM the cleaned view so the suggestion is sensible, but written
+    // onto the raw array so nothing already typed is lost; above the last one
+    // so two rows never share a quantity.
+    const rows = sortedTiers(type)
+    const raw = type.astmed ?? []
+    const nextFrom = rows.length > 0 ? rows[rows.length - 1].alates + 1 : 3
+    const from = rows.length > 0 ? rows[rows.length - 1].hind : (type.hind ?? 0)
+    onPatch({ astmed: [...raw, { alates: nextFrom, hind: from }] })
+  }
+
+  const bigField = 'w-full h-[52px] rounded-xl border border-ink-faint/40 bg-bg-card pl-3.5 pr-20 text-xl font-semibold text-ink text-right outline-none focus-visible:ring-2 focus-visible:ring-accent'
+  const blockTitle = 'text-base font-bold text-ink'
 
   return (
-    <div className="rounded-xl border border-ink-faint/20 overflow-hidden bg-bg-card">
-      {/* Picture, or a tinted placeholder in the type's own colour so a missing
-          file still reads as that type rather than as an error. */}
-      <div
-        className="h-24 flex items-center justify-center relative"
-        style={{ backgroundColor: `${type.hex}1f` }}
-      >
-        {img ? (
-          <img src={img} alt={type.nimi} className="h-full w-full object-cover" />
-        ) : (
-          <ImageIcon size={16} style={{ color: type.hex }} />
-        )}
-        <span
-          className="absolute top-1.5 left-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white/70"
-          style={{ backgroundColor: type.hex }}
-        />
-      </div>
-
-      <div className="p-2.5 space-y-2">
-        <p className="text-sm font-semibold text-ink truncate" title={type.nimi}>{type.nimi}</p>
-
-        {/* Charging mode */}
-        <div className="flex items-center gap-1 bg-bg-sidebar rounded-lg p-0.5">
+    <div className="card p-5 flex flex-col gap-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <span
+            className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0"
+            style={{ backgroundColor: `${type.hex}1f` }}
+          >
+            {img
+              ? <img src={img} alt="" className="h-full w-full object-cover" />
+              : <ImageIcon size={24} style={{ color: type.hex }} aria-hidden="true" />}
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold text-ink truncate" title={type.nimi}>{type.nimi}</h3>
+            {type.hind == null
+              ? <p className="text-sm font-semibold text-amber-600">{t('settingsPage.priceNotSet')}</p>
+              : <p className="text-sm font-semibold text-accent tabular-nums">{type.hind.toFixed(2)} {unit}</p>}
+          </div>
+        </div>
+        <div role="group" aria-label={t('settingsPage.pricingUnit')} className="flex bg-bg-sidebar rounded-xl p-1">
           {([
             { key: 'too', label: t('settingsPage.perJob') },
             { key: 'hammas', label: t('settingsPage.perTooth') },
@@ -824,198 +830,122 @@ function WorkTypePriceCard({ type, onPatch }: {
             <button
               key={m.key}
               type="button"
-              onClick={() => onPatch({ hinnaTyyp: m.key })}
-              className={`flex-1 text-[10px] font-medium py-1 rounded-md transition-colors ${
-                mode === m.key ? 'bg-accent text-white' : 'text-ink-muted hover:text-ink'
+              aria-pressed={mode === m.key}
+              onClick={() => mode !== m.key && onPatch({ hinnaTyyp: m.key })}
+              className={`min-h-[40px] px-3.5 rounded-lg text-sm transition-colors ${
+                mode === m.key ? 'bg-accent text-white font-bold' : 'text-ink-soft hover:text-ink'
               }`}
             >
               {m.label}
             </button>
           ))}
         </div>
+      </div>
 
-        {/* Named, because the card carries two kinds of number and the costs
-            below are NOT added to these. Someone reading "400" next to "300"
-            reasonably assumes the client is billed 700. They are billed 400. */}
-        <p className="text-[10px] font-semibold text-ink-soft">{t('settingsPage.clientPrice')}</p>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="block text-[10px] font-medium text-ink-muted mb-0.5">{t('settingsPage.fullPrice')}</label>
-            <div className="relative">
-              <DraftNumberInput
-                allowEmpty
-                value={type.hind}
-                placeholder="0"
-                onCommit={v => onPatch({ hind: v })}
-                className="input py-1 pr-5 text-sm text-right"
-              />
-              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-faint pointer-events-none">€</span>
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] font-medium text-accent mb-0.5">{t('settingsPage.discountPrice')}</label>
-            <div className="relative">
-              <DraftNumberInput
-                allowEmpty
-                value={type.soodushind}
-                placeholder="—"
-                onCommit={v => onPatch({ soodushind: v })}
-                className="input py-1 pr-5 text-sm text-right"
-              />
-              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-faint pointer-events-none">€</span>
-            </div>
-          </div>
+      {/* Two kinds of number on one card, and the costs below are NOT added to
+          these: 400 € billed next to a 300 € abutment is 400 € billed. */}
+      <div className="flex flex-col gap-2.5 border-t border-ink-faint/15 pt-4">
+        <h4 className={blockTitle}>{t('settingsPage.priceForClient')}</h4>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink-soft">
+            {t('settingsPage.fullPrice')}
+            <span className="relative">
+              <DraftNumberInput allowEmpty value={type.hind} placeholder="0.00"
+                onCommit={v => onPatch({ hind: v })} className={bigField} />
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-ink-faint pointer-events-none">{unit}</span>
+            </span>
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink-soft">
+            {t('settingsPage.discountPrice')}
+            <span className="relative">
+              <DraftNumberInput allowEmpty value={type.soodushind} placeholder="—"
+                onCommit={v => onPatch({ soodushind: v })} className={bigField} />
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-ink-faint pointer-events-none">{unit}</span>
+            </span>
+          </label>
         </div>
-        <p className="text-[10px] text-ink-faint">{suffix}</p>
+      </div>
 
-        {/* Volume tiers. The base price above is the price from one unit, so a
-            tier only ever states an EXCEPTION to it — nothing here has to
-            restate "1+". Flat, not progressive: six crowns at the 6+ rate means
-            all six at that rate, which is how the price gets quoted on the
-            phone and therefore the only way the form can be checked. */}
-        <div className="pt-1.5 border-t border-ink-faint/15">
-          <p className="text-[10px] font-semibold text-ink-soft">{t('settingsPage.volumePrice')}</p>
-          <p className="text-[10px] text-ink-faint mb-1">
-            {t('settingsPage.fromThisNumberOfTeethOn', { mode })}{' '}
-            <strong className="text-ink-muted">{t('settingsPage.toTheWholeJob')}</strong>
-            {t('settingsPage.notJustTheTeethAboveIt')}
-          </p>
-
-          {/* Edited against the RAW array, never the sorted-and-cleaned one.
-              `sortedTiers` drops a tier whose price is 0 — so clearing the
-              field to retype it would delete the row out from under the cursor,
-              and renumbering mid-typing would make it jump. Order and junk are
-              settled at READ time (`tierFor`) and on load, not while typing. */}
-          {(type.astmed ?? []).map((tier, i) => (
-            // Keyed by position, never by a value being typed: a key built from
-            // `alates` remounted the row on every keystroke and lost the focus.
-            <div key={i} className="flex items-center gap-1 mb-1">
-              <span className="text-[10px] text-ink-faint w-8 flex-shrink-0">{t('settingsPage.from')}</span>
+      {/* Edited against the RAW array, never the sorted-and-cleaned one: a
+          cleared field must not delete its own row mid-typing. */}
+      <div className="flex flex-col gap-2.5 border-t border-ink-faint/15 pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h4 className={blockTitle}>{t('settingsPage.volumePrice')}</h4>
+            <p className="text-sm text-ink-muted">{t('settingsPage.volumePriceSub')}</p>
+          </div>
+          <button type="button" onClick={addTier}
+            className="min-h-[44px] px-3.5 rounded-xl border border-ink-faint/40 bg-bg-card text-sm font-medium text-ink hover:border-accent flex items-center gap-1.5">
+            <Plus size={15} /> {t('settingsPage.add2')}
+          </button>
+        </div>
+        {(type.astmed ?? []).map((tier, i) => (
+          // Keyed by position, never by a value being typed.
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-sm text-ink-muted flex-shrink-0">{t('settingsPage.from')}</span>
+            <DraftNumberInput
+              value={tier.alates}
+              onCommit={v => onPatch({
+                astmed: (type.astmed ?? []).map((x, j) => j === i ? { ...x, alates: Math.max(1, Math.round(v ?? 1) || 1) } : x),
+              })}
+              className="input h-11 w-16 text-base text-right"
+            />
+            <span className="text-sm text-ink-muted flex-shrink-0">{t('settingsPage.teethOrMore')}</span>
+            <span className="relative flex-1 min-w-0">
               <DraftNumberInput
-                value={tier.alates}
+                value={tier.hind}
                 onCommit={v => onPatch({
-                  astmed: (type.astmed ?? []).map((x, j) =>
-                    j === i ? { ...x, alates: Math.max(1, Math.round(v ?? 1) || 1) } : x
-                  ),
+                  astmed: (type.astmed ?? []).map((x, j) => j === i ? { ...x, hind: v ?? 0 } : x),
                 })}
-                className="input py-1 text-sm w-12 text-right"
+                className="input h-11 pr-16 text-base text-right w-full"
               />
-              <div className="relative flex-1 min-w-0">
-                <DraftNumberInput
-                  value={tier.hind}
-                  onCommit={v => onPatch({
-                    astmed: (type.astmed ?? []).map((x, j) =>
-                      j === i ? { ...x, hind: v ?? 0 } : x
-                    ),
-                  })}
-                  className="input py-1 pr-5 text-sm text-right"
-                />
-                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-faint pointer-events-none">€</span>
-              </div>
-              <button
-                type="button"
-                title={t('settingsPage.removeTier')}
-                onClick={() => onPatch({
-                  astmed: (type.astmed ?? []).filter((_, j) => j !== i),
-                })}
-                className="p-1 rounded text-ink-faint hover:text-red-500 transition-colors flex-shrink-0"
-              >
-                <Trash2 size={11} />
-              </button>
-            </div>
-          ))}
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">{unit}</span>
+            </span>
+            <button type="button" aria-label={t('settingsPage.removeTier')} title={t('settingsPage.removeTier')}
+              onClick={() => onPatch({ astmed: (type.astmed ?? []).filter((_, j) => j !== i) })}
+              className="w-11 h-11 rounded-xl border border-ink-faint/25 flex items-center justify-center text-ink-faint hover:text-red-500 flex-shrink-0">
+              <X size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              // Seeded FROM the cleaned view so the suggestion is sensible,
-              // but written onto the raw array so nothing already typed is lost.
-              const rows = sortedTiers(type)
-              const raw = type.astmed ?? []
-              // Seeded above the last one so a second click never lands on a
-              // quantity that already has a tier — two rows at the same
-              // `alates` would make which one wins a matter of luck.
-              const nextFrom = rows.length > 0 ? rows[rows.length - 1].alates + 1 : 3
-              const from = rows.length > 0 ? rows[rows.length - 1].hind : (type.hind ?? 0)
-              onPatch({ astmed: [...raw, { alates: nextFrom, hind: from }] })
-            }}
-            className="text-[10px] font-medium text-accent hover:underline"
-          >
-            {t('settingsPage.addVolumePrice')}
-          </button>
-        </div>
-
-        {/* Consumables — a cost, not a price. Never reaches an invoice. */}
-        <div className="pt-1.5 border-t border-ink-faint/15">
-          <p className="text-[10px] font-semibold text-ink-soft">{t('settingsPage.ourCost')}</p>
-          <p className="text-[10px] text-ink-faint mb-1">
-            {t('settingsPage.suppliesThisJobAlwaysNeeds')}{' '}
-            <strong className="text-ink-muted">{t('settingsPage.notAddedToTheClientPrice')}</strong>{' '}
-            {t('settingsPage.takenOffTheMargin')}
-          </p>
-          {(type.kulud ?? []).map((k, i) => (
-            // Keyed by position: a key built from the name remounted the row on
-            // every letter typed into it, and the field lost the focus.
-            <div key={i} className="flex items-center gap-1 mb-1">
-              <DraftTextInput
-                value={k.nimi}
-                onCommit={v => patchCost(i, { nimi: v })}
-                placeholder={t('settingsPage.screw')}
-                className="input py-0.5 text-[11px] flex-1 min-w-0"
-              />
-              <DraftNumberInput
-                value={k.summa}
-                onCommit={v => patchCost(i, { summa: v ?? 0 })}
-                className="input py-0.5 text-[11px] w-14 text-right"
-              />
-              <button
-                type="button"
-                onClick={() => patchCost(i, { tyyp: k.tyyp === 'hammas' ? 'too' : 'hammas' })}
-                title={t('settingsPage.perJobPerTooth')}
-                className="text-[9px] px-1 py-0.5 rounded bg-bg-sidebar text-ink-muted hover:text-accent transition-colors flex-shrink-0"
-              >
-                {k.tyyp === 'hammas' ? t('settingsPage.tooth3') : t('settingsPage.job3')}
-              </button>
-              <button
-                type="button"
-                onClick={() => removeCost(i)}
-                className="p-0.5 rounded text-ink-faint hover:text-red-500 transition-colors flex-shrink-0"
-              >
-                <Trash2 size={10} />
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={addCost}
-            className="text-[10px] text-accent hover:underline"
-          >
-            {t('settingsPage.addCost')}
-          </button>
-          {costTotalHint && (
-            <p className="text-[9px] text-ink-faint mt-0.5">{costTotalHint}</p>
-          )}
-        </div>
-
-        {showFile ? (
-          <input
-            autoFocus
-            value={type.pilt ?? ''}
-            onChange={e => onPatch({ pilt: e.target.value || undefined })}
-            onBlur={() => setShowFile(false)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === 'Escape') setShowFile(false) }}
-            placeholder={`${slugifyWorkType(type.nimi)}.png`}
-            className="input py-1 text-[11px]"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowFile(true)}
-            className="text-[10px] text-ink-faint hover:text-accent transition-colors"
-          >
-            {type.pilt ? t('settingsPage.image', { pilt: type.pilt }) : t('settingsPage.setImageFile')}
-          </button>
-        )}
+      {/* Consumables — a cost, not a price. Never reaches an invoice. */}
+      <div className="flex flex-col gap-2.5 border-t border-ink-faint/15 pt-4">
+        <h4 className={blockTitle}>{t('settingsPage.ourCost')}</h4>
+        {kulud.length === 0 && <p className="text-sm text-ink-muted">{t('settingsPage.noCostsYet')}</p>}
+        {kulud.map((k, i) => (
+          // Keyed by position: a key built from the name remounted the row on
+          // every letter typed into it, and the field lost the focus.
+          <div key={i} className="grid grid-cols-[minmax(0,1fr)_110px_auto_44px] gap-2 items-center">
+            <DraftTextInput
+              value={k.nimi}
+              onCommit={v => patchCost(i, { nimi: v })}
+              placeholder={t('settingsPage.screw')}
+              className="input h-11 text-base"
+            />
+            <span className="relative">
+              <DraftNumberInput value={k.summa} onCommit={v => patchCost(i, { summa: v ?? 0 })}
+                className="input h-11 pr-7 text-base text-right w-full" />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-ink-faint pointer-events-none">€</span>
+            </span>
+            <button type="button"
+              onClick={() => patchCost(i, { tyyp: k.tyyp === 'hammas' ? 'too' : 'hammas' })}
+              title={t('settingsPage.perJobPerTooth')}
+              className="h-11 px-3 rounded-xl bg-bg-sidebar text-sm text-ink-soft hover:text-accent">
+              {k.tyyp === 'hammas' ? t('settingsPage.tooth3') : t('settingsPage.job3')}
+            </button>
+            <button type="button" aria-label={t('settingsPage.removeCost')} title={t('settingsPage.removeCost')}
+              onClick={() => removeCost(i)}
+              className="w-11 h-11 rounded-xl border border-ink-faint/25 flex items-center justify-center text-ink-faint hover:text-red-500">
+              <X size={16} />
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={addCost}
+          className="self-start min-h-[44px] px-3.5 rounded-xl border border-dashed border-ink-faint/60 bg-bg-card text-sm text-ink hover:border-accent">
+          {t('settingsPage.addCost')}
+        </button>
       </div>
     </div>
   )
@@ -1296,6 +1226,10 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
   const { can, moduleOn } = usePermissions()
 
   const [group, setGroup] = useState<GroupKey>(initialGroup)
+  // Prices page (docs/design prices.html): search, the add row, the folded rest.
+  const [priceSearch, setPriceSearch] = useState('')
+  const [addingType, setAddingType] = useState(false)
+  const [morePrices, setMorePrices] = useState(false)
 
   // A group whose licence module (or mode) is off is not listed: a menu item
   // that leads to a page this clinic cannot use is dead UI.
@@ -1911,52 +1845,113 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
               columns keep the reprice tool and the type cards together on the
               left instead of scattering five cards across the width. */}
           {activeGroup === 'hinnad' && (
-            <div className="col-span-full space-y-8">
+            <div className="col-span-full space-y-6">
+              {/* docs/design prices.html: the work types and their prices first,
+                  big and two to a row; everything else folded under "More". */}
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-ink">{t('settingsPage.workTypesAndPrices')}</h2>
+                  <p className="text-base text-ink-muted mt-1">{t('settingsPage.workTypesAndPricesSub')}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <InfoButton
+                    align="right"
+                    label={t('settingsPage.workTypesAndPrices')}
+                    text={[
+                      `${t('settingsPage.eachWorkTypeIsPricedEither')} ${t('settingsPage.perJob2')} ${t('settingsPage.or')} ${t('settingsPage.perTooth2')} ${t('settingsPage.bridgesAndDesignArePerTooth')}`,
+                      `${t('settingsPage.fromThisNumberOfTeethOn', { mode: '' })} ${t('settingsPage.toTheWholeJob')}${t('settingsPage.notJustTheTeethAboveIt')}`,
+                      `${t('settingsPage.suppliesThisJobAlwaysNeeds')} ${t('settingsPage.notAddedToTheClientPrice')} ${t('settingsPage.takenOffTheMargin')}`,
+                    ].join(' ')}
+                  />
+                  <input
+                    type="search"
+                    value={priceSearch}
+                    onChange={e => setPriceSearch(e.target.value)}
+                    placeholder={t('settingsPage.findWorkType')}
+                    aria-label={t('settingsPage.findWorkType')}
+                    className="input h-12 w-60 text-base"
+                  />
+                  {canEditClinic && (
+                    <button
+                      type="button"
+                      onClick={() => setAddingType(v => !v)}
+                      aria-expanded={addingType}
+                      className="min-h-[48px] px-5 rounded-xl bg-accent text-white text-base font-bold flex items-center gap-1.5 hover:opacity-90"
+                    >
+                      <Plus size={18} /> {t('settingsPage.newWorkType')}
+                    </button>
+                  )}
+                </div>
+              </div>
 
-              {/* Two groups, because this tab holds two kinds of number and a
-                  work-type card shows both side by side: 400 € the client pays
-                  and a 300 € abutment that does NOT reach the invoice. Reading
-                  them as one list is how "so we bill 700" happens. */}
+              {addingType && (
+                <div className="card p-4">
+                  <AddWorkTypeRow onAdd={(nimi, hex) => { addWorkType(nimi, hex); setAddingType(false); setPriceSearch('') }} />
+                </div>
+              )}
+
+              {settings.tooTuubid.length === 0 ? (
+                <p className="text-sm text-ink-muted">{t('settingsPage.noWorkTypesAddThemUnder')}</p>
+              ) : (() => {
+                const q = priceSearch.trim().toLowerCase()
+                const shown = q ? settings.tooTuubid.filter(w => w.nimi.toLowerCase().includes(q)) : settings.tooTuubid
+                return shown.length === 0
+                  ? <p className="text-sm text-ink-muted">{t('settingsPage.noWorkTypeFound')}</p>
+                  : (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+                      {shown.map(workType => (
+                        <WorkTypePriceCard
+                          key={workType.nimi}
+                          type={workType}
+                          onPatch={patch => updateWorkType(workType.nimi, patch)}
+                        />
+                      ))}
+                    </div>
+                  )
+              })()}
+
+              <div className="card px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-base text-ink-soft">{t('settingsPage.pricesSaveOnLeave')}</span>
+                {wivoMailto(t('settingsPage.askWivoPictureSubject')) && (
+                  <a
+                    href={wivoMailto(t('settingsPage.askWivoPictureSubject'), auth.clinic?.name ?? '') ?? undefined}
+                    className="text-base font-semibold text-accent hover:underline flex items-center gap-1"
+                  >
+                    {t('settingsPage.askWivoPicture')} <ArrowRight size={16} />
+                  </a>
+                )}
+              </div>
+
+              <section className="card px-5 py-1">
+                <button
+                  type="button"
+                  aria-expanded={morePrices}
+                  onClick={() => setMorePrices(o => !o)}
+                  className="w-full min-h-[60px] flex items-center justify-between gap-3 text-left"
+                >
+                  <span>
+                    <span className="block text-base font-bold text-ink">{t('settingsPage.morePriceSettings')}</span>
+                    <span className="block text-sm text-ink-muted">{t('settingsPage.morePriceSettingsSub')}</span>
+                  </span>
+                  {morePrices ? <ChevronUp size={18} className="text-ink-muted" /> : <ChevronDown size={18} className="text-ink-muted" />}
+                </button>
+              </section>
+
+              {morePrices && (
+              <div className="space-y-8">
+              {/* Two groups, because this tab holds two kinds of number: what the
+                  client pays, and what the work costs us. */}
               <div>
                 <h2 className="text-base font-semibold text-ink mb-1">{t('settingsPage.clientPrices')}</h2>
                 <p className="text-xs text-ink-faint mb-3 max-w-2xl leading-relaxed">
                   {t('settingsPage.whatTheClientPaysTheWork')}
                 </p>
-            <div className="col-span-full grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 items-start [&_section]:card [&_section]:p-4">
+            <div className="grid grid-cols-1 gap-4 items-start [&_section]:card [&_section]:p-4">
               <div className="space-y-4 min-w-0">
           {/* Bulk reprice — owner only: it rewrites financial fields on rows that
               already exist, and only the owner can change the price list it
               reads from in the first place. */}
           {canEditClinic && <RepriceJobsSection />}
-          {/* Per-job prices by work type */}
-                    <section>
-            <div className="flex items-center gap-2 mb-1">
-              <Euro size={14} className="text-accent" />
-              <h3 className="text-sm font-semibold text-ink">{t('settingsPage.jobPrices')}</h3>
-            </div>
-            <p className="text-xs text-ink-faint mb-4">
-              {t('settingsPage.eachWorkTypeIsPricedEither')}{' '}
-              <strong className="text-ink-muted">{t('settingsPage.perJob2')}</strong> {t('settingsPage.or')}{' '}
-              <strong className="text-ink-muted">{t('settingsPage.perTooth2')}</strong>{' '}
-              {t('settingsPage.bridgesAndDesignArePerTooth')}
-            </p>
-
-            {settings.tooTuubid.length === 0 ? (
-              <p className="text-xs text-ink-faint">
-                {t('settingsPage.noWorkTypesAddThemUnder')}
-              </p>
-            ) : (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                {settings.tooTuubid.map(workType => (
-                  <WorkTypePriceCard
-                    key={workType.nimi}
-                    type={workType}
-                    onPatch={patch => updateWorkType(workType.nimi, patch)}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
               </div>
               <div className="space-y-4 min-w-0">
           {/* Design fee */}
@@ -2345,7 +2340,8 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
           </section>
                 </div>
               </div>
-
+              </div>
+              )}
             </div>
           )}
 
