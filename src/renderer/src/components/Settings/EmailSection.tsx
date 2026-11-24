@@ -17,34 +17,58 @@
  * member of the clinic; the credential lives in `supabase secrets`, reachable
  * only by the edge function while it runs. See sql/051.
  */
+import { useEffect } from 'react'
 import { Mail, ShieldCheck, AlertTriangle, FlaskConical, Clock } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 import { useSettings } from '../../stores/useSettings'
 import type { MailSettings } from '../../stores/useSettings'
 import { looksLikeEmail } from '@shared/billing/sendGuard'
 import {
-  renderTemplate, unknownTokens, TEMPLATE_TOKENS,
+  renderTemplate, unknownTokens, TEMPLATE_TOKENS, defaultMailTemplateFor, isUntouchedDefaultTemplate,
 } from '@shared/billing/mailTemplate'
 import { t } from '@/lib/i18n'
+import type { MessageKey } from '@shared/i18n'
 
-/**
- * A made-up invoice for the preview. Recognisably fake on purpose: a preview
- * using real numbers invites reading it as a real document.
- */
-const PREVIEW_VARS: Record<string, string> = {
-  arve: '2026-0007',
-  saaja: 'Mari Maasikas',
-  summa: '1220.00 €',
-  tasumata: '1220.00 €',
-  tahtaeg: '15.09.2026',
-  kuupaev: '01.09.2026',
-  kliinik: 'Sinu Kliinik OÜ',
+/** What each token means, in the reader's language. */
+const TOKEN_HELP: Record<string, MessageKey> = {
+  '{arve}': 'settings.tokenArve', '{saaja}': 'settings.tokenSaaja', '{summa}': 'settings.tokenSumma',
+  '{tasumata}': 'settings.tokenTasumata', '{tahtaeg}': 'settings.tokenTahtaeg',
+  '{kuupaev}': 'settings.tokenKuupaev', '{kliinik}': 'settings.tokenKliinik',
 }
 
 export function EmailSection() {
   const { settings, setEpost } = useSettings()
+  const { clinic, role } = useAuth()
   const e = settings.epost
 
   const patch = (p: Partial<MailSettings>) => setEpost(p)
+
+  /**
+   * A made-up invoice for the preview, signed with the clinic's OWN name.
+   * The invoice number and sums are recognisably fake on purpose: a preview
+   * using real numbers invites reading it as a real document.
+   */
+  const PREVIEW_VARS: Record<string, string> = {
+    arve: '2026-0007',
+    saaja: t('settings.previewRecipient'),
+    summa: '1220.00 €',
+    tasumata: '1220.00 €',
+    tahtaeg: '15.09.2026',
+    kuupaev: '01.09.2026',
+    kliinik: clinic?.name?.trim() || t('settings.previewClinicFallback'),
+  }
+
+  // The letter a clinic has never touched is the default in the CLINIC's
+  // language: an English clinic gets the English letter, not the Estonian one
+  // every clinic was seeded with. An edited letter is never replaced. Owner
+  // only — the clinic's settings are the owner's to write.
+  const clinicLang = clinic?.default_language
+  const wanted = defaultMailTemplateFor(clinicLang)
+  const untouched = isUntouchedDefaultTemplate(e)
+  const needsSwap = role === 'owner' && !!clinicLang && untouched && e.pealkiri !== wanted.pealkiri
+  useEffect(() => {
+    if (needsSwap) setEpost({ ...wanted })
+  }, [needsSwap]) // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * How long ago the sender ran. Stale after three hours: it is scheduled
@@ -262,7 +286,7 @@ export function EmailSection() {
               <button
                 key={tok.token}
                 type="button"
-                title={tok.selgitus}
+                title={TOKEN_HELP[tok.token] ? t(TOKEN_HELP[tok.token]) : tok.token}
                 onClick={() => patch({ sissejuhatus: `${e.sissejuhatus}${tok.token}` })}
                 className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-bg-sidebar text-ink-muted hover:text-accent transition-colors"
               >

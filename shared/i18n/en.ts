@@ -4027,6 +4027,15 @@ export const en = {
   'invoices.couldNotLoad': "Invoices could not be loaded.",
   'dashboard.invoicesCouldNotLoad': "Invoices could not be loaded, so the money figures may be incomplete.",
   'settings.notAvailableN': "{n} not available on this database yet",
+  'settings.previewRecipient': "Jane Smith",
+  'settings.previewClinicFallback': "Your clinic",
+  'settings.tokenArve': "Invoice number",
+  'settings.tokenSaaja': "Who the invoice is addressed to",
+  'settings.tokenSumma': "Total to pay",
+  'settings.tokenTasumata': "Amount still unpaid",
+  'settings.tokenTahtaeg': "Payment due date",
+  'settings.tokenKuupaev': "Invoice date",
+  'settings.tokenKliinik': "Clinic name",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

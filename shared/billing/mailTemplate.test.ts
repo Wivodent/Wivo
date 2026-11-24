@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   renderTemplate, templateVars, unknownTokens,
-  DEFAULT_MAIL_TEMPLATE, TEMPLATE_TOKENS,
+  DEFAULT_MAIL_TEMPLATE, TEMPLATE_TOKENS, MAIL_TEMPLATES, defaultMailTemplateFor, isUntouchedDefaultTemplate,
 } from './mailTemplate'
 
 const doc = {
@@ -86,5 +86,28 @@ describe('the shipped default', () => {
 
   it('puts the invoice number in the subject', () => {
     expect(renderTemplate(DEFAULT_MAIL_TEMPLATE.pealkiri, vars)).toContain('2026-0007')
+  })
+})
+
+describe('the letter in each language', () => {
+  const vars = templateVars(doc)
+
+  it('every language uses only tokens that exist, and names the clinic and the invoice', () => {
+    for (const tpl of Object.values(MAIL_TEMPLATES)) {
+      for (const text of Object.values(tpl)) expect(unknownTokens(text, vars)).toEqual([])
+      expect(renderTemplate(tpl.pealkiri, vars)).toContain('2026-0007')
+      expect(renderTemplate(tpl.lopp, vars)).toContain('Fullgevity Dental OÜ')
+    }
+  })
+
+  it('an English clinic gets English; an unknown language gets the Estonian fallback', () => {
+    expect(defaultMailTemplateFor('en').pealkiri).toMatch(/^Invoice/)
+    expect(defaultMailTemplateFor('xx')).toBe(DEFAULT_MAIL_TEMPLATE)
+  })
+
+  it('knows an edited letter from an untouched default', () => {
+    expect(isUntouchedDefaultTemplate(DEFAULT_MAIL_TEMPLATE)).toBe(true)
+    expect(isUntouchedDefaultTemplate({ ...MAIL_TEMPLATES.en })).toBe(true)
+    expect(isUntouchedDefaultTemplate({ ...DEFAULT_MAIL_TEMPLATE, lopp: 'Aitäh' })).toBe(false)
   })
 })

@@ -9,7 +9,7 @@ import type { OverheadPeriood } from '@shared/pricing/priceBook'
 import type { ThemeKey } from '../stores/useSettings'
 import { usePipeline } from '../context/PipelineContext'
 import { useAuth, type Clinic } from '../context/AuthContext'
-import { clinicCountry, hasEstonianTax } from '../lib/country'
+import { clinicCountry, hasEstonianTax, invoicesAvailable } from '../lib/country'
 import { usePermissions } from '../hooks/usePermissions'
 import { useClinicSyncState } from './ClinicSettingsSync'
 import { WORK_TYPE_PALETTE, sortedTiers, type WorkType, type PriceMode, type WorkTypeCost } from '../config/workTypes'
@@ -1297,7 +1297,8 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
   const groupInLicence = (k: GroupKey): boolean => {
     switch (k) {
       case 'avalik': return settings.kliinilineRezhiim && moduleOn('patients')
-      case 'epost': return moduleOn('invoices')
+      // The e-mail here sends invoices only, and invoices are Estonian documents.
+      case 'epost': return moduleOn('invoices') && invoicesAvailable(clinicCountry(auth.clinic))
       case 'partnerlused': return moduleOn('partners')
       case 'etapid': case 'valikud': case 'masinad': return moduleOn('jobs')
       default: return true

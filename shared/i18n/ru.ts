@@ -11,4 +11,13 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   // A push without its own words shows this as its title (sw.js); the sender's
   // words are already Russian (supabase/functions/_shared/pushText.ts).
   'mobile.pushFallbackTitle': "Новое уведомление",
+  'settings.previewRecipient': "Анна Иванова",
+  'settings.previewClinicFallback': "Ваша клиника",
+  'settings.tokenArve': "Номер счёта",
+  'settings.tokenSaaja': "Кому адресован счёт",
+  'settings.tokenSumma': "Итого к оплате",
+  'settings.tokenTasumata': "Неоплаченный остаток",
+  'settings.tokenTahtaeg': "Срок оплаты",
+  'settings.tokenKuupaev': "Дата счёта",
+  'settings.tokenKliinik': "Название клиники",
 }

@@ -4013,4 +4013,13 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'invoices.couldNotLoad': "Arveid ei õnnestunud laadida.",
   'dashboard.invoicesCouldNotLoad': "Arveid ei õnnestunud laadida, seega võivad rahanumbrid olla puudulikud.",
   'settings.notAvailableN': "{n} pole selles andmebaasis veel saadaval",
+  'settings.previewRecipient': "Mari Maasikas",
+  'settings.previewClinicFallback': "Sinu kliinik",
+  'settings.tokenArve': "Arve number",
+  'settings.tokenSaaja': "Kellele arve on adresseeritud",
+  'settings.tokenSumma': "Kokku tasuda",
+  'settings.tokenTasumata': "Tasumata jääk",
+  'settings.tokenTahtaeg': "Maksetähtaeg",
+  'settings.tokenKuupaev': "Arve kuupäev",
+  'settings.tokenKliinik': "Kliiniku nimi",
 }

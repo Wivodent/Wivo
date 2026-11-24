@@ -44,6 +44,45 @@ export const DEFAULT_MAIL_TEMPLATE: MailTemplate = {
 }
 
 /**
+ * The same plain letter in each language the app speaks. A new clinic gets the
+ * one in its own language; the Estonian one above stays the sender's fallback.
+ */
+export const MAIL_TEMPLATES: Record<'en' | 'et' | 'ru', MailTemplate> = {
+  et: DEFAULT_MAIL_TEMPLATE,
+  en: {
+    pealkiri: 'Invoice {arve} — due {tahtaeg}',
+    sissejuhatus:
+      'Hello {saaja},\n\n'
+      + 'Please find invoice {arve} for {summa} below.\n\n'
+      + 'Please pay by {tahtaeg} and include the invoice number in the payment details.',
+    lopp:
+      'If you have any questions, just reply to this e-mail.\n\n'
+      + 'Kind regards,\n{kliinik}',
+  },
+  ru: {
+    pealkiri: 'Счёт {arve} — срок оплаты {tahtaeg}',
+    sissejuhatus:
+      'Здравствуйте, {saaja}!\n\n'
+      + 'Направляем счёт {arve} на сумму {summa}. Счёт находится ниже в этом письме.\n\n'
+      + 'Просим оплатить до {tahtaeg} и указать номер счёта в назначении платежа.',
+    lopp:
+      'Если у вас есть вопросы, просто ответьте на это письмо.\n\n'
+      + 'С уважением,\n{kliinik}',
+  },
+}
+
+/** The letter in this language; Estonian for anything else. */
+export function defaultMailTemplateFor(language: string | null | undefined): MailTemplate {
+  return MAIL_TEMPLATES[language as 'en' | 'et' | 'ru'] ?? DEFAULT_MAIL_TEMPLATE
+}
+
+/** Whether a clinic's letter is still exactly one of the defaults (never edited). */
+export function isUntouchedDefaultTemplate(t: MailTemplate): boolean {
+  return Object.values(MAIL_TEMPLATES).some(d =>
+    d.pealkiri === t.pealkiri && d.sissejuhatus === t.sissejuhatus && d.lopp === t.lopp)
+}
+
+/**
  * What a token stands for. The settings screen lists these, so a clinic never
  * has to guess the spelling — a mistyped token would otherwise reach a patient
  * as literal curly braces.
