@@ -13,6 +13,22 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 
 ---
 
+## 🛠️ Admin-konsool (MVP valmis, eraldi repo, pushimata)
+
+- **Repo:** `C:\Users\fullg\Documents\GitHub\wivo-admin` (git, haru `main`,
+  üks commit). GitHubi repo `SniperInSuit/wivo-admin` (Private) teed sina.
+- **Sinu sammud, üks korraga:** `wivo-admin\docs\SETUP.md`:
+  1. repo ja push;
+  2. Supabase'i projekt (registreerumine kinni, TOTP, sinu kasutaja,
+     `sql/001_schema.sql`, `admin_user`, funktsioon `release-status`);
+  3. Cloudflare Pages ja `admin.wivodent.com`;
+  4. Cloudflare Access GitHubiga;
+  5. esimene sisselogimine.
+- **Plaan ja otsused:** `docs/ADMIN-CONSOLE.md` §8.
+- **Testid:** `npm test` konsooli kaustas, 43 testi. `npm run build` on puhas.
+
+---
+
 ## 🔧 Kolm väikest parandust (haru `testing`, commititud, pushimata)
 
 1. **Telefoni etapiriba „UN":** kood näitab tühjal etapil „+inimene" ikooni nii

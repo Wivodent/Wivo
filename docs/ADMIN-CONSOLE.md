@@ -1,6 +1,8 @@
 # Wivo admin console: the plan
 
-**Status: a plan only (November 2026). Nothing is built until Kevin says OK.**
+**Status: Kevin's OK (November 2026), decisions in §8. The MVP is built in
+the private repository `SniperInSuit/wivo-admin` (local folder `..\wivo-admin`).
+Kevin's setup steps are in its `docs/SETUP.md`.**
 The entry in docs/ROADMAP.md ("Wivo admin console") points here.
 
 **Lühidalt (Kevin):**
@@ -301,23 +303,26 @@ roles.
 - **When a clinic leaves:** its contacts are deleted after the contract's
   retention. Invoices are kept as long as bookkeeping law requires.
 
-## 8. Decisions for Kevin
+## 8. Decisions (Kevin, November 2026)
 
-1. **Code: a private repository `wivo-admin` (recommended) or `admin/` in this
-   repo.** A repository of its own keeps the console out of `main`'s releases
-   and the phone app.
-2. **The address:** `admin.wivodent.com` (recommended) or a `*.pages.dev`
-   address, behind Cloudflare Access either way.
-3. **Supabase plan: Pro (recommended).** It never pauses and keeps daily
-   backups, at about 25 USD a month. Free pauses after a week unused, and has
-   no backups to restore from.
-4. **Invoices:** the console only tracks them (recommended), or it also makes
-   the PDF. Making them is bookkeeping: numbering, VAT and e-invoice rules.
-5. **The second factor:** a passkey (YubiKey) if Supabase's WebAuthn MFA is
-   available when we build, else TOTP plus Cloudflare Access with GitHub's
-   hardware key.
-6. **Phase 2:** with the lawyer first; nothing is built until the field list
+1. **Code:** a private repository, `SniperInSuit/wivo-admin`.
+2. **The address:** `admin.wivodent.com`, behind Cloudflare Access.
+3. **Supabase:** Pro, in Kevin's existing organisation. Production and the
+   test copy are deleted later, and the subscription stays for the console.
+4. **Invoices:** tracked only. No PDF is made.
+5. **The second factor:** TOTP, behind Cloudflare Access with GitHub's
+   hardware key. A passkey (WebAuthn) comes later.
+6. **Phase 2:** only after the lawyer. Nothing is built until the field list
    is agreed.
+
+**As built, beyond the plan:**
+- Changing an invoice or a licence, or deleting a clinic, needs a TOTP code
+  from the last 15 minutes. The database checks the session's `amr`, so this
+  is not only the page asking.
+- A licence token is refused when its organisation or API address is not the
+  clinic's.
+- The `release-status` function needs no secret: it returns what the public
+  list says, and the page stores it through RLS.
 
 ## 9. Build order (after OK)
 
