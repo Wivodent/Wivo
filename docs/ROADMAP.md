@@ -242,6 +242,32 @@ data. It is not a clinic's project and not production.
 
 ---
 
+## After 2.1.0 (Kevin, 2026-11-25)
+
+Queued by Kevin with the 2.1.0 night run (docs/NIGHT-REPORT-2026-11-25.md).
+In this order unless Riga says otherwise.
+
+- **"Request a feature" into the admin console.** Today the Settings tile
+  opens an e-mail to Wivo (`VITE_WIVO_CONTACT_EMAIL`, config/contact.ts). Later
+  it writes to the admin console (above): **only the clinic, the user and the
+  text** — no patient data, no job data, no attachments. The text is free, so
+  the form says so and the console never shows it to anyone but Kevin.
+- **A full setup wizard on first sign-in.** Today: the simple "Set up your
+  clinic" list on Settings (done or not from existing data, hideable). The
+  wizard walks a new owner through each step in order, with sensible
+  defaults, and ends with the phone app on the staff's phones.
+- **Latvian payroll, the rest of it.** 2.1.0 has the estimate (social tax,
+  income tax, booklet, dependents, pensioner, minimum-wage base;
+  shared/payroll/countryTax.ts). Missing: the 33% income tax band above
+  8 775 € a month, the accountant's export with the Latvian fields, and the
+  rates for 2027 when they are published.
+- **Mac installer, signed with an Apple Developer ID**, and notarised, so a
+  Mac at the clinic installs and updates Wivo without warnings.
+- **Work type options** (All-on-4 with a metal bar or a titanium mesh): the
+  plan is docs/WORKTYPE-OPTIONS-PLAN.md.
+
+---
+
 ## What is NOT in any step
 
 - **Anything that recommends or ranks treatment from patient data.** Wivo is
