@@ -31,7 +31,8 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 - **Sinu sammud:**
   1. Push. Siis mõlemas repos uus aadress (GitHub suunab ka vana edasi):
      `git remote set-url origin https://github.com/Wivodent/Wivo.git` ja
-     wivo-admin-is `…/Wivodent/wivo-admin.git`.
+     wivo-admin-is `…/Wivodent/wivo-admin.git`. Kui konsooli `001` on juba
+     jooksutatud, jooksuta SQL Editoris ka `wivo-admin\sql\002_wivodent.sql`.
   2. Cloudflare Pages: kontrolli, et `wivo`, `wivo-test` ja `wivo-dentiks`
      ehitavad pärast repo kolimist edasi. Cloudflare'i GitHubi rakendus peab
      nägema organisatsiooni `Wivodent` reposid.
