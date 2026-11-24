@@ -114,6 +114,8 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
 
   const [monthOffset, setMonthOffset] = useState(0)
   const [openWorker, setOpenWorker] = useState<string | null>(null)
+  // Whose "More settings" is open (docs/design payroll.html): folded by default.
+  const [openMore, setOpenMore] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   // Lines the user has unticked before confirming. Excluding rather than
   // editing afterwards: a frozen payout should stay frozen, and anything left
@@ -719,172 +721,207 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
               </span>
             </button>
 
-            {open && (
-              <div className="border-t border-ink-faint/15 p-4 space-y-4">
-                {isOwner && (
-                  <EngagementPicker
-                    profileId={worker.id}
-                    value={worker.toosuhe ?? 'tootaja'}
-                  />
-                )}
-                {isOwner && onPayroll && estonianTax && (
-                  <PayBasisPicker profileId={worker.id} value={worker.tasu_arvestus ?? 'bruto'} />
-                )}
-                {isOwner && onPayroll && estonianTax && (
-                  <TaxProfilePicker
-                    profileId={worker.id}
-                    kogumispension={worker.kogumispension_protsent ?? null}
-                    maksuvabaTulu={worker.maksuvaba_tulu ?? null}
-                  />
-                )}
-                {onPayroll && estonianTax && total > 0 && (
-                  <PayslipPanel
-                    slip={payslipFromGross(gross, taxRates, taxProfileOf(worker))}
-                    rates={taxRates}
-                    worker={taxProfileOf(worker)}
-                  />
-                )}
-                {isOwner && onPayroll && latvia && (
-                  <section>
-                    <h4 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
-                      {t('workers.lvTaxProfile')}
-                    </h4>
-                    <LatviaTaxProfilePicker profileId={worker.id} worker={worker} />
-                  </section>
-                )}
-                {onPayroll && latvia && total > 0 && (
-                  <section className="max-w-sm">
-                    <h4 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
-                      {t('workers.payslipEstimate')}
-                    </h4>
-                    <LatviaPayslipPanel slip={latviaSlipFor(gross, worker)} />
-                  </section>
-                )}
-                {isOwner && (
-                  <RushPicker profileId={worker.id} value={worker.kiirtoo_kordaja ?? null} />
-                )}
-                {isOwner && (
-                  <RateEditor profileId={worker.id} rates={workerRates} />
-                )}
-
-                <HoursPanel profileId={worker.id} canEdit={isOwner || worker.id === auth.user?.id} />
-
-                {/* Why some work is not on the list. Its own section, because it
-                    is not the list: it used to sit under "Arvestamata read (3)"
-                    and then show thirteen cards, so the heading counted one
-                    thing and the cards below it another. */}
-                {issues.length > 0 && (
-                  <IssuesPanel
-                    issues={issues}
-                    jobs={jobs}
-                    onOpenJob={onOpenJob}
-                    onGoToMonth={m => setMonthOffset(monthsBetween(period.start, m))}
-                  />
-                )}
-
-                {/* Above the current month's list on purpose. This is the part
-                    nobody knew about — the current month is already on screen
-                    every time somebody opens this page. */}
-                {backlog.length > 0 && (
-                  <BacklogPanel
-                    backlog={backlog}
-                    excluded={excluded}
-                    isOwner={isOwner}
-                    busy={createPayout.isPending}
-                    onToggleLine={toggleLine}
-                    onSettle={() => payOutBacklog(worker.id, backlog)}
-                    onGoToMonth={m => setMonthOffset(monthsBetween(period.start, m))}
-                  />
-                )}
-
-                {/* Earnings preview */}
-                <section>
-                  <h4 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
-                    {t('workers.unpaidLines')} ({lines.length})
-                  </h4>
-
-                  {lines.length === 0 ? (
-                    <p className="text-xs text-ink-faint">
-                      {workerRates.length === 0
-                        ? t('workers.addAPayRuleToStart')
-                        : t('workers.noUnpaidWorkInThisPeriod')}
-                    </p>
-                  ) : (
-                    <div className="space-y-1">
-                      {lines.map(l => {
-                        const off = excluded.has(l.key)
-                        return (
-                          <div
-                            key={l.key}
-                            className={`flex items-center gap-2 text-xs py-1 border-b border-ink-faint/10 last:border-0 ${
-                              off ? 'opacity-40' : ''
-                            }`}
-                          >
-                            {/* Untick to leave a line out of this payout. It stays
-                                unpaid and reappears next period — no editing of a
-                                frozen payout required. */}
-                            {isOwner && (
-                              <input
-                                type="checkbox"
-                                checked={!off}
-                                onChange={() => toggleLine(l.key)}
-                                className="accent-accent flex-shrink-0"
-                                title={off ? t('workers.includeInPayout') : t('workers.leaveOutOfThisPayout')}
-                              />
-                            )}
-                            <span className="text-ink-faint tabular-nums w-20 flex-shrink-0">{fmtDate(l.earned_on)}</span>
-                            <span className={`flex-1 min-w-0 truncate text-ink ${off ? 'line-through' : ''}`}>
-                              {l.description}
-                            </span>
-                            <span className="text-ink-faint tabular-nums flex-shrink-0">
-                              {l.qty} × {l.rate.toFixed(2)}{RATE_KIND_SUFFIX[l.kind] === '%' ? '%' : ''}
-                            </span>
-                            <span className="font-semibold text-ink tabular-nums w-20 text-right flex-shrink-0">
-                              {l.amount.toFixed(2)} €
-                            </span>
-                          </div>
-                        )
-                      })}
-                      {isOwner && (() => {
-                        const included = lines.filter(l => !excluded.has(l.key))
-                        const sum = earningsTotal(included)
-                        const left = lines.length - included.length
-                        return (
-                          <div className="flex items-center justify-end gap-3 pt-2 flex-wrap">
-                            {left > 0 && (
-                              <span className="text-[11px] text-orange-500 mr-auto">
-                                {t('workers.leftOutUnpaidAndUpAgain', { left })}
-                              </span>
-                            )}
-                            <span className="text-sm font-bold text-ink tabular-nums">{sum.toFixed(2)} €</span>
-                            <button
-                              onClick={() => payOut(worker.id, lines)}
-                              disabled={createPayout.isPending || included.length === 0}
-                              className="btn-primary disabled:opacity-50"
-                            >
-                              {createPayout.isPending ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                              {t('workers.confirmPayout')} ({included.length})
-                            </button>
-                          </div>
-                        )
-                      })()}
+            {open && (() => {
+              // docs/design payroll.html: the month's summary and the pay button
+              // first, then the lines and the rules, the estimate beside them,
+              // and the rarely changed settings folded under "More settings".
+              const included = lines.filter(l => !excluded.has(l.key))
+              const includedSum = earningsTotal(included)
+              const left = lines.length - included.length
+              const lastPaid = payouts
+                .filter(p => p.profile_id === worker.id && p.status === 'makstud' && p.paid_at)
+                .map(p => p.paid_at as string)
+                .sort()
+                .pop() ?? null
+              const moreOpen = openMore === worker.id
+              const estimate = onPayroll && total > 0 && (estonianTax || latvia)
+              return (
+              <div className="border-t border-ink-faint/15 p-5 space-y-5 bg-bg-sidebar/30">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="card p-5 flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-ink-muted">{t('workers.toPayThisMonth')}</span>
+                    <span className="text-3xl font-bold text-ink tabular-nums">{total.toFixed(2)} €</span>
+                    <span className="text-sm text-ink-muted">
+                      {worker.toosuhe === 'ettevote' ? t('workers.invoiceAmount') : netBasis ? t('workers.netTakeHome') : estonianTax || latvia ? t('workers.gross') : t('workers.grossBeforeTax')}
+                      {paid > 0 && ` · ${t('workers.paidOut')} ${paid.toFixed(2)} €`}
+                    </span>
+                  </div>
+                  <div className="card p-5 flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-ink-muted">{t('workers.notPaidYet')}</span>
+                    <span className="text-3xl font-bold text-ink tabular-nums">{t('workers.nLines', { n: lines.length })}</span>
+                    <span className="text-sm text-ink-muted">
+                      {lastPaid ? t('workers.lastPaidOn', { date: fmtDate(lastPaid) }) : t('workers.neverPaidYet')}
+                    </span>
+                  </div>
+                  {isOwner ? (
+                    <div className="rounded-2xl border border-accent/30 bg-accent/10 p-5 flex flex-col justify-center gap-2.5">
+                      <button
+                        onClick={() => payOut(worker.id, lines)}
+                        disabled={createPayout.isPending || included.length === 0}
+                        className="min-h-[56px] rounded-xl bg-accent text-white text-lg font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {createPayout.isPending ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+                        {t('workers.confirmPayout')}
+                      </button>
+                      <span className="text-sm text-center text-ink-soft">
+                        {included.length > 0
+                          ? t('workers.confirmMovesLines', { n: included.length, sum: includedSum.toFixed(2) })
+                          : t('workers.noUnpaidWorkInThisPeriod')}
+                      </span>
                     </div>
-                  )}
-                </section>
+                  ) : <div className="hidden md:block" aria-hidden="true" />}
+                </div>
 
-                {/* A one-off audit, not part of the monthly flow — folded shut
-                    and below the lists somebody actually came here for. */}
-                {isOwner && revalue.length > 0 && (
-                  <RevaluePanel groups={revalue} workerName={nameOf(worker.id)} />
+                {/* Above the current month's list on purpose: this is the part
+                    nobody knew about. */}
+                {backlog.length > 0 && (
+                  <div className="card p-5">
+                    <BacklogPanel
+                      backlog={backlog}
+                      excluded={excluded}
+                      isOwner={isOwner}
+                      busy={createPayout.isPending}
+                      onToggleLine={toggleLine}
+                      onSettle={() => payOutBacklog(worker.id, backlog)}
+                      onGoToMonth={m => setMonthOffset(monthsBetween(period.start, m))}
+                    />
+                  </div>
                 )}
 
-                {/* Confirmed elsewhere, still owed. Directly above this
-                    month's own payouts, because after settling a backlog this
-                    is where the money went — and the backlog panel that listed
-                    those jobs is correctly gone, so this is the only thing left
-                    that can say what was in them. */}
+                <div className={`grid grid-cols-1 gap-5 items-start ${estimate ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]' : ''}`}>
+                  <div className="space-y-5 min-w-0">
+                    <section className="card p-5 flex flex-col gap-3">
+                      <h3 className="text-lg font-bold text-ink">{t('workers.notPaidYet')}</h3>
+                      {lines.length === 0 ? (
+                        <p className="text-sm text-ink-muted">
+                          {workerRates.length === 0 ? t('workers.addAPayRuleToStart') : t('workers.noUnpaidWorkInThisPeriod')}
+                        </p>
+                      ) : (
+                        <div className="flex flex-col">
+                          {lines.map(l => {
+                            const off = excluded.has(l.key)
+                            return (
+                              <label
+                                key={l.key}
+                                className={`flex items-center gap-3 text-base py-2 border-b border-ink-faint/10 last:border-0 ${off ? 'opacity-40' : ''}`}
+                              >
+                                {/* Untick to leave a line out of this payout. It
+                                    stays unpaid and reappears next period. */}
+                                {isOwner && (
+                                  <input
+                                    type="checkbox"
+                                    checked={!off}
+                                    onChange={() => toggleLine(l.key)}
+                                    className="accent-accent w-5 h-5 flex-shrink-0"
+                                    title={off ? t('workers.includeInPayout') : t('workers.leaveOutOfThisPayout')}
+                                  />
+                                )}
+                                <span className="text-ink-muted tabular-nums w-24 flex-shrink-0">{fmtDate(l.earned_on)}</span>
+                                <span className={`flex-1 min-w-0 truncate text-ink ${off ? 'line-through' : ''}`}>{l.description}</span>
+                                <span className="text-sm text-ink-faint tabular-nums flex-shrink-0">
+                                  {l.qty} × {l.rate.toFixed(2)}{RATE_KIND_SUFFIX[l.kind] === '%' ? '%' : ''}
+                                </span>
+                                <span className="font-semibold text-ink tabular-nums w-28 text-right flex-shrink-0">{l.amount.toFixed(2)} €</span>
+                              </label>
+                            )
+                          })}
+                          {left > 0 && (
+                            <p className="text-sm text-orange-600 pt-2">{t('workers.leftOutUnpaidAndUpAgain', { left })}</p>
+                          )}
+                        </div>
+                      )}
+                    </section>
+
+                    {isOwner && (
+                      <section className="card p-5">
+                        <RateEditor profileId={worker.id} rates={workerRates} />
+                      </section>
+                    )}
+
+                    {issues.length > 0 && (
+                      <section className="card p-5">
+                        <IssuesPanel
+                          issues={issues}
+                          jobs={jobs}
+                          onOpenJob={onOpenJob}
+                          onGoToMonth={m => setMonthOffset(monthsBetween(period.start, m))}
+                        />
+                      </section>
+                    )}
+
+                    {/* Rarely changed: folded shut. */}
+                    <section className="card px-5 py-1">
+                      <button
+                        type="button"
+                        aria-expanded={moreOpen}
+                        onClick={() => setOpenMore(moreOpen ? null : worker.id)}
+                        className="w-full min-h-[56px] flex items-center justify-between text-left text-base font-bold text-ink"
+                      >
+                        {t('workers.moreSettings')}
+                        <span className="flex items-center gap-1 text-sm font-medium text-ink-muted">
+                          {moreOpen ? t('wizard.hide') : t('wizard.show')}
+                          {moreOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </span>
+                      </button>
+                      {moreOpen && (
+                        <div className="space-y-5 border-t border-ink-faint/15 pt-4 pb-5">
+                          {isOwner && (
+                            <EngagementPicker profileId={worker.id} value={worker.toosuhe ?? 'tootaja'} />
+                          )}
+                          {isOwner && onPayroll && estonianTax && (
+                            <PayBasisPicker profileId={worker.id} value={worker.tasu_arvestus ?? 'bruto'} />
+                          )}
+                          {isOwner && onPayroll && estonianTax && (
+                            <TaxProfilePicker
+                              profileId={worker.id}
+                              kogumispension={worker.kogumispension_protsent ?? null}
+                              maksuvabaTulu={worker.maksuvaba_tulu ?? null}
+                            />
+                          )}
+                          {isOwner && onPayroll && latvia && (
+                            <section>
+                              <h4 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
+                                {t('workers.lvTaxProfile')}
+                              </h4>
+                              <LatviaTaxProfilePicker profileId={worker.id} worker={worker} />
+                            </section>
+                          )}
+                          {isOwner && (
+                            <RushPicker profileId={worker.id} value={worker.kiirtoo_kordaja ?? null} />
+                          )}
+                          <HoursPanel profileId={worker.id} canEdit={isOwner || worker.id === auth.user?.id} />
+                        </div>
+                      )}
+                    </section>
+                  </div>
+
+                  {estimate && (
+                    <aside className="card p-5">
+                      <h3 className="text-base font-bold text-ink mb-3">{t('workers.payslipEstimate')}</h3>
+                      {latvia
+                        ? <LatviaPayslipPanel slip={latviaSlipFor(gross, worker)} />
+                        : (
+                          <PayslipPanel
+                            slip={payslipFromGross(gross, taxRates, taxProfileOf(worker))}
+                            rates={taxRates}
+                            worker={taxProfileOf(worker)}
+                          />
+                        )}
+                    </aside>
+                  )}
+                </div>
+
+                {/* A one-off audit, not part of the monthly flow. */}
+                {isOwner && revalue.length > 0 && (
+                  <div className="card p-5">
+                    <RevaluePanel groups={revalue} workerName={nameOf(worker.id)} />
+                  </div>
+                )}
+
+                {/* Confirmed elsewhere, still owed: where the money of a settled
+                    backlog went. */}
                 {otherOpen.length > 0 && (
-                  <section>
+                  <section className="card p-5">
                     <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-ink-muted">
                       {t('workers.confirmedPayoutsFromOtherMonthsNot')}
                     </h4>
@@ -901,20 +938,15 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
                         />
                       ))}
                       <div className="flex items-center justify-end gap-3 pt-1">
-                        <span className="mr-auto text-[11px] text-ink-muted">
-                          {t('workers.clickARowToSeeWhich')}
-                        </span>
-                        <span className="text-sm font-bold tabular-nums text-ink">
-                          {otherOpenTotal.toFixed(2)} €
-                        </span>
+                        <span className="mr-auto text-[11px] text-ink-muted">{t('workers.clickARowToSeeWhich')}</span>
+                        <span className="text-sm font-bold tabular-nums text-ink">{otherOpenTotal.toFixed(2)} €</span>
                       </div>
                     </div>
                   </section>
                 )}
 
-                {/* Frozen payouts */}
                 {periodPayouts.length > 0 && (
-                  <section>
+                  <section className="card p-5">
                     <h4 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
                       {t('workers.payoutsForThisPeriod')}
                     </h4>
@@ -928,7 +960,8 @@ export function PayrollView({ jobs, onOpenJob }: PayrollViewProps) {
                   </section>
                 )}
               </div>
-            )}
+              )
+            })()}
           </div>
         )
       })}

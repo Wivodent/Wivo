@@ -4086,6 +4086,13 @@ export const en = {
   'settingsPage.morePriceSettings': "More price settings",
   'settingsPage.morePriceSettingsSub': "Repricing, automatic pricing, materials, extra services, overheads",
   'settingsPage.noWorkTypeFound': "No work type matches.",
+  'workers.toPayThisMonth': "To pay this month",
+  'workers.notPaidYet': "Not paid yet",
+  'workers.nLines': "{n} lines",
+  'workers.lastPaidOn': "Last paid {date}",
+  'workers.neverPaidYet': "Nothing paid yet",
+  'workers.confirmMovesLines': "Confirms {n} lines, {sum} €, as one payout",
+  'workers.moreSettings': "More settings",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

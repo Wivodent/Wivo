@@ -4072,4 +4072,11 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'settingsPage.morePriceSettings': "Rohkem hinnaseadeid",
   'settingsPage.morePriceSettingsSub': "Ümberhindamine, automaatne hind, materjalid, lisateenused, üldkulud",
   'settingsPage.noWorkTypeFound': "Ükski töötüüp ei sobi.",
+  'workers.toPayThisMonth': "Selle kuu summa",
+  'workers.notPaidYet': "Maksmata",
+  'workers.nLines': "{n} rida",
+  'workers.lastPaidOn': "Viimati makstud {date}",
+  'workers.neverPaidYet': "Midagi pole veel makstud",
+  'workers.confirmMovesLines': "Kinnitab {n} rida, {sum} €, üheks väljamakseks",
+  'workers.moreSettings': "Rohkem seadeid",
 }

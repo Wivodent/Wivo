@@ -70,4 +70,11 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'settingsPage.morePriceSettings': "Другие настройки цен",
   'settingsPage.morePriceSettingsSub': "Пересчёт цен, автоматическая цена, материалы, доп. услуги, накладные расходы",
   'settingsPage.noWorkTypeFound': "Нет подходящих видов работ.",
+  'workers.toPayThisMonth': "К оплате в этом месяце",
+  'workers.notPaidYet': "Ещё не оплачено",
+  'workers.nLines': "Строк: {n}",
+  'workers.lastPaidOn': "Последняя выплата {date}",
+  'workers.neverPaidYet': "Выплат ещё не было",
+  'workers.confirmMovesLines': "Подтверждает {n} строк, {sum} €, одной выплатой",
+  'workers.moreSettings': "Другие настройки",
 }
