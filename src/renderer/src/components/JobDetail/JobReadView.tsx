@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ArrowUpRight, Clock, Cpu, Euro, FileText, History, UserRound, Zap, Trash2, Plus, Copy, Printer, Pencil } from 'lucide-react'
+import { ArrowUpRight, Clock, Cpu, Euro, FileText, History, UserRound, Zap, Trash2, Plus, Copy, Printer, Pencil, Bolt } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { format, parseISO, isValid } from 'date-fns'
 import { supabase } from '../../lib/supabase'
@@ -277,7 +277,7 @@ export function JobReadView({
                   const first = jobWorkItems(job)[0]
                   const summary = first ? abutmentSummary(first) : ''
                   return summary
-                    ? <p className="text-[11px] text-indigo-600 mt-0.5">🔩 {summary}</p>
+                    ? <p className="text-[11px] text-indigo-600 mt-0.5 flex items-center gap-1"><Bolt size={11} aria-hidden="true" /> {summary}</p>
                     : null
                 })()}
               </div>
@@ -671,7 +671,7 @@ function WorkItemsReadBlock({ items }: { items: WorkItem[] }) {
               if (!summary) return null
               return (
                 <span className="text-[10px] text-ink-muted bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded truncate max-w-[180px]" title={summary}>
-                  🔩 {summary}
+                  <Bolt size={10} className="inline -mt-0.5" aria-hidden="true" /> {summary}
                 </span>
               )
             })()}

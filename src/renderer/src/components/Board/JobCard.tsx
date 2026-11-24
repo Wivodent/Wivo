@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { MessageSquare, ChevronLeft, ChevronRight, Zap, HelpCircle } from 'lucide-react'
+import { MessageSquare, ChevronLeft, ChevronRight, Zap, HelpCircle, Check } from 'lucide-react'
 import type { Job, StageKey } from '../../types/job'
 import { jobImplantTeeth } from '../../types/job'
 import { jobWorkItems } from '../../types/job'
@@ -113,7 +113,7 @@ export function JobCard({ job, onClick, onStageChange, isDragging }: JobCardProp
                     : 'bg-red-100 text-red-600'
               }`}
             >
-              {pay.settled ? '€ ✓' : pay.partial ? `€ ${Math.round(pay.paid / (job.hind || 1) * 100)}%` : '€'}
+              {pay.settled ? <span className="inline-flex items-center gap-0.5">€ <Check size={9} aria-hidden="true" /></span> : pay.partial ? `€ ${Math.round(pay.paid / (job.hind || 1) * 100)}%` : '€'}
             </span>
           )}
         </div>

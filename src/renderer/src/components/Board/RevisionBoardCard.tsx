@@ -3,7 +3,7 @@
  * when a job has one or more active revisions.
  */
 import { motion } from 'framer-motion'
-import { CornerDownLeft, ChevronLeft, ChevronRight, Euro, Zap } from 'lucide-react'
+import { CornerDownLeft, ChevronLeft, ChevronRight, Euro, Zap, Check } from 'lucide-react'
 import type { Job, StageKey, Revision } from '../../types/job'
 import { jobWorkItems } from '../../types/job'
 import { usePipeline } from '../../context/PipelineContext'
@@ -88,7 +88,7 @@ export function RevisionBoardCard({
           <span className={`ml-auto text-[9px] font-bold px-1 py-0.5 rounded ${
             job.makstud ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
           }`}>
-            {job.makstud ? '€ ✓' : `${job.hind} €`}
+            {job.makstud ? <span className="inline-flex items-center gap-0.5">€ <Check size={9} aria-hidden="true" /></span> : `${job.hind} €`}
           </span>
         )}
       </div>

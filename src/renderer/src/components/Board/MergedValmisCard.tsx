@@ -3,7 +3,7 @@
  * Spans both grid columns. Revision is the prominent (left) side; original is the
  * smaller context (right) side.
  */
-import { CornerDownLeft, Euro, Zap } from 'lucide-react'
+import { CornerDownLeft, Euro, Zap, Check } from 'lucide-react'
 import { toDate, fmtDate } from '../../lib/dates'
 import type { Job } from '../../types/job'
 import { jobImplantTeeth } from '../../types/job'
@@ -127,7 +127,7 @@ export function MergedValmisCard({ job, onClick }: MergedValmisCardProps) {
               <span className={job.makstud ? 'text-green-600 font-semibold' : 'text-red-400 font-semibold'}>
                 {job.hind.toFixed(2)} €
               </span>
-              {job.makstud && <span className="text-green-500 text-[9px]">✓</span>}
+              {job.makstud && <Check size={10} className="text-green-500" aria-hidden="true" />}
             </div>
           )}
           {job.valmis_aeg && (

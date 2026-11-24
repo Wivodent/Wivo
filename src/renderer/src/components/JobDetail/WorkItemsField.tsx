@@ -18,7 +18,7 @@
  * layout renders the odontogram in a different column entirely.
  */
 import { useState } from 'react'
-import { ChevronUp, Plus } from 'lucide-react'
+import { ChevronUp, Plus, Pencil, Link2 } from 'lucide-react'
 import type { WorkItem } from '../../types/job'
 import { toggleImplantTooth, toggleDesignTooth, workItemDesigner } from '../../types/job'
 import { useWorkTypes } from '../../stores/useSettings'
@@ -294,7 +294,7 @@ export function WorkItemsField({
                         title={t('jobDetail.designer', { value: name || '—' })}
                         className="text-[9px] text-accent bg-accent/10 px-1 py-0.5 rounded truncate max-w-[70px]"
                       >
-                        ✎ {name.split(' ')[0] || '—'}
+                        <Pencil size={9} className="inline -mt-0.5" aria-hidden="true" /> {name.split(' ')[0] || '—'}
                       </span>
                     )
                   })()}
@@ -306,7 +306,7 @@ export function WorkItemsField({
                       item.bridge ? 'bg-accent/20 text-accent' : c.faint
                     }`}
                   >
-                    {item.bridge ? t('jobDetail.bridge') : '⛓'}
+                    {item.bridge ? t('jobDetail.bridge') : <Link2 size={11} aria-label={t('jobDetail.bridge')} />}
                   </span>
                 </button>
                 <button

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  X, Trash2, Euro, Check, Calendar, Save, Loader2, Cpu, Calculator, Pencil, Zap, UserRound, Building2, ChevronDown, ChevronUp, Banknote
+  X, Trash2, Euro, Check, Calendar, Save, Loader2, Cpu, Calculator, Pencil, Zap, UserRound, Building2, ChevronDown, ChevronUp, Banknote, Link2
 } from 'lucide-react'
 import type { Job, JobInput, StageKey, Revision } from '../../types/job'
 import { MATERIAL_SHADES, jobWorkItems, workItemDesigner } from '../../types/job'
@@ -1306,7 +1306,7 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
                                   title={t('jobDetail.designer', { value: workerNameOf(d) || '—' })}
                                   className="text-[9px] text-accent bg-accent/10 px-1 py-0.5 rounded truncate max-w-[70px]"
                                 >
-                                  ✎ {workerNameOf(d).split(' ')[0] || '—'}
+                                  <Pencil size={9} className="inline -mt-0.5" aria-hidden="true" /> {workerNameOf(d).split(' ')[0] || '—'}
                                 </span>
                               )
                             })()}
@@ -1325,7 +1325,7 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
                                 item.bridge ? 'bg-accent/20 text-accent' : 'text-ink-faint hover:text-ink-muted'
                               }`}
                             >
-                              {item.bridge ? t('jobDetail.bridge') : '⛓'}
+                              {item.bridge ? t('jobDetail.bridge') : <Link2 size={11} aria-label={t('jobDetail.bridge')} />}
                             </span>
                           </button>
                           {/* + add another / × remove */}
