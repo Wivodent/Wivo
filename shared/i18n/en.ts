@@ -4052,6 +4052,14 @@ export const en = {
   'workers.lvEstimateNote': "Estimate based on Latvian rates {year}. Not an accounting payslip.",
   'settingsPage.lvTaxTitle': "Payroll taxes: Latvia {year}",
   'settingsPage.lvTaxRules': "Set automatically from the clinic's country. Social tax: employee {employee}%, employer {employer}% (pensioner {pEmployee}% / {pEmployer}%). Income tax {income}%. Tax-free with the booklet: {minimum} € a month, plus {dependent} € per dependent. Social tax is calculated on at least the minimum wage, {minWage} €.",
+  'wizard.whoMakesWhat': "Who makes what",
+  'wizard.whoMakesWhatSub': "One card per work item. Pick the machine and the people.",
+  'wizard.teethChip': "Teeth {teeth} · {n}",
+  'wizard.sameMachineAsFirst': "Same machine as the first item",
+  'wizard.datesTitle': "Dates",
+  'wizard.printAndDesignNumbers': "Print and design numbers",
+  'wizard.show': "Show",
+  'wizard.hide': "Hide",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

@@ -4038,4 +4038,12 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'workers.lvEstimateNote': "Hinnang Läti {year}. aasta määrade järgi. See ei ole raamatupidamise palgaleht.",
   'settingsPage.lvTaxTitle': "Palgamaksud: Läti {year}",
   'settingsPage.lvTaxRules': "Määratakse automaatselt kliiniku riigi järgi. Sotsiaalmaks: töötaja {employee}%, tööandja {employer}% (pensionär {pEmployee}% / {pEmployer}%). Tulumaks {income}%. Maksuraamatuga maksuvaba {minimum} € kuus, lisaks {dependent} € iga ülalpeetava kohta. Sotsiaalmaks arvutatakse vähemalt miinimumpalga pealt, {minWage} €.",
+  'wizard.whoMakesWhat': "Kes mida teeb",
+  'wizard.whoMakesWhatSub': "Iga tööüksus eraldi kaardil. Vali masin ja inimesed.",
+  'wizard.teethChip': "Hambad {teeth} · {n}",
+  'wizard.sameMachineAsFirst': "Sama masin nagu esimesel",
+  'wizard.datesTitle': "Kuupäevad",
+  'wizard.printAndDesignNumbers': "Prindi ja disaini numbrid",
+  'wizard.show': "Näita",
+  'wizard.hide': "Peida",
 }

@@ -13,6 +13,7 @@ import { stagePeopleOf } from '@/lib/stageAssign'
 import { WizardField } from '../ui/WizardField'
 import { WizardSelect } from '../ui/WizardSelect'
 import { WIZARD_HELP, FOCUS_RING } from '../wizardTheme'
+import { SectionCard } from '../../ui/SectionCard'
 import { t } from '@/lib/i18n'
 
 /** Which rule fields a template reads: ask only those questions. */
@@ -28,7 +29,11 @@ export function rulesUsed(stages: readonly { onlyIf: readonly OnlyIfRule[] }[]):
  * with nothing optional and no rules: the section then says only what the
  * stages are, or is absent when the database has no templates.
  */
-export function WorkflowSection({ state, patch, isPhone = false }: Pick<WizardStepProps, 'state' | 'patch'> & { isPhone?: boolean }) {
+/**
+ * `asCard`: the desktop wizard shows this as its own "Stages" card, with the
+ * explanation behind the "i". The phone keeps the plain section.
+ */
+export function WorkflowSection({ state, patch, isPhone = false, asCard = false }: Pick<WizardStepProps, 'state' | 'patch'> & { isPhone?: boolean; asCard?: boolean }) {
   const { data: templates = [] } = useWorkflowTemplates()
   const { data: clinicDefaults = {} } = useStageDefaults()
   const { data: profiles = [] } = useClinicProfiles()
@@ -68,12 +73,8 @@ export function WorkflowSection({ state, patch, isPhone = false }: Pick<WizardSt
   const asks = used.has('digital') || used.has('conventional')
   const asksMethod = used.has('print') || used.has('mill')
 
-  return (
-    <section className="space-y-4" aria-labelledby="wizard-workflow-h">
-      <div>
-        <h3 id="wizard-workflow-h" className="text-lg font-semibold text-ink">{t('workflow.sectionTitle')}</h3>
-        <p className={WIZARD_HELP}>{t('workflow.sectionHelp')}</p>
-      </div>
+  const body = (
+    <>
 
       <div className="grid gap-6 md:grid-cols-2">
         {templates.length > 1 && (
@@ -169,6 +170,23 @@ export function WorkflowSection({ state, patch, isPhone = false }: Pick<WizardSt
           </>
         )}
       </div>
+    </>
+  )
+
+  if (asCard) {
+    return (
+      <SectionCard title={t('workflow.sectionTitle')} info={t('workflow.sectionHelp')}>
+        {body}
+      </SectionCard>
+    )
+  }
+  return (
+    <section className="space-y-4" aria-labelledby="wizard-workflow-h">
+      <div>
+        <h3 id="wizard-workflow-h" className="text-lg font-semibold text-ink">{t('workflow.sectionTitle')}</h3>
+        <p className={WIZARD_HELP}>{t('workflow.sectionHelp')}</p>
+      </div>
+      {body}
     </section>
   )
 }

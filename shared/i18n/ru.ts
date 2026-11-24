@@ -36,4 +36,12 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'workers.lvEstimateNote': "Оценка по латвийским ставкам {year} года. Это не бухгалтерский расчётный лист.",
   'settingsPage.lvTaxTitle': "Налоги на зарплату: Латвия {year}",
   'settingsPage.lvTaxRules': "Устанавливается автоматически по стране клиники. Соц. налог: работник {employee}%, работодатель {employer}% (пенсионер {pEmployee}% / {pEmployer}%). Подоходный налог {income}%. Необлагаемый минимум с налоговой книжкой: {minimum} € в месяц, плюс {dependent} € на каждого иждивенца. Соц. налог считается минимум с минимальной зарплаты, {minWage} €.",
+  'wizard.whoMakesWhat': "Кто что делает",
+  'wizard.whoMakesWhatSub': "Каждая работа на отдельной карточке. Выберите аппарат и людей.",
+  'wizard.teethChip': "Зубы {teeth} · {n}",
+  'wizard.sameMachineAsFirst': "Тот же аппарат, что у первой",
+  'wizard.datesTitle': "Даты",
+  'wizard.printAndDesignNumbers': "Номера печати и дизайна",
+  'wizard.show': "Показать",
+  'wizard.hide': "Скрыть",
 }
