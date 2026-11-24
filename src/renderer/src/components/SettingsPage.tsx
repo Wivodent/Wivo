@@ -31,6 +31,7 @@ import { WorkflowTemplatesSection } from './Settings/WorkflowTemplatesSection'
 import { SoundSection } from './Settings/SoundSection'
 import { SecuritySection } from './Settings/SecuritySection'
 import { DeletedJobsSection } from './Settings/DeletedJobsSection'
+import { DraftNumberInput, DraftTextInput } from './ui/DraftInput'
 import { t, lang, setLang, intlLocale, LANGUAGES, type Lang } from '../lib/i18n'
 
 // Stage colour choices. Mid-tone on purpose: the pill tints the background to
@@ -845,11 +846,11 @@ function WorkTypePriceCard({ type, onPatch }: {
           <div>
             <label className="block text-[10px] font-medium text-ink-muted mb-0.5">{t('settingsPage.fullPrice')}</label>
             <div className="relative">
-              <input
-                type="number" min="0" step="0.5"
-                value={type.hind ?? ''}
+              <DraftNumberInput
+                allowEmpty
+                value={type.hind}
                 placeholder="0"
-                onChange={e => onPatch({ hind: e.target.value === '' ? undefined : parseFloat(e.target.value) || 0 })}
+                onCommit={v => onPatch({ hind: v })}
                 className="input py-1 pr-5 text-sm text-right"
               />
               <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-faint pointer-events-none">€</span>
@@ -858,11 +859,11 @@ function WorkTypePriceCard({ type, onPatch }: {
           <div>
             <label className="block text-[10px] font-medium text-accent mb-0.5">{t('settingsPage.discountPrice')}</label>
             <div className="relative">
-              <input
-                type="number" min="0" step="0.5"
-                value={type.soodushind ?? ''}
+              <DraftNumberInput
+                allowEmpty
+                value={type.soodushind}
                 placeholder="—"
-                onChange={e => onPatch({ soodushind: e.target.value === '' ? undefined : parseFloat(e.target.value) || 0 })}
+                onCommit={v => onPatch({ soodushind: v })}
                 className="input py-1 pr-5 text-sm text-right"
               />
               <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] text-ink-faint pointer-events-none">€</span>
@@ -890,25 +891,25 @@ function WorkTypePriceCard({ type, onPatch }: {
               and renumbering mid-typing would make it jump. Order and junk are
               settled at READ time (`tierFor`) and on load, not while typing. */}
           {(type.astmed ?? []).map((tier, i) => (
-            <div key={`${tier.alates}-${i}`} className="flex items-center gap-1 mb-1">
+            // Keyed by position, never by a value being typed: a key built from
+            // `alates` remounted the row on every keystroke and lost the focus.
+            <div key={i} className="flex items-center gap-1 mb-1">
               <span className="text-[10px] text-ink-faint w-8 flex-shrink-0">{t('settingsPage.from')}</span>
-              <input
-                type="number" min="2" step="1"
+              <DraftNumberInput
                 value={tier.alates}
-                onChange={e => onPatch({
+                onCommit={v => onPatch({
                   astmed: (type.astmed ?? []).map((x, j) =>
-                    j === i ? { ...x, alates: Math.max(1, parseInt(e.target.value) || 1) } : x
+                    j === i ? { ...x, alates: Math.max(1, Math.round(v ?? 1) || 1) } : x
                   ),
                 })}
                 className="input py-1 text-sm w-12 text-right"
               />
               <div className="relative flex-1 min-w-0">
-                <input
-                  type="number" min="0" step="0.5"
+                <DraftNumberInput
                   value={tier.hind}
-                  onChange={e => onPatch({
+                  onCommit={v => onPatch({
                     astmed: (type.astmed ?? []).map((x, j) =>
-                      j === i ? { ...x, hind: parseFloat(e.target.value) || 0 } : x
+                      j === i ? { ...x, hind: v ?? 0 } : x
                     ),
                   })}
                   className="input py-1 pr-5 text-sm text-right"
@@ -957,16 +958,18 @@ function WorkTypePriceCard({ type, onPatch }: {
             {t('settingsPage.takenOffTheMargin')}
           </p>
           {(type.kulud ?? []).map((k, i) => (
-            <div key={`${k.nimi}-${i}`} className="flex items-center gap-1 mb-1">
-              <input
+            // Keyed by position: a key built from the name remounted the row on
+            // every letter typed into it, and the field lost the focus.
+            <div key={i} className="flex items-center gap-1 mb-1">
+              <DraftTextInput
                 value={k.nimi}
-                onChange={e => patchCost(i, { nimi: e.target.value })}
+                onCommit={v => patchCost(i, { nimi: v })}
                 placeholder={t('settingsPage.screw')}
                 className="input py-0.5 text-[11px] flex-1 min-w-0"
               />
-              <input
-                type="number" min="0" step="0.5" value={k.summa}
-                onChange={e => patchCost(i, { summa: parseFloat(e.target.value) || 0 })}
+              <DraftNumberInput
+                value={k.summa}
+                onCommit={v => patchCost(i, { summa: v ?? 0 })}
                 className="input py-0.5 text-[11px] w-14 text-right"
               />
               <button
@@ -1137,7 +1140,10 @@ function ClinicSettingsSection({ clinic, onUpdate, isOwner }: {
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
 
-  const Field = ({ label, field, placeholder, colSpan }: {
+  // A render helper, called as a function — NOT a component. Declared as
+  // `<Field/>` inside this body it was a new component type on every render,
+  // so React remounted each input after every letter and the focus was lost.
+  const field = ({ label, field, placeholder, colSpan }: {
     label: string; field: string; placeholder: string; colSpan?: boolean
   }) => (
     <div className={colSpan ? 'col-span-2' : ''}>
@@ -1163,16 +1169,16 @@ function ClinicSettingsSection({ clinic, onUpdate, isOwner }: {
         <p className="text-xs text-ink-faint">{t('settingsPage.onlyTheClinicOwnerCanChange')}</p>
       )}
       <div className="grid grid-cols-2 gap-3 max-w-lg">
-        <Field label={t('settingsPage.clinicName')} field="name" placeholder={t('settingsPage.name')} colSpan />
-        <Field label={t('settingsPage.address')} field="address" placeholder={t('settingsPage.streetNumber')} colSpan />
-        <Field label={t('settingsPage.city')} field="city" placeholder="Tallinn" />
-        <Field label={t('settingsPage.postcode')} field="postal_code" placeholder="10111" />
-        <Field label={t('settingsPage.phone')} field="phone" placeholder="+372 5123 4567" />
-        <Field label={t('settingsPage.email')} field="email" placeholder={t('settingsPage.infoClinicCom')} />
-        <Field label={t('settingsPage.registryCode')} field="reg_code" placeholder="12345678" />
-        <Field label={t('settingsPage.vATNumber')} field="vat_number" placeholder="EE123456789" />
-        <Field label={t('settingsPage.bank')} field="bank_name" placeholder="LHV, SEB…" />
-        <Field label="IBAN" field="bank_account" placeholder="EE00 1234 5678 9012 3456" />
+        {field({ label: t('settingsPage.clinicName'), field: 'name', placeholder: t('settingsPage.name'), colSpan: true })}
+        {field({ label: t('settingsPage.address'), field: 'address', placeholder: t('settingsPage.streetNumber'), colSpan: true })}
+        {field({ label: t('settingsPage.city'), field: 'city', placeholder: "Tallinn" })}
+        {field({ label: t('settingsPage.postcode'), field: 'postal_code', placeholder: "10111" })}
+        {field({ label: t('settingsPage.phone'), field: 'phone', placeholder: "+372 5123 4567" })}
+        {field({ label: t('settingsPage.email'), field: 'email', placeholder: t('settingsPage.infoClinicCom') })}
+        {field({ label: t('settingsPage.registryCode'), field: 'reg_code', placeholder: "12345678" })}
+        {field({ label: t('settingsPage.vATNumber'), field: 'vat_number', placeholder: "EE123456789" })}
+        {field({ label: t('settingsPage.bank'), field: 'bank_name', placeholder: "LHV, SEB…" })}
+        {field({ label: 'IBAN', field: 'bank_account', placeholder: 'EE00 1234 5678 9012 3456' })}
       </div>
 
       {/* The public site's URL key. Its own block because it is the one field
