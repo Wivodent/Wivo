@@ -395,8 +395,8 @@ function AppContent() {
           ) : undefined}
         />
 
-        <LicenseBanner onOpenSettings={() => setView('settings')} />
-        <LicenceUpdatedBanner onOpenSettings={() => setView('settings')} />
+        <LicenseBanner onOpenSettings={() => { setSettingsAt(a => ({ group: 'litsents', n: a.n + 1 })); setView('settings') }} />
+        <LicenceUpdatedBanner onOpenSettings={() => { setSettingsAt(a => ({ group: 'litsents', n: a.n + 1 })); setView('settings') }} />
         <UpdateStaleBanner />
         <DatabaseUpdateBanner />
         <ProfileProblemBanner />
@@ -470,7 +470,7 @@ function AppContent() {
           {view === 'tootasud' && <PayrollView jobs={jobs} onOpenJob={openEdit} />}
           {view === 'stats' && <Dashboard jobs={jobs} />}
           {view === 'taotlused' && <RequestsInbox />}
-          {view === 'settings' && <SettingsPage key={settingsAt.n} initialGroup={settingsAt.group} onOpenPatient={openPatient} />}
+          {view === 'settings' && <SettingsPage key={settingsAt.n} initialGroup={settingsAt.group} onOpenPatient={openPatient} onOpenView={setView} />}
           {view === 'workers' && <WorkersPage />}
           {view === 'partner' && <PartnerJobsView />}
           {view === 'unsorted' && <UnsortedView />}

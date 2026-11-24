@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, Image as ImageIcon , KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
+import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, Image as ImageIcon , KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
 } from 'lucide-react'
 import { useSettings, THEMES, TEXT_SIZES } from '../stores/useSettings'
 import { NotificationChannels } from './Settings/NotificationChannels'
@@ -35,6 +35,8 @@ import { DeletedJobsSection } from './Settings/DeletedJobsSection'
 import { DraftNumberInput, DraftTextInput } from './ui/DraftInput'
 import { InfoButton } from './ui/InfoButton'
 import { SectionCard } from './ui/SectionCard'
+import { SettingsHome, countryName } from './Settings/SettingsHome'
+import type { ViewMode } from '../types/view'
 import { wivoMailto } from '../config/contact'
 import { t, lang, setLang, intlLocale, LANGUAGES, type Lang } from '../lib/i18n'
 
@@ -46,7 +48,7 @@ const STAGE_PALETTE = [
   '#14B8A6', '#06B6D4', '#0EA5E9', '#3B82F6', '#64748B', '#0E1116'
 ]
 
-export type GroupKey = 'profiil' | 'turvalisus' | 'kliinik' | 'kasutajaliides' | 'etapid' | 'masinad' | 'hinnad' | 'kalender' | 'valikud' | 'litsents' | 'avalik' | 'epost' | 'andmebaas' | 'partnerlused' | 'auditilogi'
+export type GroupKey = 'home' | 'maksud' | 'profiil' | 'turvalisus' | 'kliinik' | 'kasutajaliides' | 'etapid' | 'masinad' | 'hinnad' | 'kalender' | 'valikud' | 'litsents' | 'avalik' | 'epost' | 'andmebaas' | 'partnerlused' | 'auditilogi'
 
 // Personal preferences vs clinic configuration.
 //
@@ -1210,7 +1212,12 @@ function LanguageSection() {
 }
 
 /** `initialGroup`: where to open (a security notification opens Security). */
-export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { initialGroup?: GroupKey; onOpenPatient?: (patientId: string) => void } = {}) {
+export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView }: {
+  initialGroup?: GroupKey
+  onOpenPatient?: (patientId: string) => void
+  /** For the home page's tiles that open another page (Team, Payroll). */
+  onOpenView?: (v: ViewMode) => void
+} = {}) {
   const {
     settings, setMaterialPrice, setMaterialCost, setDesignFee, setDefaultMachine, setTeema, setNumber, setFlag, setYldkulud, setKapslimasinad,
     setTekstiSuurus, setFixedCosts, setLisateenused, setPaneeliSuund, addOption, removeOption, renameOption, resetOptions,
@@ -1242,6 +1249,8 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
       case 'epost': return moduleOn('invoices') && invoicesAvailable(clinicCountry(auth.clinic))
       case 'partnerlused': return moduleOn('partners')
       case 'etapid': case 'valikud': case 'masinad': return moduleOn('jobs')
+      // Payroll taxes: only where payroll is in the licence.
+      case 'maksud': return moduleOn('payroll')
       default: return true
     }
   }
@@ -1249,59 +1258,46 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
   // Töö etapid is the one clinic group that is not merely readable — every
   // control on it writes — so it takes pipeline.write rather than settings.read.
   const groupAllowed = (k: GroupKey): boolean =>
-    !groupInLicence(k) ? false
+    k === 'home' ? true
+      : !groupInLicence(k) ? false
       : PERSONAL_GROUPS.includes(k) ? true
       : k === 'etapid' ? can('pipeline.write')
         : can('settings.read')
 
-  const visibleGroups = NAV_GROUPS
-    .map(section => ({ ...section, items: section.items.filter(i => groupAllowed(i.key)) }))
-    .filter(section => section.items.length > 0)
+  /** The heading of an open group: the menu's name for it. */
+  const groupLabel = (k: GroupKey): string =>
+    k === 'maksud' ? t('settingsHome.taxes')
+      : k === 'hinnad' ? t('settingsPage.workTypesAndPrices')
+      : NAV_GROUPS.flatMap(sec => sec.items).find(i => i.key === k)?.label ?? t('settingsPage.settings')
 
   // A worker without the permission would otherwise be left staring at a group
   // that renders nothing at all.
-  const activeGroup: GroupKey = groupAllowed(group) ? group : 'profiil'
+  const activeGroup: GroupKey = groupAllowed(group) ? group : 'home'
 
-  const isClinicGroup = !PERSONAL_GROUPS.includes(activeGroup)
+  const isClinicGroup = activeGroup !== 'home' && !PERSONAL_GROUPS.includes(activeGroup)
   const canEditClinic = auth.role === 'owner'
 
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="px-6 py-6 space-y-5">
-        <div>
-          <h1 className="text-xl font-bold text-page-ink">{t('settingsPage.settings')}</h1>
-          <p className="text-sm text-page-muted">
-            {t('settingsPage.manageYourWorkshopSDetailsPreferences')}
-          </p>
-        </div>
+        {/* docs/design setup-and-settings.html: Settings opens on its home page
+            of tiles; a group has a way back instead of a side menu. */}
+        {activeGroup === 'home' ? (
+          <SettingsHome allowed={groupAllowed} onOpenGroup={setGroup} onOpenView={onOpenView} />
+        ) : (
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setGroup('home')}
+              className="min-h-[44px] px-3 -ml-3 rounded-xl text-base font-semibold text-accent hover:bg-accent/10 flex items-center gap-1"
+            >
+              <ChevronLeft size={18} /> {t('settingsPage.settings')}
+            </button>
+            <h1 className="text-2xl font-bold text-page-ink">{groupLabel(activeGroup)}</h1>
+          </div>
+        )}
 
         <div className="flex items-start gap-5">
-          {/* Section nav — only groups that actually exist; a nav item that led
-              nowhere would be the same dead-UI problem as an empty panel. */}
-          <nav className="w-[210px] flex-shrink-0 card p-2 space-y-3">
-            {visibleGroups.map(section => (
-              <div key={section.title}>
-                <p className="text-[10px] font-semibold text-ink-faint uppercase tracking-wider px-2 pt-1 pb-1.5">
-                  {section.title}
-                </p>
-                {section.items.map(({ key, label, icon: Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => setGroup(key)}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                      activeGroup === key
-                        ? 'bg-accent/10 text-accent'
-                        : 'text-ink-muted hover:text-ink hover:bg-bg-sidebar'
-                    }`}
-                  >
-                    <Icon size={13} />
-                    {label}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </nav>
 
           {/* Cards for the active group. Two columns where there is room —
               the settings body is short items, not long forms. */}
@@ -1409,6 +1405,77 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
             </div>
           </section>
         )}
+
+          {/* Taxes (Settings home > Money > Taxes): the clinic's country picks the
+              payroll rules (shared/payroll/countryTax). The country itself is set
+              when Wivo is set up for the clinic. */}
+          {activeGroup === 'maksud' && (
+          <section className="2xl:col-span-2">
+            <div className="flex items-center gap-2 mb-1">
+              <Euro size={16} className="text-accent" />
+              <h3 className="text-lg font-bold text-ink">{t('settingsHome.taxes')}</h3>
+              <InfoButton label={t('settingsHome.taxes')} text={t('settingsHome.countryInfo')} />
+            </div>
+            <p className="text-base text-ink-muted mb-4">
+              {t('settingsHome.countryIs', { country: countryName(clinicCountry(auth.clinic)) })}
+            </p>
+            <div className="grid grid-cols-2 gap-4 max-w-3xl">
+              {/* Latvia's rates are the law's (shared/payroll/countryTax): shown,
+                  not typed. Every other country keeps its own employer rate. */}
+              {latviaTax ? (
+                <div className="col-span-2 rounded-xl bg-bg-sidebar/60 px-3 py-2.5">
+                  <p className="text-sm font-semibold text-ink">{t('settingsPage.lvTaxTitle', { year: lvRules.year })}</p>
+                  <p className="text-xs text-ink-muted leading-relaxed mt-1">
+                    {t('settingsPage.lvTaxRules', {
+                      employee: lvRules.employeeSocialPct, employer: lvRules.employerSocialPct,
+                      pEmployee: lvRules.pensionerEmployeeSocialPct, pEmployer: lvRules.pensionerEmployerSocialPct,
+                      income: lvRules.incomeTaxPct, minimum: lvRules.nonTaxableMinimum,
+                      dependent: lvRules.dependentAllowance, minWage: lvRules.minimumWage,
+                    })}
+                  </p>
+                </div>
+              ) : (
+              <NumField
+                label={estonianTax ? t('settingsPage.employerTaxes') : t('settingsPage.employerContributions')} suffix="%" min={0} max={100} step={0.1}
+                value={settings.tooandjaMaksudProtsent}
+                onChange={v => setNumber('tooandjaMaksudProtsent', v)}
+                hint={estonianTax ? t('settingsPage.addedToGrossPayToShow') : t('settingsPage.employerContributionsHint')}
+              />
+              )}
+              {/* The employee side. Needed only when someone's pay is entered
+                  NET — then bruto, and with it the clinic's real cost, has to
+                  be computed backwards from take-home pay. Left at 0 they do
+                  nothing, and Töötasud says so rather than quietly showing a
+                  gross equal to the net. Estonian only. */}
+              {estonianTax && (<>
+              <NumField
+                label={t('settingsPage.incomeTax')} suffix="%" min={0} max={100} step={0.1}
+                value={settings.tulumaksProtsent}
+                onChange={v => setNumber('tulumaksProtsent', v)}
+                hint={t('settingsPage.incomeTaxWithheldFromTheEmployee')}
+              />
+              <NumField
+                label={t('settingsPage.taxFreeAllowance')} suffix={t('settingsPage.month')} min={0} max={5000} step={10}
+                value={settings.maksuvabaTuluKuus}
+                onChange={v => setNumber('maksuvabaTuluKuus', v)}
+                hint={t('settingsPage.theClinicDefaultItCanBe')}
+              />
+              <NumField
+                label={t('settingsPage.employeeUnemploymentInsurance')} suffix="%" min={0} max={10} step={0.1}
+                value={settings.tootajaTootuskindlustusProtsent}
+                onChange={v => setNumber('tootajaTootuskindlustusProtsent', v)}
+                hint={t('settingsPage.theShareWithheldFromGrossPay')}
+              />
+              <NumField
+                label={t('settingsPage.fundedPensionIIPillar')} suffix="%" min={0} max={20} step={1}
+                value={settings.kogumispensionProtsent}
+                onChange={v => setNumber('kogumispensionProtsent', v)}
+                hint={t('settingsPage.theDefaultRateItIsEach')}
+              />
+              </>)}
+            </div>
+          </section>
+          )}
 
         {activeGroup === 'partnerlused' && <PartnershipsSection />}
         {activeGroup === 'auditilogi' && <AuditLogSection onOpenPatient={onOpenPatient} />}
@@ -1613,6 +1680,27 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
                 </p>
               </section>
             )
+          )}
+
+          {/* Clinic details › Advanced: the rarely needed groups that used to sit
+              in the side menu (audit log, database, partnerships). */}
+          {activeGroup === 'kliinik' && (['partnerlused', 'auditilogi', 'andmebaas'] as GroupKey[]).some(groupAllowed) && (
+            <section>
+              <h3 className="text-lg font-bold text-ink">{t('settingsHome.advanced')}</h3>
+              <p className="text-sm text-ink-muted mb-3">{t('settingsHome.advancedSub')}</p>
+              <div className="flex flex-wrap gap-2">
+                {(['partnerlused', 'auditilogi', 'andmebaas'] as GroupKey[]).filter(groupAllowed).map(k => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setGroup(k)}
+                    className="min-h-[44px] px-4 rounded-xl border border-ink-faint/30 bg-bg-card text-base text-ink hover:border-accent"
+                  >
+                    {groupLabel(k)}
+                  </button>
+                ))}
+              </div>
+            </section>
           )}
 
           {/* Machine default */}
@@ -1852,8 +1940,7 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
                   big and two to a row; everything else folded under "More". */}
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-ink">{t('settingsPage.workTypesAndPrices')}</h2>
-                  <p className="text-base text-ink-muted mt-1">{t('settingsPage.workTypesAndPricesSub')}</p>
+                  <p className="text-base text-ink-muted">{t('settingsPage.workTypesAndPricesSub')}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2.5">
                   <InfoButton
@@ -1999,59 +2086,6 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
                 onChange={v => setNumber('makseTahtaegPaevades', v)}
                 hint={t('settingsPage.daysFromTheInvoiceDateTo')}
               />
-              {/* Latvia's rates are the law's (shared/payroll/countryTax): shown,
-                  not typed. Every other country keeps its own employer rate. */}
-              {latviaTax ? (
-                <div className="col-span-2 rounded-xl bg-bg-sidebar/60 px-3 py-2.5">
-                  <p className="text-sm font-semibold text-ink">{t('settingsPage.lvTaxTitle', { year: lvRules.year })}</p>
-                  <p className="text-xs text-ink-muted leading-relaxed mt-1">
-                    {t('settingsPage.lvTaxRules', {
-                      employee: lvRules.employeeSocialPct, employer: lvRules.employerSocialPct,
-                      pEmployee: lvRules.pensionerEmployeeSocialPct, pEmployer: lvRules.pensionerEmployerSocialPct,
-                      income: lvRules.incomeTaxPct, minimum: lvRules.nonTaxableMinimum,
-                      dependent: lvRules.dependentAllowance, minWage: lvRules.minimumWage,
-                    })}
-                  </p>
-                </div>
-              ) : (
-              <NumField
-                label={estonianTax ? t('settingsPage.employerTaxes') : t('settingsPage.employerContributions')} suffix="%" min={0} max={100} step={0.1}
-                value={settings.tooandjaMaksudProtsent}
-                onChange={v => setNumber('tooandjaMaksudProtsent', v)}
-                hint={estonianTax ? t('settingsPage.addedToGrossPayToShow') : t('settingsPage.employerContributionsHint')}
-              />
-              )}
-              {/* The employee side. Needed only when someone's pay is entered
-                  NET — then bruto, and with it the clinic's real cost, has to
-                  be computed backwards from take-home pay. Left at 0 they do
-                  nothing, and Töötasud says so rather than quietly showing a
-                  gross equal to the net. Estonian only. */}
-              {estonianTax && (<>
-              <NumField
-                label={t('settingsPage.incomeTax')} suffix="%" min={0} max={100} step={0.1}
-                value={settings.tulumaksProtsent}
-                onChange={v => setNumber('tulumaksProtsent', v)}
-                hint={t('settingsPage.incomeTaxWithheldFromTheEmployee')}
-              />
-              <NumField
-                label={t('settingsPage.taxFreeAllowance')} suffix={t('settingsPage.month')} min={0} max={5000} step={10}
-                value={settings.maksuvabaTuluKuus}
-                onChange={v => setNumber('maksuvabaTuluKuus', v)}
-                hint={t('settingsPage.theClinicDefaultItCanBe')}
-              />
-              <NumField
-                label={t('settingsPage.employeeUnemploymentInsurance')} suffix="%" min={0} max={10} step={0.1}
-                value={settings.tootajaTootuskindlustusProtsent}
-                onChange={v => setNumber('tootajaTootuskindlustusProtsent', v)}
-                hint={t('settingsPage.theShareWithheldFromGrossPay')}
-              />
-              <NumField
-                label={t('settingsPage.fundedPensionIIPillar')} suffix="%" min={0} max={20} step={1}
-                value={settings.kogumispensionProtsent}
-                onChange={v => setNumber('kogumispensionProtsent', v)}
-                hint={t('settingsPage.theDefaultRateItIsEach')}
-              />
-              </>)}
             </div>
           </section>
                   <section>
