@@ -6,7 +6,7 @@ too.
 
 ## Wivo on your phone
 
-On your phone, open [app.wivodent.com](https://app.wivodent.com) and sign
+On your phone, open [{phoneHost}]({phoneUrl}) and sign
 in with your usual Wivo details.
 
 - **Put it on your home screen** so it opens like an app. On iPhone, tap the

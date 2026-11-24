@@ -24,6 +24,7 @@ import { describeError } from '../Patients/errors'
 import { usePermissions } from '../../hooks/usePermissions'
 import { t, dateLocale } from '@/lib/i18n'
 import { confirmDialog } from '../../lib/confirm'
+import { effectiveFilter, shownFiles, typeCounts, type FileFilter } from '../../lib/fileTypeFilter'
 
 interface JobFileRow {
   id: string
@@ -86,7 +87,9 @@ export function JobFiles({ jobId, partner = false }: { jobId: string; partner?: 
   const { can } = usePermissions()
   const editJobs = can('jobs.write')
   const canWrite = editJobs || can('files.write') || partner
+  // The type NEW files get. Showing one type is `shown`, below.
   const [type, setType] = useState<JobFileType | 'auto'>('auto')
+  const [shown, setShown] = useState<FileFilter>('all')
   const [actionError, setActionError] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const folderInput = useRef<HTMLInputElement>(null)
@@ -140,8 +143,11 @@ export function JobFiles({ jobId, partner = false }: { jobId: string; partner?: 
     else qc.invalidateQueries({ queryKey: ['job_files', jobId] })
   }
 
-  const active = files.filter(f => f.is_active && f.completed)
+  const allActive = files.filter(f => f.is_active && f.completed)
   const older = files.filter(f => !f.is_active && f.completed)
+  const counts = typeCounts(allActive, ALL_TYPES)
+  const filter = effectiveFilter(shown, allActive)
+  const active = shownFiles(allActive, filter)
 
   return (
     <section className="space-y-3"
@@ -152,8 +158,9 @@ export function JobFiles({ jobId, partner = false }: { jobId: string; partner?: 
         <h3 className="text-xs font-semibold text-ink-muted uppercase tracking-wider">{t('files.files')}</h3>
         {canWrite && (
           <>
+            <span className="ml-auto text-[11px] text-ink-muted">{t('files.newFilesAs')}</span>
             <select value={type} onChange={e => setType(e.target.value as JobFileType | 'auto')}
-              aria-label={t('files.fileType')} className="input ml-auto w-36 text-xs py-1">
+              aria-label={t('files.newFilesType')} title={t('files.newFilesType')} className="input w-36 text-xs py-1">
               {!partner && <option value="auto">{t('files.typeAuto')}</option>}
               {types.map(ty => <option key={ty} value={ty}>{fileTypeLabel(ty)}</option>)}
             </select>
@@ -207,6 +214,19 @@ export function JobFiles({ jobId, partner = false }: { jobId: string; partner?: 
           {u.error && <p className="mt-1 text-rose-500">{u.error}</p>}
         </div>
       ))}
+
+      {counts.length > 1 && (
+        <div role="group" aria-label={t('files.showType')} className="flex flex-wrap items-center gap-1">
+          {([{ type: 'all' as const, count: allActive.length }, ...counts]).map(c => (
+            <button key={c.type} type="button" aria-pressed={filter === c.type} onClick={() => setShown(c.type)}
+              className={`rounded-full border px-2 py-0.5 text-[11px] ${filter === c.type
+                ? 'border-accent bg-accent/10 text-accent font-semibold'
+                : 'border-ink-faint/30 text-ink-soft hover:border-accent/50'}`}>
+              {c.type === 'all' ? t('files.showAll') : fileTypeLabel(c.type)} {c.count}
+            </button>
+          ))}
+        </div>
+      )}
 
       {active.length === 0 && uploads.length === 0
         ? <p className="text-sm text-ink-muted">{t('files.noFilesYet')}</p>

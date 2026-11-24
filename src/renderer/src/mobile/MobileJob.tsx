@@ -20,6 +20,7 @@ import { JobStageBar } from '../components/JobDetail/JobStageBar'
 import { JobThread } from '../components/Partners/JobThread'
 import { PartnerJobPanel } from '../components/Partners/PartnerJobsView'
 import { PhoneCamera } from './PhoneCamera'
+import { MobileDeleteJob } from './MobileDeleteJob'
 import type { Job } from '../types/job'
 import { usePermissions } from '../hooks/usePermissions'
 import { t, dateLocale } from '@/lib/i18n'
@@ -34,7 +35,7 @@ export function MobileJob({ id, onClose }: { id: string; onClose: () => void }) 
   const byId = useJobById(id, !isLoading && !loaded && !sharedLoading && !partner)
   const own = loaded ?? byId.data ?? undefined
 
-  if (own) return <OwnJob job={own} />
+  if (own) return <OwnJob job={own} onClose={onClose} />
   if (partner) return <SharedJob job={partner} onClose={onClose} />
   if (isLoading || sharedLoading || byId.isLoading) return <div className="grid place-items-center py-10"><Loader2 className="animate-spin text-accent" /></div>
   return <p className="p-6 text-center text-sm text-ink-muted">{t('mobile.jobNotFound')}</p>
@@ -44,7 +45,7 @@ function SharedJob({ job, onClose }: { job: PartnerJob; onClose: () => void }) {
   return <PartnerJobPanel job={job} onClose={onClose} page />
 }
 
-function OwnJob({ job }: { job: Job }) {
+function OwnJob({ job, onClose }: { job: Job; onClose: () => void }) {
   const { stageMap } = usePipeline()
   const [shooting, setShooting] = useState(false)
   // A photo onto the job is a file on it: Edit jobs, as on the desktop.
@@ -102,6 +103,9 @@ function OwnJob({ job }: { job: Job }) {
 
       <JobFiles jobId={job.id} />
       <JobThread jobId={job.id} camera />
+
+      {/* Last, away from the thumb's usual path: as on the desk, Delete jobs and "Delete? Yes". */}
+      <MobileDeleteJob jobId={job.id} onDeleted={onClose} />
     </main>
   )
 }

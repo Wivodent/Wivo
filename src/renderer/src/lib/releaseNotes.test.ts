@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  NOTES, NOTE_VERSIONS, compareVersions, notesVersionFor, notesUnseen, parseNotes, releaseNotes, shortVersion,
+  NOTES, NOTE_VERSIONS, compareVersions, fillPhoneUrl, notesVersionFor, notesUnseen, parseNotes, phoneUrl, releaseNotes, shortVersion,
   type Block,
 } from './releaseNotes'
 
@@ -81,17 +81,37 @@ describe('the notes in release-notes/', () => {
         expect(blocks.length, `${v}/${lang}.md`).toBeGreaterThan(0)
         // Link syntax with anything but https renders as plain text: a typo
         // would silently lose the link.
-        for (const m of (md ?? '').matchAll(/\]\(([^)]*)\)/g)) expect(m[1], `${v}/${lang}.md`).toMatch(/^https:\/\//)
+        for (const m of fillPhoneUrl(md ?? '').matchAll(/\]\(([^)]*)\)/g)) expect(m[1], `${v}/${lang}.md`).toMatch(/^https:\/\//)
+        // A phone address is the build's, never written into the notes.
+        expect(md ?? '', `${v}/${lang}.md`).not.toMatch(/wivodent\.com|pages\.dev/)
       }
     }
   })
 
-  it('2.0 points to the phone app in both languages', () => {
+  it("2.0 points to the phone app in both languages: main's by default", () => {
     for (const lang of ['en', 'et'] as const) {
       const notes = releaseNotes('2.0.0', lang)
       const links = JSON.stringify(notes?.blocks)
       expect(links, lang).toContain('"href":"https://app.wivodent.com"')
     }
+  })
+
+  it("a clinic's build names its own phone app, in the text and in the link (Riga)", () => {
+    for (const lang of ['en', 'et'] as const) {
+      const json = JSON.stringify(releaseNotes('2.0.0', lang, 'https://wivo-dentiks.pages.dev')?.blocks)
+      expect(json, lang).toContain('"href":"https://wivo-dentiks.pages.dev"')
+      expect(json, lang).toContain('"text":"wivo-dentiks.pages.dev"')
+      expect(json, lang).not.toContain('wivodent.com')
+    }
+  })
+
+  it('the phone address comes from the build, and only a plain https address counts', () => {
+    expect(phoneUrl('https://wivo-dentiks.pages.dev/')).toBe('https://wivo-dentiks.pages.dev')
+    expect(phoneUrl(undefined)).toBe('https://app.wivodent.com')
+    expect(phoneUrl('')).toBe('https://app.wivodent.com')
+    expect(phoneUrl('http://wivo-dentiks.pages.dev')).toBe('https://app.wivodent.com')
+    expect(phoneUrl('javascript:alert(1)')).toBe('https://app.wivodent.com')
+    expect(phoneUrl('https://x.pages.dev/path')).toBe('https://app.wivodent.com')
   })
 
   it('a language without its own file falls back to English', () => {

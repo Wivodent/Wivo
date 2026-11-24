@@ -7,10 +7,10 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
-import { HelpCircle, CheckCircle2, Send, Paperclip, Loader2, Camera } from 'lucide-react'
+import { HelpCircle, CheckCircle2, Send, Paperclip, Loader2, Camera, X, AlertTriangle } from 'lucide-react'
 import { useJobThread, usePostJobComment, useResolveQuestion } from '@/hooks/usePartners'
 import { describeError } from '../Patients/errors'
-import { enqueueUpload } from '../../lib/uploadQueue'
+import { dismissUpload, enqueueUpload, pendingAttachment, useUploadTask } from '../../lib/uploadQueue'
 import { saveFile } from '../../lib/fileLink'
 import { attachmentViewerFor } from '../../lib/fileViewer'
 import { FileViewer, type ViewerFile } from '../Files/FileViewer'
@@ -35,7 +35,12 @@ export function JobThread({ jobId, readOnly = false, partner = false, camera = f
   const [error, setError] = useState<string | null>(null)
   // A file for the comment: uploaded the normal way first (same rules — a
   // partner adds design files only), then the comment points at it.
-  const [attachment, setAttachment] = useState<{ name: string; id: string | null } | null>(null)
+  // `taskId` is its upload: the comment follows it, and lets go when it is
+  // cancelled (it used to keep waiting, with the spinner, until a reload).
+  const [attachment, setAttachment] = useState<{ name: string; id: string | null; taskId: string | null } | null>(null)
+  const task = useUploadTask(attachment && !attachment.id ? attachment.taskId : null)
+  const pending = attachment && !attachment.id ? pendingAttachment(task) : null
+  useEffect(() => { if (pending === 'gone') setAttachment(null) }, [pending])
   // An attachment is a file on the job: Edit jobs, as for any upload (a partner's follow the share).
   const canAttach = usePermissions().can('jobs.write') || partner
   const { profile } = useAuth()
@@ -63,8 +68,17 @@ export function JobThread({ jobId, readOnly = false, partner = false, camera = f
     if (!file) return
     const type = partner ? 'design' : guessFileType(file.name)
     if (!partner && !confirmed && !(await confirmSharedUpload(jobId, [{ name: file.name, type, mime: file.type }]))) return
-    setAttachment({ name: file.name, id: null })
-    enqueueUpload(jobId, file, type, null, id => setAttachment(a => (a ? { ...a, id } : a)))
+    // Only this upload fills in this attachment: one removed earlier must not
+    // land on the next file chosen.
+    let taskId = ''
+    taskId = enqueueUpload(jobId, file, type, null, id => setAttachment(a => (a && a.taskId === taskId ? { ...a, id } : a)))
+    setAttachment({ name: file.name, id: null, taskId })
+  }
+
+  /** Takes the file off the comment; an upload still waiting, or failed, is cancelled too. */
+  function removeAttachment() {
+    if (attachment?.taskId && !attachment.id && task && (task.status === 'queued' || task.status === 'failed')) dismissUpload(attachment.taskId)
+    setAttachment(null)
   }
 
   // An image or a PDF opens in the same viewer as the job's files (images move
@@ -151,10 +165,18 @@ export function JobThread({ jobId, readOnly = false, partner = false, camera = f
           <div className="flex items-center gap-3">
             {canAttach && (
               <label className="flex items-center gap-1 text-xs text-ink-soft cursor-pointer" title={t('partners.attachFile')}>
-                {attachment && !attachment.id ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Paperclip size={12} aria-hidden="true" />}
+                {pending === 'uploading' ? <Loader2 size={12} className="animate-spin" aria-hidden="true" />
+                  : pending === 'failed' ? <AlertTriangle size={12} className="text-amber-500" aria-hidden="true" />
+                  : <Paperclip size={12} aria-hidden="true" />}
                 <span className="truncate max-w-[140px]">{attachment?.name ?? t('partners.attachFile')}</span>
-                <input type="file" hidden onChange={e => { void attach(e.target.files?.[0]); e.target.value = '' }} />
+                <input type="file" hidden disabled={!!attachment} onChange={e => { void attach(e.target.files?.[0]); e.target.value = '' }} />
               </label>
+            )}
+            {attachment && (
+              <button type="button" onClick={removeAttachment} className="text-ink-faint hover:text-ink"
+                title={t('partners.removeAttachment')} aria-label={t('partners.removeAttachment')}>
+                <X size={12} aria-hidden="true" />
+              </button>
             )}
             {camera && canAttach && !partner && !attachment && (
               <button type="button" title={t('mobile.takePhoto')} aria-label={t('mobile.takePhoto')} className="text-ink-soft"
@@ -173,6 +195,7 @@ export function JobThread({ jobId, readOnly = false, partner = false, camera = f
               {t('partners.send')}
             </button>
           </div>
+          {pending === 'failed' && <p role="alert" className="text-xs text-amber-600">{t('partners.attachmentFailed')}</p>}
           {error && <p role="alert" className="text-sm text-rose-500">{error}</p>}
           {shooting && <PhoneCamera single onFile={f => void attach(f, true)} onClose={() => setShooting(false)} />}
         </div>

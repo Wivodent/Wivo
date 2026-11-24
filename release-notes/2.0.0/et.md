@@ -6,7 +6,7 @@ on turvalisem.
 
 ## Wivo telefonis
 
-Ava telefonis [app.wivodent.com](https://app.wivodent.com) ja logi sisse
+Ava telefonis [{phoneHost}]({phoneUrl}) ja logi sisse
 oma tavaliste Wivo andmetega.
 
 - **Lisa see avakuvale**, siis avaneb see nagu rakendus. iPhone'is vajuta

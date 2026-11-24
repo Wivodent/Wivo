@@ -178,16 +178,19 @@ async function pump(): Promise<void> {
   }
 }
 
+/** Queues one file. Returns the task's id, so whoever waits for it can follow it (useUploadTask). */
 export function enqueueUpload(
   jobId: string, file: File, type: JobFileType, supersedes: string | null = null,
   onStored?: (fileId: string) => void,
-): void {
+): string {
+  const id = crypto.randomUUID()
   tasks.push({
-    id: crypto.randomUUID(), jobId, type, name: file.name, size: file.size, sent: 0,
+    id, jobId, type, name: file.name, size: file.size, sent: 0,
     status: 'queued', supersedes, file, onStored,
   })
   emit()
   void pump()
+  return id
 }
 
 /** A folder becomes one ZIP (built in a worker), then goes the usual way. */
@@ -212,6 +215,27 @@ export function retryUpload(id: string): void {
 export function dismissUpload(id: string): void {
   tasks = tasks.filter(t => t.id !== id)
   emit()
+}
+
+/** One upload by its id: null once it was cancelled (dismissUpload), or for no id. */
+export function uploadTask(id: string | null): UploadTask | null {
+  return id ? tasks.find(t => t.id === id) ?? null : null
+}
+
+/** The same, kept current: a comment waiting for its attachment follows it here. */
+export function useUploadTask(id: string | null): UploadTask | null {
+  const all = useSyncExternalStore(subscribe, snapshot, snapshot)
+  return id ? all.find(t => t.id === id) ?? null : null
+}
+
+/**
+ * Where a comment's attachment stands while it has no stored id yet:
+ * `gone` when its upload was cancelled (the X on the job's upload row), so
+ * the comment lets go of it instead of waiting forever.
+ */
+export function pendingAttachment(task: UploadTask | null): 'uploading' | 'failed' | 'gone' {
+  if (!task) return 'gone'
+  return task.status === 'failed' ? 'failed' : 'uploading'
 }
 
 /** This job's uploads that are still in progress or need attention. */

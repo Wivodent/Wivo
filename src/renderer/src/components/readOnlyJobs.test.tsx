@@ -39,7 +39,7 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 vi.mock('../lib/supabase', () => ({ supabase: {} }))
 vi.mock('../lib/uploadQueue', () => ({
-  enqueueUpload: () => {}, retryUpload: () => {}, dismissUpload: () => {}, useJobUploads: () => [], onUploadDone: () => () => {},
+  enqueueUpload: () => {}, retryUpload: () => {}, dismissUpload: () => {}, useJobUploads: () => [], onUploadDone: () => () => {}, useUploadTask: () => null, pendingAttachment: () => 'gone',
 }))
 
 const { TopBar } = await import('./TopBar')

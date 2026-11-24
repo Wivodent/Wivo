@@ -113,9 +113,27 @@ export function parseNotes(md: string): { title: string; blocks: Block[] } {
   return { title, blocks }
 }
 
+/** Main's phone app. A clinic's own build gives its own (VITE_PHONE_URL). */
+export const DEFAULT_PHONE_URL = 'https://app.wivodent.com'
+
+/**
+ * The phone app this build belongs to: the build's VITE_PHONE_URL (Riga's
+ * installer and Riga's Cloudflare project set it), else main's. Only an
+ * https address with no path counts; anything else is main's.
+ */
+export function phoneUrl(configured: string | undefined = import.meta.env.VITE_PHONE_URL): string {
+  const v = (configured ?? '').trim().replace(/\/+$/, '')
+  return /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(v) ? v : DEFAULT_PHONE_URL
+}
+
+/** The notes name the phone app as `{phoneUrl}` and `{phoneHost}`, never by its address (release-notes/README.md). */
+export function fillPhoneUrl(md: string, url: string = phoneUrl()): string {
+  return md.replaceAll('{phoneUrl}', url).replaceAll('{phoneHost}', url.replace(/^https:\/\//, ''))
+}
+
 /** The notes for a version in this language, or in English when there is no translation. */
-export function releaseNotes(version: string, language: Lang): ReleaseNotes | null {
+export function releaseNotes(version: string, language: Lang, url: string = phoneUrl()): ReleaseNotes | null {
   const files = NOTES.get(version)
   const md = files?.[language] ?? files?.en
-  return md ? { version, ...parseNotes(md) } : null
+  return md ? { version, ...parseNotes(fillPhoneUrl(md, url)) } : null
 }

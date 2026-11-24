@@ -40,5 +40,8 @@ A small part of Markdown, nothing else:
 - `- ` list items (a long item can continue on an indented next line)
 - `**bold**`
 - `[link text](https://…)`: only https links
+- `{phoneUrl}` and `{phoneHost}`: the clinic's own phone app (`https://app.wivodent.com`,
+  or the build's `VITE_PHONE_URL`, Riga's `https://wivo-dentiks.pages.dev`). Never
+  write a phone address itself: each clinic's build has its own.
 
 No nesting: a link inside `**bold**` loses its link.
