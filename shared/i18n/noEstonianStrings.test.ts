@@ -88,7 +88,7 @@ const KNOWN_GAPS: string[] = [
 
   // ── Sample values in placeholders. Harmless, and listed so the count is
   //    honest rather than quietly filtered.
-  'src/renderer/src/components/Customers/CustomersView.tsx: Hambaravi OÜ',
+  'src/renderer/src/lib/country.ts: Hambaravi OÜ',
 
   // ── Developer console only. Never on screen.
   'src/renderer/src/components/teeth/ToothPicker.tsx: [wivo] 3D hambakaart ei laadinud, näitan 2D:',

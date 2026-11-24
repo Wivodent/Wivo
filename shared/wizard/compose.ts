@@ -14,7 +14,27 @@
 import type { NewJobState } from './types'
 import { baseTypeName } from './types'
 
-export function composeKirjeldus(state: NewJobState): string | null {
+/**
+ * The words in front of each folded line. The wizard passes them in the
+ * person's language, so an English clinic's job does not read "Glasuur: Matt".
+ * The default is the Estonian every older job was written with.
+ */
+export interface KirjeldusLabels {
+  materials: string
+  glaze: string
+  texture: string
+  note: string
+  /** A stored glaze or texture value as shown (the stored value is Estonian). */
+  finish?: (value: string) => string
+}
+
+export const ESTONIAN_KIRJELDUS_LABELS: KirjeldusLabels = {
+  materials: 'Materjalid', glaze: 'Glasuur', texture: 'Tekstuur', note: 'Märkus',
+}
+
+export function composeKirjeldus(state: NewJobState, labels: KirjeldusLabels = ESTONIAN_KIRJELDUS_LABELS): string | null {
+  const L = labels
+  const finish = L.finish ?? ((v: string) => v)
   const lines: string[] = []
 
   const description = state.description.trim()
@@ -28,17 +48,17 @@ export function composeKirjeldus(state: NewJobState): string | null {
     .filter((x): x is { key: string; m: string } => !!x.m)
   const distinct = new Set(perType.map(x => x.m))
   if (distinct.size > 1) {
-    lines.push(`Materjalid: ${perType.map(x => `${baseTypeName(x.key)} — ${x.m}`).join(', ')}`)
+    lines.push(`${L.materials}: ${perType.map(x => `${baseTypeName(x.key)} — ${x.m}`).join(', ')}`)
   }
 
   const glaze = state.glaze?.trim()
-  if (glaze) lines.push(`Glasuur: ${glaze}`)
+  if (glaze) lines.push(`${L.glaze}: ${finish(glaze)}`)
 
   const texture = state.texture?.trim()
-  if (texture) lines.push(`Tekstuur: ${texture}`)
+  if (texture) lines.push(`${L.texture}: ${finish(texture)}`)
 
   const notes = state.notes.trim()
-  if (notes) lines.push(`Märkus: ${notes}`)
+  if (notes) lines.push(`${L.note}: ${notes}`)
 
   return lines.length > 0 ? lines.join('\n') : null
 }

@@ -20,4 +20,6 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'settings.tokenTahtaeg': "Срок оплаты",
   'settings.tokenKuupaev': "Дата счёта",
   'settings.tokenKliinik': "Название клиники",
+  'wizard.materialsLine': "Материалы",
+  'wizard.noteLine': "Примечание",
 }

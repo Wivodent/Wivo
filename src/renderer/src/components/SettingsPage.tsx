@@ -9,7 +9,7 @@ import type { OverheadPeriood } from '@shared/pricing/priceBook'
 import type { ThemeKey } from '../stores/useSettings'
 import { usePipeline } from '../context/PipelineContext'
 import { useAuth, type Clinic } from '../context/AuthContext'
-import { clinicCountry, hasEstonianTax, invoicesAvailable } from '../lib/country'
+import { clinicCountry, hasEstonianTax, invoicesAvailable, fieldExamples } from '../lib/country'
 import { usePermissions } from '../hooks/usePermissions'
 import { useClinicSyncState } from './ClinicSettingsSync'
 import { WORK_TYPE_PALETTE, sortedTiers, type WorkType, type PriceMode, type WorkTypeCost } from '../config/workTypes'
@@ -1134,6 +1134,8 @@ function ClinicSettingsSection({ clinic, onUpdate, isOwner }: {
   }
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
+  // Sample text in the clinic's own country: no Tallinn or +372 in Riga.
+  const ex = fieldExamples(clinicCountry(clinic))
 
   // A render helper, called as a function — NOT a component. Declared as
   // `<Field/>` inside this body it was a new component type on every render,
@@ -1166,14 +1168,14 @@ function ClinicSettingsSection({ clinic, onUpdate, isOwner }: {
       <div className="grid grid-cols-2 gap-3 max-w-lg">
         {field({ label: t('settingsPage.clinicName'), field: 'name', placeholder: t('settingsPage.name'), colSpan: true })}
         {field({ label: t('settingsPage.address'), field: 'address', placeholder: t('settingsPage.streetNumber'), colSpan: true })}
-        {field({ label: t('settingsPage.city'), field: 'city', placeholder: "Tallinn" })}
-        {field({ label: t('settingsPage.postcode'), field: 'postal_code', placeholder: "10111" })}
-        {field({ label: t('settingsPage.phone'), field: 'phone', placeholder: "+372 5123 4567" })}
+        {field({ label: t('settingsPage.city'), field: 'city', placeholder: ex.city })}
+        {field({ label: t('settingsPage.postcode'), field: 'postal_code', placeholder: ex.postcode })}
+        {field({ label: t('settingsPage.phone'), field: 'phone', placeholder: ex.phone })}
         {field({ label: t('settingsPage.email'), field: 'email', placeholder: t('settingsPage.infoClinicCom') })}
         {field({ label: t('settingsPage.registryCode'), field: 'reg_code', placeholder: "12345678" })}
-        {field({ label: t('settingsPage.vATNumber'), field: 'vat_number', placeholder: "EE123456789" })}
-        {field({ label: t('settingsPage.bank'), field: 'bank_name', placeholder: "LHV, SEB…" })}
-        {field({ label: 'IBAN', field: 'bank_account', placeholder: 'EE00 1234 5678 9012 3456' })}
+        {field({ label: t('settingsPage.vATNumber'), field: 'vat_number', placeholder: ex.vat })}
+        {field({ label: t('settingsPage.bank'), field: 'bank_name', placeholder: ex.bank })}
+        {field({ label: 'IBAN', field: 'bank_account', placeholder: ex.iban })}
       </div>
 
       {/* The public site's URL key. Its own block because it is the one field

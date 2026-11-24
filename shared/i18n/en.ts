@@ -4036,6 +4036,8 @@ export const en = {
   'settings.tokenTahtaeg': "Payment due date",
   'settings.tokenKuupaev': "Invoice date",
   'settings.tokenKliinik': "Clinic name",
+  'wizard.materialsLine': "Materials",
+  'wizard.noteLine': "Note",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

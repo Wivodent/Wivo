@@ -25,6 +25,23 @@ import {
 import { wizardWorkItems } from './workItems'
 import { workflowJobFields } from './workflowFields'
 import { fromLocalInput } from '@/lib/dates'
+import { t } from '@/lib/i18n'
+import type { KirjeldusLabels } from '@shared/wizard'
+
+/** The glaze and texture values are stored in Estonian; shown in the person's language. */
+const FINISH_KEYS = {
+  Läikiv: 'wizard.glossy', Poolmatt: 'wizard.semiMatte', Matt: 'wizard.matte',
+  Sile: 'wizard.smooth', Loomulik: 'wizard.natural', Tugev: 'wizard.pronounced',
+} as const
+
+/** The description's line labels in the language of the person making the job. */
+function kirjeldusLabels(): KirjeldusLabels {
+  return {
+    materials: t('wizard.materialsLine'), glaze: t('wizard.glaze'),
+    texture: t('wizard.texture'), note: t('wizard.noteLine'),
+    finish: v => (v in FINISH_KEYS ? t(FINISH_KEYS[v as keyof typeof FINISH_KEYS]) : v),
+  }
+}
 
 export interface ToJobInputContext {
   /** usePipeline().stages[0]?.key ?? 'disain' */
@@ -89,7 +106,7 @@ export function toJobInput(state: NewJobState, ctx: ToJobInputContext): JobInput
     // either, and asking for one on a nightguard is asking about nothing.
     kondivarv: rules.supportsShade ? orNull(state.dieShade) : null,
     hambad,
-    kirjeldus: composeKirjeldus(state),
+    kirjeldus: composeKirjeldus(state, kirjeldusLabels()),
     valmis_aeg: valmisAeg,
     // The job has not been made yet. Filled when it reaches the done stage.
     valmis_kuupaev: null,

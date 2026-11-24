@@ -4022,4 +4022,6 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'settings.tokenTahtaeg': "Maksetähtaeg",
   'settings.tokenKuupaev': "Arve kuupäev",
   'settings.tokenKliinik': "Kliiniku nimi",
+  'wizard.materialsLine': "Materjalid",
+  'wizard.noteLine': "Märkus",
 }

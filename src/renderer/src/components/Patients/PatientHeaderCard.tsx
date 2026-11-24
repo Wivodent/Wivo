@@ -5,6 +5,8 @@ import type { Patient, PatientInput } from '../../types/patient'
 import { CONSENT_LABEL } from '../../types/patient'
 import { patientInitials } from './derive'
 import { t } from '@/lib/i18n'
+import { useAuth } from '../../context/AuthContext'
+import { clinicCountry, fieldExamples } from '../../lib/country'
 
 interface PatientHeaderCardProps {
   patient: Patient
@@ -25,6 +27,7 @@ interface PatientHeaderCardProps {
 export function PatientHeaderCard({
   patient, editing, form, onField, onEdit, onSave, onCancel, onDelete, saving, deleteConfirm
 }: PatientHeaderCardProps) {
+  const phoneExample = fieldExamples(clinicCountry(useAuth().clinic)).phone
   // Imported rows can carry a junk sünniaeg, so parseISO alone is not enough —
   // an Invalid Date would render "NaN.NaN.NaN (NaN a)".
   const dob = patient.synniaeg ? parseISO(patient.synniaeg) : null
@@ -66,7 +69,7 @@ export function PatientHeaderCard({
                   <input
                     value={form.telefon ?? ''}
                     onChange={e => onField('telefon', e.target.value || null)}
-                    placeholder="+372…"
+                    placeholder={phoneExample}
                     className="input"
                   />
                 </Field>

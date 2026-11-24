@@ -13,6 +13,8 @@ import {
   useCustomers, useCreateCustomer, useUpdateCustomer, useArchiveCustomer, useDeleteCustomer,
 } from '../../hooks/useCustomers'
 import { useJobs } from '../../hooks/useJobs'
+import { useAuth } from '../../context/AuthContext'
+import { clinicCountry, fieldExamples } from '../../lib/country'
 import { useInvoices } from '../../hooks/useInvoices'
 import { usePermissions } from '../../hooks/usePermissions'
 import { describeError } from '../Patients/errors'
@@ -181,6 +183,7 @@ function CustomerForm({ customer, history, onClose }: {
   history: { jobs: number; invoices: number }
   onClose: () => void
 }) {
+  const examples = fieldExamples(clinicCountry(useAuth().clinic))
   const create = useCreateCustomer()
   const update = useUpdateCustomer()
   const archive = useArchiveCustomer()
@@ -237,7 +240,7 @@ function CustomerForm({ customer, history, onClose }: {
               autoFocus
               value={form.name}
               onChange={e => set('name', e.target.value)}
-              placeholder="Hambaravi OÜ"
+              placeholder={examples.company}
               className="input"
             />
           </div>

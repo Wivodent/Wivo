@@ -52,3 +52,14 @@ describe('composeKirjeldus', () => {
     expect(composeKirjeldus(state({ description: '  Sild 14-16  ' }))).toBe('Sild 14-16')
   })
 })
+
+describe('composeKirjeldus in the clinic language', () => {
+  it('uses the labels and finish words it is given (an English clinic reads no Estonian)', () => {
+    const en = {
+      materials: 'Materials', glaze: 'Glaze', texture: 'Texture', note: 'Note',
+      finish: (v: string) => ({ Matt: 'Matte', Sile: 'Smooth' } as Record<string, string>)[v] ?? v,
+    }
+    expect(composeKirjeldus(state({ glaze: 'Matt', texture: 'Sile', notes: 'Friday' }), en))
+      .toBe('Glaze: Matte\nTexture: Smooth\nNote: Friday')
+  })
+})
