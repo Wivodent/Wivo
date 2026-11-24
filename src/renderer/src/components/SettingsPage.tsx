@@ -803,12 +803,7 @@ function WorkTypePriceCard({ type, onPatch }: {
         {img ? (
           <img src={img} alt={type.nimi} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex flex-col items-center gap-1 text-center px-2">
-            <ImageIcon size={16} style={{ color: type.hex }} />
-            <span className="text-[9px] text-ink-faint leading-tight">
-              {slugifyWorkType(type.nimi)}.png
-            </span>
-          </div>
+          <ImageIcon size={16} style={{ color: type.hex }} />
         )}
         <span
           className="absolute top-1.5 left-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white/70"
@@ -1938,14 +1933,6 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
               <strong className="text-ink-muted">{t('settingsPage.perJob2')}</strong> {t('settingsPage.or')}{' '}
               <strong className="text-ink-muted">{t('settingsPage.perTooth2')}</strong>{' '}
               {t('settingsPage.bridgesAndDesignArePerTooth')}
-              <br />
-              {t('settingsPage.theListIsTheSameAs')}{' '}
-              <strong className="text-ink-muted">{t('settingsPage.optionsWorkTypes')}</strong>{' '}
-              {t('settingsPage.addAndRemoveTypesThereImages')}{' '}
-              <code className="px-1 rounded bg-bg-sidebar">src/renderer/src/assets/worktypes/</code>,{' '}
-              {t('settingsPage.fileNameTheTypeNameIn')}{' '}
-              <code className="px-1 rounded bg-bg-sidebar">kroon.png</code>).{' '}
-              {t('settingsPage.seeTheFolderSREADME')}
             </p>
 
             {settings.tooTuubid.length === 0 ? (
