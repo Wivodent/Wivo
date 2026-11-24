@@ -143,6 +143,31 @@ and can send an enquiry — "do you have X?" — to those who have not listed it
 This is VISION.md's supplier marketplace seen from the clinic side, and it
 needs 3.0's partnership system underneath it.
 
+## Wivo Network (vision for 3.0/4.0)
+
+Wivo for people, not only for clinics. The plan, the preparation and the
+questions for the lawyer are in **docs/WIVO-NETWORK.md**.
+
+- **A personal Wivo account that no clinic owns.** It goes with the person
+  from clinic to clinic.
+- **A professional profile:** skills, kinds of work, the clinics worked for.
+- **A signed work history with no patient in it.** The clinic's Wivo sends a
+  record when a job finishes: stage, kind of work, units, dates. It never
+  carries a job code, a patient, a tooth or free text.
+- **A market for quick jobs.** A clinic gives a Network member temporary
+  access to one job only.
+- **Where it runs:** a separate central project, not the admin console's,
+  with no patient data.
+- **The lawyer first.** Nothing is built before the lawyer has answered.
+  Staff data in a central project touches the locked rule on personal data
+  between clinics.
+- **Preparation now, as plan only:**
+  - an empty `profiles.wivo_person_id`, set only by the person through a
+    signed link;
+  - the shape of a work record, built from `job_stage`.
+
+  Neither is migrated yet.
+
 ---
 
 ## Own server (Riga)
