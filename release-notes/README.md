@@ -24,6 +24,8 @@ Both en.md and et.md are required (a test checks).
   they use a version that has notes. Desktop and phone share the "seen" mark.
 - A version without its own folder (a patch, say 2.0.1) shows nothing new: it
   keeps the notes of the newest version before it, already seen.
+- The window lists every version up to the running one, newest on top, each
+  under its own "Version x.y.z" heading; older versions are further down.
 - Anyone can reopen it: "What's new" in the sidebar footer (desktop) or in
   Settings (phone).
 - While developing (`npm run dev`, `npm run mobile:dev`), the menu also shows

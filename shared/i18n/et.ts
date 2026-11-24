@@ -3644,6 +3644,7 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'whatsNew.gotIt': "Selge",
   'whatsNew.kicker': "Mis on uut · Wivo {version}",
   'whatsNew.menu': "Mis on uut",
+  'whatsNew.versionHeading': "Versioon {version}",
 
   // ── privacy ───────────────────────────────────────────────────────────────
   'privacy.removePatientIdentity': "Partnerid loevad seda teksti. Eemalda patsiendi nimi või isikukood ja salvesta uuesti.",

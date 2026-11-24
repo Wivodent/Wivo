@@ -131,6 +131,20 @@ export function fillPhoneUrl(md: string, url: string = phoneUrl()): string {
   return md.replaceAll('{phoneUrl}', url).replaceAll('{phoneHost}', url.replace(/^https:\/\//, ''))
 }
 
+/**
+ * Every version's notes up to and including `upTo`, newest first: what the
+ * "What's new" window lists, one section per version. A version without
+ * notes of its own (a patch) has no section.
+ */
+export function allReleaseNotes(
+  upTo: string, language: Lang, url: string = phoneUrl(), available: readonly string[] = NOTE_VERSIONS,
+): ReleaseNotes[] {
+  return [...available]
+    .filter(v => compareVersions(v, upTo) <= 0)
+    .sort((a, b) => compareVersions(b, a))
+    .flatMap(v => releaseNotes(v, language, url) ?? [])
+}
+
 /** The notes for a version in this language, or in English when there is no translation. */
 export function releaseNotes(version: string, language: Lang, url: string = phoneUrl()): ReleaseNotes | null {
   const files = NOTES.get(version)

@@ -1,5 +1,7 @@
 /**
  * "What's new": the release notes (lib/releaseNotes.ts) in a large dialog.
+ * Every version up to the running one is listed, newest first, each under its
+ * own version heading, and the list scrolls: not only the latest.
  *
  * It opens by itself the first time someone, signed in, uses a version that
  * has notes: once per person per version, on whichever device comes first.
@@ -15,7 +17,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Sparkles, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { NOTE_VERSIONS, notesVersionFor, notesUnseen, releaseNotes, shortVersion } from '../lib/releaseNotes'
+import { NOTE_VERSIONS, allReleaseNotes, notesVersionFor, notesUnseen, shortVersion, type Block } from '../lib/releaseNotes'
 import { RichText } from './ui/RichText'
 import { t, lang } from '@/lib/i18n'
 
@@ -73,7 +75,8 @@ export function useWhatsNew(running: string): {
 
 /** Full screen on a phone, a large centred dialog on the desktop. */
 function WhatsNewDialog({ version, onClose }: { version: string; onClose: () => void }) {
-  const notes = releaseNotes(version, lang)
+  const all = allReleaseNotes(version, lang)
+  const notes = all[0]
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') onClose() }
@@ -82,6 +85,16 @@ function WhatsNewDialog({ version, onClose }: { version: string; onClose: () => 
   }, [onClose])
 
   if (!notes) return null
+  const blocksOf = (blocks: Block[], prefix: string): React.ReactNode[] => blocks.map((b, i) =>
+    b.kind === 'heading' ? (
+      <h4 key={`${prefix}${i}`} className="pt-2 text-base font-semibold text-ink"><RichText text={b.text} /></h4>
+    ) : b.kind === 'list' ? (
+      <ul key={`${prefix}${i}`} className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink-soft">
+        {b.items.map((item, j) => <li key={j}><RichText text={item} /></li>)}
+      </ul>
+    ) : (
+      <p key={`${prefix}${i}`} className="text-sm leading-relaxed text-ink-soft"><RichText text={b.text} /></p>
+    ))
 
   return (
     // no-drag: the sidebar's window-drag strip would otherwise take clicks
@@ -113,17 +126,19 @@ function WhatsNewDialog({ version, onClose }: { version: string; onClose: () => 
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-5 sm:px-7">
-          {notes.blocks.map((b, i) =>
-            b.kind === 'heading' ? (
-              <h3 key={i} className="pt-2 text-base font-semibold text-ink"><RichText text={b.text} /></h3>
-            ) : b.kind === 'list' ? (
-              <ul key={i} className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink-soft">
-                {b.items.map((item, j) => <li key={j}><RichText text={item} /></li>)}
-              </ul>
-            ) : (
-              <p key={i} className="text-sm leading-relaxed text-ink-soft"><RichText text={b.text} /></p>
-            ))}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7">
+          {all.map((n, k) => (
+            <section
+              key={n.version}
+              aria-labelledby={`whats-new-v-${n.version}`}
+              className={`space-y-3 ${k > 0 ? 'mt-6 border-t border-ink-faint/15 pt-6' : ''}`}
+            >
+              <h3 id={`whats-new-v-${n.version}`} className="text-lg font-bold text-ink">
+                {t('whatsNew.versionHeading', { version: n.version })}
+              </h3>
+              {blocksOf(n.blocks, `${n.version}-`)}
+            </section>
+          ))}
         </div>
 
         <footer

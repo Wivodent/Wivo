@@ -1,6 +1,6 @@
 # Mis edasi
 
-**Seis: v2.0.5 · 25.11.2026 · haru `testing` · commititud, pushimata**
+**Seis: v2.0.6 · 25.11.2026 · haru `testing` · commititud, pushimata**
 
 See fail kirjutatakse iga töö lõpus üle. Siin on alati see, mida ma viimases
 vestluses ütlesin — et uus arvuti või uus vestlus ei alustaks nullist.

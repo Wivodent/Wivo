@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  NOTES, NOTE_VERSIONS, compareVersions, fillPhoneUrl, notesVersionFor, notesUnseen, parseNotes, phoneUrl, releaseNotes, shortVersion,
+  NOTES, NOTE_VERSIONS, allReleaseNotes, compareVersions, fillPhoneUrl, notesVersionFor, notesUnseen, parseNotes, phoneUrl, releaseNotes, shortVersion,
   type Block,
 } from './releaseNotes'
 
@@ -33,6 +33,33 @@ describe('which notes to show', () => {
   it('shows 2.0.0 as 2.0', () => {
     expect(shortVersion('2.0.0')).toBe('2.0')
     expect(shortVersion('2.0.1')).toBe('2.0.1')
+  })
+})
+
+describe('all versions in the window, newest first', () => {
+  it('every version up to the one asked for, newest on top, none newer', () => {
+    const available = ['2.0.0', '2.0.5', '2.0.6']
+    expect(allReleaseNotes('2.0.6', 'en', undefined, available).map(n => n.version)).toEqual(['2.0.6', '2.0.5', '2.0.0'])
+    expect(allReleaseNotes('2.0.5', 'en', undefined, available).map(n => n.version)).toEqual(['2.0.5', '2.0.0'])
+    // A patch without notes: the newest before it leads, all older ones follow.
+    expect(allReleaseNotes('2.0.9', 'en', undefined, available).map(n => n.version)).toEqual(['2.0.6', '2.0.5', '2.0.0'])
+    expect(allReleaseNotes('1.0.0', 'en', undefined, available)).toEqual([])
+  })
+
+  it('the repository lists 2.0.6, 2.0.5 and 2.0.0 in that order, in both languages', () => {
+    for (const lang of ['en', 'et'] as const) {
+      const versions = allReleaseNotes('2.0.6', lang).map(n => n.version)
+      expect(versions.slice(0, 3), lang).toEqual(['2.0.6', '2.0.5', '2.0.0'])
+      expect(new Set(versions).size).toBe(versions.length)
+    }
+  })
+
+  it('2.0.6 says the window lists every version and that it is the first automatic update', () => {
+    for (const lang of ['en', 'et'] as const) {
+      const n = allReleaseNotes('2.0.6', lang)[0]
+      expect(n.version).toBe('2.0.6')
+      expect(JSON.stringify(n.blocks).length, lang).toBeGreaterThan(200)
+    }
   })
 })
 

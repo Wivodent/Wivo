@@ -3658,6 +3658,7 @@ export const en = {
   'whatsNew.gotIt': "Got it",
   'whatsNew.kicker': "What's new · Wivo {version}",
   'whatsNew.menu': "What's new",
+  'whatsNew.versionHeading': "Version {version}",
 
   // ── privacy ───────────────────────────────────────────────────────────────
   'privacy.removePatientIdentity': "Partners read this text. Remove the patient's name or personal code, then save again.",
