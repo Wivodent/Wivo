@@ -18,7 +18,8 @@ import { t } from '@/lib/i18n'
 
 interface Rule { id: string; from_stage: string; to_stage: string; actor: 'owner' | 'partner' }
 
-export function StageTransitionsSection() {
+/** `bare`: inside a card that already gives the heading (Settings > Job stages). */
+export function StageTransitionsSection({ bare = false }: { bare?: boolean } = {}) {
   const qc = useQueryClient()
   const { clinicId } = useAuth()
   const { stages, stageMap } = usePipeline()
@@ -54,9 +55,9 @@ export function StageTransitionsSection() {
 
   return (
     <section className="space-y-3 max-w-2xl">
-      <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+      {!bare && <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
         <Route size={14} className="text-accent" aria-hidden="true" /> {t('stageRules.partnerMoves')}
-      </h3>
+      </h3>}
       <p className="text-xs text-ink-muted">{rules.length === 0 ? t('stageRules.defaultRule') : t('stageRules.customRules')}</p>
       {rules.length > 0 && (
         <ul className="space-y-1">

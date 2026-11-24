@@ -77,4 +77,10 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'workers.neverPaidYet': "Выплат ещё не было",
   'workers.confirmMovesLines': "Подтверждает {n} строк, {sum} €, одной выплатой",
   'workers.moreSettings': "Другие настройки",
+  'settingsPage.stagesStepTitle': "Этапы",
+  'settingsPage.stagesStepSub': "Все этапы вашей лаборатории. Порядок меняется стрелками.",
+  'settingsPage.templatesStepSub': "Готовый план для одного вида работы: какие этапы и кто их выполняет.",
+  'settingsPage.defaultsStepSub': "Используется, когда в шаблоне у этапа нет исполнителя.",
+  'settingsPage.notificationsStepSub': "Когда работа доходит до этапа, кто получает сообщение на телефон.",
+  'settingsPage.partnerMovesSub': "Расширенное, для работ, общих с другой лабораторией",
 }

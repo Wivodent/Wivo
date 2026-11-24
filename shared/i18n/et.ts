@@ -4079,4 +4079,10 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'workers.neverPaidYet': "Midagi pole veel makstud",
   'workers.confirmMovesLines': "Kinnitab {n} rida, {sum} €, üheks väljamakseks",
   'workers.moreSettings': "Rohkem seadeid",
+  'settingsPage.stagesStepTitle': "Etapid",
+  'settingsPage.stagesStepSub': "Kõik etapid, mida teie labor kasutab. Järjekorda muudad nooltega.",
+  'settingsPage.templatesStepSub': "Valmis plaan ühe töö liigi jaoks: millised etapid ja kes neid teeb.",
+  'settingsPage.defaultsStepSub': "Kasutatakse, kui mall jätab etapile inimese määramata.",
+  'settingsPage.notificationsStepSub': "Kui töö jõuab etappi, kes saab telefoni teate.",
+  'settingsPage.partnerMovesSub': "Täpsem, teise laboriga jagatud tööde jaoks",
 }

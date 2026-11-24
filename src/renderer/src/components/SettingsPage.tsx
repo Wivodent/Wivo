@@ -34,6 +34,7 @@ import { SecuritySection } from './Settings/SecuritySection'
 import { DeletedJobsSection } from './Settings/DeletedJobsSection'
 import { DraftNumberInput, DraftTextInput } from './ui/DraftInput'
 import { InfoButton } from './ui/InfoButton'
+import { SectionCard } from './ui/SectionCard'
 import { wivoMailto } from '../config/contact'
 import { t, lang, setLang, intlLocale, LANGUAGES, type Lang } from '../lib/i18n'
 
@@ -357,7 +358,7 @@ function StageRow({
         <span className="flex-1 text-sm text-ink">{stage.label}</span>
       )}
 
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
         <button
           type="button"
           onClick={() => { setDraft(stage.label); setEditing(true) }}
@@ -1230,6 +1231,7 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
   const [priceSearch, setPriceSearch] = useState('')
   const [addingType, setAddingType] = useState(false)
   const [morePrices, setMorePrices] = useState(false)
+  const [partnerMovesOpen, setPartnerMovesOpen] = useState(false)
 
   // A group whose licence module (or mode) is off is not listed: a menu item
   // that leads to a page this clinic cannot use is dead UI.
@@ -2345,82 +2347,120 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
             </div>
           )}
 
-          {/* Pipeline stages */}
-          {activeGroup === 'etapid' && <StageTransitionsSection />}
-          {activeGroup === 'etapid' && <WorkflowTemplatesSection />}
-
+          {/* Job stages (docs/design stages.html): worked top to bottom, one
+              numbered card per question, each with one sentence of what is done
+              there. In a wrapper so the cards are not the grid's sections. */}
           {activeGroup === 'etapid' && (
-          <section>
-            <div className="flex items-center gap-2 mb-1">
-              <Layers size={14} className="text-accent" />
-              <h3 className="text-sm font-semibold text-ink">{t('settingsPage.workflow')}</h3>
-            </div>
-            <p className="text-xs text-ink-faint mb-3">
-              {t('settingsPage.addRemoveOrRenamePipelineStages')}
-            </p>
-
-            <div className="space-y-0.5">
-              {stages.map((stage, idx) => (
-                <StageRow
-                  key={stage.key}
-                  stage={stage}
-                  isFirst={idx === 0}
-                  isLast={idx === stages.length - 1}
-                  canRemove={stages.length > 2}
-                  onRename={renameStage}
-                  onRecolor={recolorStage}
-                  onRemove={removeStage}
-                  onMove={moveStage}
-                />
-              ))}
-            </div>
-
-            <AddStageRow onAdd={addStage} />
-
-            <button
-              type="button"
-              onClick={resetToDefaults}
-              className="mt-3 flex items-center gap-1.5 text-xs text-ink-faint hover:text-red-500 transition-colors"
+          <div className="col-span-full space-y-5 max-w-5xl">
+            <SectionCard
+              step={1}
+              title={t('settingsPage.stagesStepTitle')}
+              subtitle={t('settingsPage.stagesStepSub')}
+              info={t('settingsPage.addRemoveOrRenamePipelineStages')}
             >
-              <RotateCcw size={11} /> {t('settingsPage.resetToDefaults')}
-            </button>
-          </section>
-          )}
-
-          {activeGroup === 'etapid' && (
-          <section>
-            <div className="flex items-center gap-2 mb-1">
-              <Bell size={14} className="text-accent" />
-              <h3 className="text-sm font-semibold text-ink">{t('settingsPage.stageNotifications')}</h3>
-            </div>
-            <p className="text-xs text-ink-faint mb-3">{t('settingsPage.stageNotificationsHelp')}</p>
-            <table className="text-sm">
-              <thead className="text-left text-[11px] uppercase tracking-wider text-ink-muted">
-                <tr>
-                  <th className="py-1.5 pr-6">{t('settingsPage.stage')}</th>
-                  <th className="py-1.5 pr-6 text-center">{t('settingsPage.notifyTechnician')}</th>
-                  <th className="py-1.5 text-center">{t('settingsPage.notifyDesigner')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stages.map(stage => (
-                  <tr key={stage.key} className="border-t border-ink-faint/15">
-                    <td className="py-1.5 pr-6">
-                      <span className="inline-block w-2.5 h-2.5 rounded-full mr-2 align-middle" style={{ backgroundColor: stage.hex }} />
-                      {stage.label}
-                    </td>
-                    {(['notifyTechnician', 'notifyDesigner'] as const).map(who => (
-                      <td key={who} className="py-1.5 pr-6 text-center">
-                        <input type="checkbox" checked={stage[who] !== false}
-                          aria-label={`${stage.label}: ${who === 'notifyTechnician' ? t('settingsPage.notifyTechnician') : t('settingsPage.notifyDesigner')}`}
-                          onChange={e => setStageNotify(stage.key, who, e.target.checked)} />
-                      </td>
-                    ))}
-                  </tr>
+              <div className="space-y-0.5">
+                {stages.map((stage, idx) => (
+                  <StageRow
+                    key={stage.key}
+                    stage={stage}
+                    isFirst={idx === 0}
+                    isLast={idx === stages.length - 1}
+                    canRemove={stages.length > 2}
+                    onRename={renameStage}
+                    onRecolor={recolorStage}
+                    onRemove={removeStage}
+                    onMove={moveStage}
+                  />
                 ))}
-              </tbody>
-            </table>
-          </section>
+              </div>
+              <AddStageRow onAdd={addStage} />
+              <button
+                type="button"
+                onClick={resetToDefaults}
+                className="self-start flex items-center gap-1.5 text-sm text-ink-faint hover:text-red-500 transition-colors"
+              >
+                <RotateCcw size={13} /> {t('settingsPage.resetToDefaults')}
+              </button>
+            </SectionCard>
+
+            <SectionCard
+              step={2}
+              title={t('workflow.templatesTitle')}
+              subtitle={t('settingsPage.templatesStepSub')}
+              info={t('workflow.templatesHelp')}
+            >
+              <WorkflowTemplatesSection part="templates" />
+            </SectionCard>
+
+            <SectionCard
+              step={3}
+              title={t('workflow.defaultsTitle')}
+              subtitle={t('settingsPage.defaultsStepSub')}
+              info={t('workflow.defaultsHelp')}
+            >
+              <WorkflowTemplatesSection part="defaults" />
+            </SectionCard>
+
+            <SectionCard
+              step={4}
+              title={t('settingsPage.stageNotifications')}
+              subtitle={t('settingsPage.notificationsStepSub')}
+              info={t('settingsPage.stageNotificationsHelp')}
+            >
+              <table className="text-base">
+                <thead className="text-left text-sm text-ink-muted">
+                  <tr>
+                    <th className="py-2 pr-8 font-semibold">{t('settingsPage.stage')}</th>
+                    <th className="py-2 pr-8 text-center font-semibold">{t('settingsPage.notifyTechnician')}</th>
+                    <th className="py-2 text-center font-semibold">{t('settingsPage.notifyDesigner')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stages.map(stage => (
+                    <tr key={stage.key} className="border-t border-ink-faint/15">
+                      <td className="py-2 pr-8">
+                        <span className="inline-block w-3 h-3 rounded-full mr-2 align-middle" style={{ backgroundColor: stage.hex }} />
+                        {stage.label}
+                      </td>
+                      {(['notifyTechnician', 'notifyDesigner'] as const).map(who => (
+                        <td key={who} className="py-2 pr-8 text-center">
+                          <input type="checkbox" className="w-5 h-5 accent-accent" checked={stage[who] !== false}
+                            aria-label={`${stage.label}: ${who === 'notifyTechnician' ? t('settingsPage.notifyTechnician') : t('settingsPage.notifyDesigner')}`}
+                            onChange={e => setStageNotify(stage.key, who, e.target.checked)} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </SectionCard>
+
+            {/* Advanced and rarely changed: only with partnerships, folded. */}
+            {moduleOn('partners') && (
+              <section className="card px-5 py-1">
+                <button
+                  type="button"
+                  aria-expanded={partnerMovesOpen}
+                  onClick={() => setPartnerMovesOpen(o => !o)}
+                  className="w-full min-h-[60px] flex items-center justify-between gap-3 text-left"
+                >
+                  <span className="flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-full bg-bg-sidebar text-ink-soft flex items-center justify-center font-bold">5</span>
+                    <span>
+                      <span className="block text-base font-bold text-ink">{t('stageRules.partnerMoves')}</span>
+                      <span className="block text-sm text-ink-muted">{t('settingsPage.partnerMovesSub')}</span>
+                    </span>
+                  </span>
+                  {partnerMovesOpen ? <ChevronUp size={18} className="text-ink-muted" /> : <ChevronDown size={18} className="text-ink-muted" />}
+                </button>
+                {partnerMovesOpen && (
+                  <div className="border-t border-ink-faint/15 pt-4 pb-5">
+                    <StageTransitionsSection bare />
+                  </div>
+                )}
+              </section>
+            )}
+          </div>
           )}
 
           </div>

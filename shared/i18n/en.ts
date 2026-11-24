@@ -4093,6 +4093,12 @@ export const en = {
   'workers.neverPaidYet': "Nothing paid yet",
   'workers.confirmMovesLines': "Confirms {n} lines, {sum} €, as one payout",
   'workers.moreSettings': "More settings",
+  'settingsPage.stagesStepTitle': "Stages",
+  'settingsPage.stagesStepSub': "All the steps your lab uses. Use the arrows to change the order.",
+  'settingsPage.templatesStepSub': "A ready plan for one kind of job: which stages and who does them.",
+  'settingsPage.defaultsStepSub': "Used when a template leaves a stage without a person.",
+  'settingsPage.notificationsStepSub': "When a job reaches a stage, who gets a message on their phone.",
+  'settingsPage.partnerMovesSub': "Advanced, for jobs shared with another lab",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

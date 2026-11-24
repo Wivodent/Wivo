@@ -26,7 +26,12 @@ const blankStage = (stageKey: string): TemplateStage => ({
   stageKey, position: 0, task: null, optional: false, defaultOn: false, onlyIf: [], orderer: false, payRole: null, people: [],
 })
 
-export function WorkflowTemplatesSection() {
+/**
+ * `part`: Settings > Job stages shows the templates and the usual person for
+ * each stage as two numbered cards (docs/design stages.html); each card gives
+ * the heading, so the part comes without its own. 'all' is the old section.
+ */
+export function WorkflowTemplatesSection({ part = 'all' }: { part?: 'all' | 'templates' | 'defaults' } = {}) {
   const qc = useQueryClient()
   const { clinicId } = useAuth()
   const { can } = usePermissions()
@@ -91,24 +96,27 @@ export function WorkflowTemplatesSection() {
 
   const live = validateTemplate(normaliseStages(rows)).map(p => problemText(p, label))
 
+  const showTemplates = part !== 'defaults'
+  const showDefaults = part !== 'templates'
   return (
     <section className="space-y-4 max-w-3xl">
-      <div>
+      {part === 'all' && <div>
         <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
           <GitBranch size={14} className="text-accent" aria-hidden="true" /> {t('workflow.templatesTitle')}
         </h3>
         <p className="text-xs text-ink-muted">{t('workflow.templatesHelp')}</p>
-      </div>
+      </div>}
 
+      {showTemplates && <>
       <div className="flex flex-wrap items-center gap-2">
         {templates.map(x => (
           <button key={x.id} type="button" onClick={() => setSelected(x.id)}
-            className={`rounded-lg border px-3 py-1 text-xs ${selected === x.id ? 'border-accent bg-accent/10 text-ink' : 'border-ink-faint/30 text-ink-muted'}`}>
+            className={`min-h-[44px] rounded-full border px-4 text-sm ${selected === x.id ? 'border-2 border-accent bg-accent/10 text-ink font-bold' : 'border-ink-faint/30 text-ink-soft'}`}>
             {x.name}{x.isDefault ? ` · ${t('workflow.default')}` : ''}
           </button>
         ))}
         {canEdit && (
-          <button type="button" onClick={() => setSelected('new')} className="btn-ghost text-xs border border-ink-faint/30 flex items-center gap-1">
+          <button type="button" onClick={() => setSelected('new')} className="min-h-[44px] px-4 rounded-xl border border-accent text-accent text-sm font-bold flex items-center gap-1">
             <Plus size={12} aria-hidden="true" /> {t('workflow.newTemplate')}
           </button>
         )}
@@ -208,12 +216,15 @@ export function WorkflowTemplatesSection() {
         </div>
       )}
 
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold text-ink">{t('workflow.defaultsTitle')}</h4>
-        <p className="text-xs text-ink-muted">{t('workflow.defaultsHelp')}</p>
+      </>}
+
+      {showDefaults && <div className="space-y-2">
+        {part === 'all' && <h4 className="text-xs font-semibold text-ink">{t('workflow.defaultsTitle')}</h4>}
+        {part === 'all' && <p className="text-xs text-ink-muted">{t('workflow.defaultsHelp')}</p>}
+        {part === 'defaults' && error && <p role="alert" className="text-sm text-rose-500">{error}</p>}
         {clinicStages.map(s => (
-          <div key={s.key} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink">
-            <span className="w-32 font-medium">{s.label}</span>
+          <div key={s.key} className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-ink border border-ink-faint/20 rounded-xl px-3 py-2.5">
+            <span className="w-40 font-semibold">{s.label}</span>
             {profiles.map(p => {
               const on = (defaults[s.key] ?? []).includes(p.id)
               return (
@@ -229,7 +240,7 @@ export function WorkflowTemplatesSection() {
             })}
           </div>
         ))}
-      </div>
+      </div>}
     </section>
   )
 }
