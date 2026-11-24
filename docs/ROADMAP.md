@@ -122,6 +122,54 @@ the cloud with a way back. **Plan only, and after the demo.**
 
 ---
 
+## Wivo admin console (after Riga is stable)
+
+**When:** after Riga is stable. Clinics see no change from it, so it waits until
+nothing in Riga needs Kevin's attention every week. **Roadmap entry only: no
+code yet.**
+
+**What it is:** Kevin's own view of every clinic Wivo runs in, in one place.
+It is a separate Supabase project on Kevin's own account, holding no patient
+data. It is not a clinic's project and not production.
+
+**What it shows:**
+- **Clinics:** each clinic, with its licences: which licences were issued,
+  their modules and when they expire.
+- **Billing:** invoices to clinics and whether they have been paid.
+- **Versions:** each clinic's Wivo version, and whether its last update
+  succeeded (desktop and database).
+- **Error reports.**
+
+**Sign-in:** a YubiKey only. There is no password-only way in.
+
+**What clinics send it, and what never:**
+- A clinic sends **only technical summaries:** its version, and the result of
+  an update (succeeded or failed, with the error code).
+- **Never patient data or job data.** That means no names, personal codes,
+  contacts, visit notes, prices, file names or free text. This follows from
+  the lawyer's locked rule that no personal data crosses between clinics, and
+  the console is one more place outside the clinic.
+- **Error reports are the risky part.** An error message can carry data from
+  the screen it came from. Only the version, the place in the code and the
+  error code are sent, never the message text or the values involved.
+- The clinic sends; the console never reaches into a clinic's project. What a
+  clinic sends is listed in the clinic's own settings, so its owner can see it.
+
+**What stays as it is:**
+- Licences are still signed with the YubiKey (`scripts/make-license.mjs`).
+  The console records which licences were issued; it does not sign them.
+- Releases stay signed and published by the release tool (docs/RELEASE.md).
+  The console only shows what each clinic reports.
+
+**Before it is built, settle:**
+- how a clinic proves that a report is its own (a per-clinic key, never the
+  service-role key);
+- the exact fields of a report, with a test that refuses anything else;
+- whether a clinic can switch reporting off, and what Kevin then sees;
+- the console project's own backups and its region (EU).
+
+---
+
 ## What is NOT in any step
 
 - **Anything that recommends or ranks treatment from patient data.** Wivo is
