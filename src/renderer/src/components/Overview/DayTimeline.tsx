@@ -22,7 +22,8 @@ interface DayTimelineProps {
   onDayChange: (d: Date) => void
   now: Date
   onJobClick: (job: Job, revisionId?: string) => void
-  onOpenCalendar: () => void
+  /** Absent when the calendar is not this clinic's (module, mode or permission). */
+  onOpenCalendar?: () => void
 }
 
 // A slot is one point on the rail. Two kinds share it:
@@ -157,9 +158,11 @@ export function DayTimeline({
                 ].filter(Boolean).join(' · ')}
           </p>
         </div>
-        <button onClick={onOpenCalendar} className="btn-ghost text-xs border border-ink-faint/25">
-          {t('overview.openCalendar')}
-        </button>
+        {onOpenCalendar && (
+          <button onClick={onOpenCalendar} className="btn-ghost text-xs border border-ink-faint/25">
+            {t('overview.openCalendar')}
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
@@ -240,7 +243,7 @@ export function DayTimeline({
                     onMouseEnter={() => setOpenKey(s.key)}
                     onMouseLeave={() => setOpenKey(k => (k === s.key ? null : k))}
                     onClick={() => s.kind === 'visit'
-                      ? onOpenCalendar()
+                      ? onOpenCalendar?.()
                       : s.rows[0] && onJobClick(s.rows[0].job, s.rows[0].rev?.id)}
                     className={`absolute -translate-x-1/2 w-[150px] text-left rounded-xl border border-l-4 pl-2 pr-2.5 py-1.5 transition-all hover:shadow-card ${
                       s.overdue

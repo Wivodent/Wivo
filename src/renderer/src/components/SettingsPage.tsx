@@ -1293,14 +1293,27 @@ export function SettingsPage({ initialGroup = 'profiil', onOpenPatient }: { init
   // Estonian tax only in an Estonian clinic (lib/country): elsewhere the employee's
   // side is the accountant's, and the employer's share is called contributions.
   const estonianTax = hasEstonianTax(clinicCountry(auth.clinic))
-  const { can } = usePermissions()
+  const { can, moduleOn } = usePermissions()
 
   const [group, setGroup] = useState<GroupKey>(initialGroup)
+
+  // A group whose licence module (or mode) is off is not listed: a menu item
+  // that leads to a page this clinic cannot use is dead UI.
+  const groupInLicence = (k: GroupKey): boolean => {
+    switch (k) {
+      case 'avalik': return settings.kliinilineRezhiim && moduleOn('patients')
+      case 'epost': return moduleOn('invoices')
+      case 'partnerlused': return moduleOn('partners')
+      case 'etapid': case 'valikud': case 'masinad': return moduleOn('jobs')
+      default: return true
+    }
+  }
 
   // Töö etapid is the one clinic group that is not merely readable — every
   // control on it writes — so it takes pipeline.write rather than settings.read.
   const groupAllowed = (k: GroupKey): boolean =>
-    PERSONAL_GROUPS.includes(k) ? true
+    !groupInLicence(k) ? false
+      : PERSONAL_GROUPS.includes(k) ? true
       : k === 'etapid' ? can('pipeline.write')
         : can('settings.read')
 

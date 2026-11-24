@@ -378,7 +378,11 @@ function AppContent() {
             if (own) openEdit(own)
             else setView('partner')
           }}
-          onNewVisit={() => { setView('calendar'); setNewVisitSignal(n => n + 1) }}
+          // Only where a visit can be made at all: the clinical side on, the
+          // calendar's module in the licence, and the right to book.
+          onNewVisit={settings.kliinilineRezhiim && sees('calendar') && can('visits.write')
+            ? () => { setView('calendar'); setNewVisitSignal(n => n + 1) }
+            : undefined}
           onImportDone={() => queryClient.invalidateQueries({ queryKey: ['jobs'] })}
           centerSlot={view === 'calendar' ? (
             <CalendarTopControls

@@ -64,7 +64,11 @@ export function OverviewView({ jobs, searchActive = false, loading, onJobClick, 
   // — "kogu aeg" is the literal truth — but the search box silently reduces the
   // set, and a card that keeps claiming "kogu aeg" while it does is lying.
   const scopeLabel = searchActive ? t('overview.searchResults') : t('overview.allTime')
-  const money = usePermissions().can('payments.read')
+  const perms = usePermissions()
+  const money = perms.can('payments.read')
+  // A link to a page this clinic or person cannot open is not shown at all.
+  const linkTo = (place: 'calendar' | 'board' | 'table') =>
+    perms.sees(place) && (place === 'calendar' || settings.laboriRezhiim) ? () => onNavigate(place) : undefined
   const { stages, stageMap, doneStageKey } = usePipeline()
   const { data: patients = [] } = usePatients()
   const { settings } = useSettings()
@@ -268,12 +272,12 @@ export function OverviewView({ jobs, searchActive = false, loading, onJobClick, 
         onDayChange={setDay}
         now={now}
         onJobClick={onJobClick}
-        onOpenCalendar={() => onNavigate('calendar')}
+        onOpenCalendar={linkTo('calendar')}
       />
 
       {/* ─── Three cards ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
-        <Panel title={t('overview.jOBSTATUS')} onMore={() => onNavigate('board')} moreLabel={t('overview.seeAllJobs')}>
+        <Panel title={t('overview.jOBSTATUS')} onMore={linkTo('board')} moreLabel={t('overview.seeAllJobs')}>
           {loading ? (
             <p className="text-sm text-ink-muted">{t('overview.loading')}</p>
           ) : (
@@ -313,7 +317,7 @@ export function OverviewView({ jobs, searchActive = false, loading, onJobClick, 
           )}
         </Panel>
 
-        <Panel title={t('overview.dUETODAY')} onMore={() => onNavigate('table')} moreLabel={t('overview.seeAllJobs')}>
+        <Panel title={t('overview.dUETODAY')} onMore={linkTo('table')} moreLabel={t('overview.seeAllJobs')}>
           {stats.dueToday.length === 0 && stats.overdue.length === 0 ? (
             <p className="text-sm text-ink-muted">{t('overview.noJobsDueToday')}</p>
           ) : (
@@ -353,7 +357,7 @@ export function OverviewView({ jobs, searchActive = false, loading, onJobClick, 
           )}
         </Panel>
 
-        <Panel title={t('overview.rECENTACTIVITY')} onMore={() => onNavigate('table')} moreLabel={t('overview.seeAllJobs')}>
+        <Panel title={t('overview.rECENTACTIVITY')} onMore={linkTo('table')} moreLabel={t('overview.seeAllJobs')}>
           {activity.length === 0 ? (
             <p className="text-sm text-ink-muted">{t('overview.noActivity')}</p>
           ) : (

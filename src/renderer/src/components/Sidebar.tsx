@@ -33,7 +33,8 @@ const NAV: {
   { key: 'overview', label: t('sidebar.overview'),   icon: LayoutDashboard },
   { key: 'board',    label: t('sidebar.jobs'),       icon: Kanban,          lab: true },
   { key: 'calendar', label: t('sidebar.calendar'),   icon: CalendarDays },
-  { key: 'taotlused', label: t('sidebar.requests'), icon: Inbox },
+  // Booking requests are patients asking for a visit: the clinical side only.
+  { key: 'taotlused', label: t('sidebar.requests'), icon: Inbox, clinical: true },
   { key: 'table',    label: t('sidebar.table'),      icon: Table2,          lab: true },
   { key: 'patients', label: t('sidebar.patients'), icon: Users,           clinical: true },
   { key: 'kliendid', label: t('sidebar.clients'),   icon: Building2,       lab: true },
