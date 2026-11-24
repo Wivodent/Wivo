@@ -55,7 +55,7 @@ Run them in Terminal, in the project folder on `testing`.
 
 **1. Go to the project, and check that the test is there.**
 ```sh
-cd ~/dev/Workly && git log --oneline -1
+cd ~/dev/Wivo && git log --oneline -1
 ```
 It should show the commit "YubiKey arrival test: ...".
 
@@ -136,7 +136,7 @@ node scripts/yubikey/arrival-test.mjs D
 
 **9. Optional: Yubico's own check, which doesn't use our code.** For each key, change the folder name to that key's:
 ```sh
-cd ~/wivo-yubikey-arrival/A-38272275 && openssl x509 -in f9.pem -noout -issuer && openssl verify -CAfile ~/dev/Workly/scripts/yubikey/yubico/yubico-ca-1.pem -untrusted ~/dev/Workly/scripts/yubikey/yubico/yubico-intermediate.pem -untrusted f9.pem attestation-9c.pem; cd ~/dev/Workly
+cd ~/wivo-yubikey-arrival/A-38272275 && openssl x509 -in f9.pem -noout -issuer && openssl verify -CAfile ~/dev/Wivo/scripts/yubikey/yubico/yubico-ca-1.pem -untrusted ~/dev/Wivo/scripts/yubikey/yubico/yubico-intermediate.pem -untrusted f9.pem attestation-9c.pem; cd ~/dev/Wivo
 ```
 It should show:
 - `issuer=CN=Yubico PIV Attestation B 1`, or `A 1` or `B2 1`;
@@ -282,7 +282,7 @@ Three wrong PINs and then three wrong PUKs make a key useless. For a root, the o
 
 **1. Go to the project.**
 ```sh
-cd ~/dev/Workly && git log --oneline -1
+cd ~/dev/Wivo && git log --oneline -1
 ```
 It should show the commit "YubiKey setup script: ...".
 

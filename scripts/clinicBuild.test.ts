@@ -17,7 +17,7 @@ import { feedUrlFor } from '../src/main/releaseCheck'
 const REF = 'abcdefghijklmnopqrst'
 const PHONE = 'https://wivo.dentiks.lv'
 const SETTINGS = {
-  id: 'dentiks', name: 'Dentiks', releasesRepo: 'SniperInSuit/wivo-dentiks-releases', phoneUrl: PHONE,
+  id: 'dentiks', name: 'Dentiks', releasesRepo: 'Wivodent/wivo-dentiks-releases', phoneUrl: PHONE,
   supabaseRef: REF, cloudflareProject: 'wivo-dentiks', phoneBranch: 'riga',
 }
 const clinicWith = (over: Record<string, unknown> = {}) => parseClinic(JSON.stringify({ ...SETTINGS, ...over }), 'dentiks')
@@ -38,7 +38,7 @@ describe('clinics/<id>.json', () => {
   it("Dentiks: its own releases repository, phone app, project and phone branch (named by the clinic, not the city)", () => {
     const { clinic } = loadClinic('.', 'dentiks')
     expect(clinic).toMatchObject({
-      id: 'dentiks', releasesRepo: 'SniperInSuit/wivo-dentiks-releases', phoneUrl: 'https://wivo.dentiks.lv',
+      id: 'dentiks', releasesRepo: 'Wivodent/wivo-dentiks-releases', phoneUrl: 'https://wivo.dentiks.lv',
       cloudflareProject: 'wivo-dentiks', phoneBranch: 'riga', supabaseRef: 'fwsrnsdrlrlmjfkkkhvp',
     })
     expect(clinic.supabaseUrl).toBe('https://fwsrnsdrlrlmjfkkkhvp.supabase.co')
@@ -58,7 +58,9 @@ describe('clinics/<id>.json', () => {
 
   it("refuses main's repository, main or testing as the phone branch, and main as the id", () => {
     expect(clinicWith({ releasesRepo: MAIN_RELEASE_REPO }).problems.join()).toContain("main's repository")
-    expect(clinicWith({ releasesRepo: 'sniperinsuit/wivo' }).problems.join()).toContain("main's repository")
+    expect(clinicWith({ releasesRepo: 'wivodent/wivo' }).problems.join()).toContain("main's repository")
+    // main's old address, before the move to Wivodent: GitHub redirects it to main's
+    expect(clinicWith({ releasesRepo: 'SniperInSuit/Wivo' }).problems.join()).toContain("main's repository")
     expect(clinicWith({ releasesRepo: 'https://github.com/x/y' }).problems.length).toBe(1)
     expect(clinicWith({ phoneBranch: 'main' }).problems.join()).toContain('may not be main')
     expect(clinicWith({ phoneBranch: 'testing' }).problems.join()).toContain('may not be testing')
@@ -163,7 +165,7 @@ describe('the built app', () => {
 })
 
 describe('where the clinic\'s updates come from', () => {
-  const FEED = 'https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable'
+  const FEED = 'https://github.com/Wivodent/wivo-dentiks-releases/releases/download/stable'
   it('its own repository\'s `stable` release: the same address for the tool, the installer and the app', () => {
     expect(clinicFeed(CLINIC)).toBe(FEED)
     expect(releaseSource(CLINIC)).toBe(clinicReleaseSource(CLINIC.releasesRepo))
@@ -207,7 +209,7 @@ describe('the packaging configuration', () => {
   it("the packaged app-update.yml is checked: the clinic's generic feed, never main's GitHub releases", () => {
     const feed = clinicFeed(CLINIC)
     expect(appUpdateYmlProblem(`provider: generic\nurl: ${feed}\nupdaterCacheDirName: wivo-updater\n`, feed)).toBeNull()
-    expect(appUpdateYmlProblem('owner: SniperInSuit\nrepo: Wivo\nprovider: github\n', feed)).toMatch(/must never reach/)
+    expect(appUpdateYmlProblem('owner: Wivodent\nrepo: Wivo\nprovider: github\n', feed)).toMatch(/must never reach/)
     expect(appUpdateYmlProblem('provider: generic\nurl: https://example.com/stable\n', feed)).toMatch(/not https/)
     expect(appUpdateYmlProblem('', feed)).toMatch(/missing/)
   })

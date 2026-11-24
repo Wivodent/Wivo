@@ -25,7 +25,7 @@ import { compareVersions } from '../shared/release/release'
 
 const SCRIPT = 'scripts/release.mjs'
 const CLINIC = 'dentiks'
-const REPO = 'SniperInSuit/wivo-dentiks-releases' // clinics/dentiks.json
+const REPO = 'Wivodent/wivo-dentiks-releases' // clinics/dentiks.json
 const SOURCE = clinicReleaseSource(REPO) as string
 const dir = mkdtempSync(join(tmpdir(), 'wivo-release-'))
 const RELEASES = join(dir, 'releases')
@@ -207,7 +207,7 @@ describe('publishing it (npm run release:publish -- --clinic dentiks)', () => {
     expect(uploads).toEqual([[FILE], ['updates.json'], ['latest.yml']])
     for (const c of calls.filter(c => c[0] === 'release')) {
       expect(c[c.indexOf('--repo') + 1]).toBe(REPO)
-      expect(c).not.toContain('SniperInSuit/Wivo')
+      expect(c).not.toContain('Wivodent/Wivo')
     }
     expect(calls.find(c => c[1] === 'create')).toEqual(expect.arrayContaining(['--title', 'Wivo for Dentiks']))
   })

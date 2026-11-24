@@ -1,6 +1,6 @@
 # Mis edasi
 
-**Seis: v2.0.7 · 24.11.2026 · haru `testing` · commititud, pushimata**
+**Seis: v2.0.8 · 24.11.2026 · haru `testing` · commititud, pushimata**
 
 See fail kirjutatakse iga töö lõpus üle. Siin on alati see, mida ma viimases
 vestluses ütlesin — et uus arvuti või uus vestlus ei alustaks nullist.
@@ -10,6 +10,43 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 
 > **2.0 release work:** `docs/night-run/RUN-3.md` — production state,
 > open items (desktop release, dashboard settings, phone app, cleanup).
+
+---
+
+## 🏢 2.0.8: repod organisatsioonis Wivodent, õige nimi (pushimata)
+
+- **Mis muutus:**
+  - kõik `SniperInSuit/…` repoaadressid on nüüd `Wivodent/…`: Dentiksi
+    uuendused, main'i release'id (`package.json` publish), dokumendid ja
+    `wivo-admin`;
+  - main'i vana aadressi `SniperInSuit/Wivo` keelab kood endiselt kliiniku
+    repona;
+  - Windowsi kirjeldus ja akna pealkiri on „Wivo — dental clinic and lab
+    management“;
+  - dokumentides on kaust `…\GitHub\Wivo` ja `~/dev/Wivo`.
+- **Dentiksi praegused arvutid** loevad veel vana aadressi. GitHub suunab selle
+  uude kohta edasi, nii et 2.0.8 jõuab kohale.
+  - **Ära loo kunagi `SniperInSuit` alla repot vana nimega**
+    (`wivo-dentiks-releases`, `Wivo`): siis edasisuunamine lõpeb.
+- **Sinu sammud:**
+  1. Push. Siis mõlemas repos uus aadress (GitHub suunab ka vana edasi):
+     `git remote set-url origin https://github.com/Wivodent/Wivo.git` ja
+     wivo-admin-is `…/Wivodent/wivo-admin.git`.
+  2. Cloudflare Pages: kontrolli, et `wivo`, `wivo-test` ja `wivo-dentiks`
+     ehitavad pärast repo kolimist edasi. Cloudflare'i GitHubi rakendus peab
+     nägema organisatsiooni `Wivodent` reposid.
+  3. Kausta ümbernimetamine Workly → Wivo: sulge enne VS Code.
+     - Claude'i mälu on kaustanime küljes. Kopeeri
+       `%USERPROFILE%\.claude\projects\c--Users-fullg-Documents-GitHub-Workly`
+       nimega `…-Wivo`, siis jääb mälu alles.
+  4. 2.0.8 release Dentiksile nagu tavaliselt (`npm run release -- --clinic
+     dentiks`). Enne seda lisa `orgId` `clinics/dentiks.json`-i (vt 2.0.7
+     allpool).
+- **Teadlikult muutmata:**
+  - `supabase/config.toml` `project_id = "Workly"`: kohaliku Supabase'i
+    konteinerite nimi. Muutmine alustaks kohaliku baasi tühjalt.
+  - CHANGELOG-i ajalookirje „Workly → Wivo“.
+  - GitHubi kasutajanimi `SniperInSuit` sisselogimise juures.
 
 ---
 
@@ -40,7 +77,7 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 ## 🛠️ Admin-konsool (MVP valmis, eraldi repo, pushimata)
 
 - **Repo:** `C:\Users\fullg\Documents\GitHub\wivo-admin` (git, haru `main`,
-  üks commit). GitHubi repo `SniperInSuit/wivo-admin` (Private) teed sina.
+  üks commit). GitHubi repo `Wivodent/wivo-admin` (Private) teed sina.
 - **Sinu sammud, üks korraga:** `wivo-admin\docs\SETUP.md`:
   1. repo ja push;
   2. Supabase'i projekt (registreerumine kinni, TOTP, sinu kasutaja,
@@ -80,7 +117,7 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
 
 **Nimed käivad kliiniku järgi, mitte riigi järgi.** Riia kliinik on **Dentiks**.
 Kõik kliinikupõhine on failis `clinics/dentiks.json`: releaside repo
-`SniperInSuit/wivo-dentiks-releases`, telefon `https://wivo.dentiks.lv` (kohandatud domeen),
+`Wivodent/wivo-dentiks-releases`, telefon `https://wivo.dentiks.lv` (kohandatud domeen),
 Supabase `fwsrnsdrlrlmjfkkkhvp`, Cloudflare `wivo-dentiks` ja telefoni haru
 `riga`, mis jääb seniks alles. Järgmise kliiniku jaoks piisab uuest failist
 (`clinics/README.md`).
@@ -121,7 +158,7 @@ Riia arvutid ise, YubiKey C allkirjaga.** Sinu sammud, üks käsk korraga:
 
 | Ülesanne | Commit | Mis |
 |---|---|---|
-| A | `466721f` | `npm run release:riga` (ehitus nagu `dist:riga` + versioon peab tõusma), `release:riga:sign` (YubiKey C ykmaniga Windowsis: PIN + 2 puudutust; nimekiri update-võtmega 9c, release'i lause app-võtmega 82; iga allkiri kontrollitakse võtme avaliku võtmega ja tulemus rakenduse enda `checkAppUpdate`-iga enne kirjutamist), `release:riga:publish` (gh → `SniperInSuit/wivo-riga-releases`, release `stable`, loeb avalikust aadressist tagasi). Riia build (`MAIN_VITE_WIVO_BUILD=riga`) loeb ainult seda aadressi ja paigaldab ainult `riga` jaoks allkirjastatud release'i: **main'i release ei jõua Riiga kunagi** (kolm lukku, RELEASE.md §4). Vanem/sama versioon, allkirjata, vale võti, vale build → keeldub. Seadetes: paigas olev versioon, ootel versioon, allikas, viimane kontroll. Release'i lause ütleb vajaliku migratsiooni (`schema`); tööriist küsib enne allkirja. Testid: `scripts/releaseRiga.test.ts` (16, sh „võti allkirjastas täpselt need baidid, mida rakendus kontrollib"), `release.test.ts`, `releaseCheck.test.ts`, `rigaBuild.test.ts`. **Proovitud päriselt:** NSIS-installer kirjutab `app-update.yml`-i `provider: generic`, Riia aadress. |
+| A | `466721f` | `npm run release:riga` (ehitus nagu `dist:riga` + versioon peab tõusma), `release:riga:sign` (YubiKey C ykmaniga Windowsis: PIN + 2 puudutust; nimekiri update-võtmega 9c, release'i lause app-võtmega 82; iga allkiri kontrollitakse võtme avaliku võtmega ja tulemus rakenduse enda `checkAppUpdate`-iga enne kirjutamist), `release:riga:publish` (gh → `Wivodent/wivo-riga-releases`, release `stable`, loeb avalikust aadressist tagasi). Riia build (`MAIN_VITE_WIVO_BUILD=riga`) loeb ainult seda aadressi ja paigaldab ainult `riga` jaoks allkirjastatud release'i: **main'i release ei jõua Riiga kunagi** (kolm lukku, RELEASE.md §4). Vanem/sama versioon, allkirjata, vale võti, vale build → keeldub. Seadetes: paigas olev versioon, ootel versioon, allikas, viimane kontroll. Release'i lause ütleb vajaliku migratsiooni (`schema`); tööriist küsib enne allkirja. Testid: `scripts/releaseRiga.test.ts` (16, sh „võti allkirjastas täpselt need baidid, mida rakendus kontrollib"), `release.test.ts`, `releaseCheck.test.ts`, `rigaBuild.test.ts`. **Proovitud päriselt:** NSIS-installer kirjutab `app-update.yml`-i `provider: generic`, Riia aadress. |
 | B | `348104d` | 1) kommentaar ei jää laadima, kui faili üleslaadimine tühistatakse/ebaõnnestub; failil × kommentaaris. 2) töö failide juures päris tüübifilter (nupud „Kõik 7 · Skann 3 …"); senine valik oli alati ainult *uute* failide tüüp, nüüd „Uued failid:". 3) töö kustutamine telefonis (`jobs.delete`, „Kustutada? Jah", nagu töölaual). 4) „What's new" näitab `VITE_PHONE_URL`-i (Riia: `wivo-dentiks.pages.dev`); 2.0.5 märkmed (en, et). |
 | C | `1b5cd10` | RIGA-SETUP.md päris seadistuse järgi: `sb_secret` Vaulti + `WIVO_SERVICE_SECRET_KEY` (baseline jääb legacy-võtmega, sest sql/052/056 nõuavad `eyJ`-d, siis vahetus), `psql -P pager=off`, projekti lülitid, Cloudflare Pages `wivo-dentiks`, Resendi CNAME-id ja võtmed alles pärast kinnitust, mallide teemarida (`-->` eraldi real). CLAUDE.md nimetab `wivo-dentiks`-i. |
 | D | `5bb115f` | `docs/RIGA-ROLLOUT.md` |
@@ -136,7 +173,7 @@ Testid: kõik failid rohelised Windowsis (osade kaupa: src 84, shared+supabase 4
 - **`scripts/yubikey/setup-plan.test.mjs` ripub Windowsis vitesti all** juba moodulite laadimisel (sama ka ilma tänaste muudatusteta; Node laeb samad moodulid 30 ms-ga). Seetõttu **ripub ka `npm test` tervikuna** Windowsis. Jooksuta seni osade kaupa (`npx vitest run --mode unit src shared supabase config sql scripts/makeLicense scripts/clinicBuild scripts/releaseTool`). Põhjus uurimata.
 - **Päris YubiKey ja päris GitHub on proovimata** (mul pole võtit; võrku ma Riia repole ei pöördunud). Allkiri on testitud võlts-ykmaniga ja testvõtmega, avaldamine võlts-gh-ga.
 - **Täispikka `npm run release:riga`-d ma ei jooksutanud** (see oleks kustutanud sinu `dist-riga\` 2.0.4 installeri: ehitus puhastab nüüd `dist-riga`-t enne pakendamist). NSIS-i ehitasin eraldi kausta, `app-update.yml` kontrollitud.
-- Märkus: **praegune 2.0.4 Riia installer loeb main'i GitHubi release'e** (`provider: github, SniperInSuit/Wivo`) ja keeldub neist allkirja puudumise tõttu. Ohtu pole, aga sellepärast on 2.0.5 käsitsi.
+- Märkus: **praegune 2.0.4 Riia installer loeb main'i GitHubi release'e** (`provider: github, Wivodent/Wivo`) ja keeldub neist allkirja puudumise tõttu. Ohtu pole, aga sellepärast on 2.0.5 käsitsi.
 - Öösel jäi kaks vitesti protsessi taustale rippuma; peatasin need.
 
 ### Mida sina teed
@@ -145,7 +182,7 @@ Testid: kõik failid rohelised Windowsis (osade kaupa: src 84, shared+supabase 4
 
 ### Kevin otsustab hommikul
 
-1. ~~Avaldamiskoht~~ **Otsustatud:** eraldi avalik repo kliiniku kohta, Dentiksil `SniperInSuit/wivo-dentiks-releases`, release `stable` (`clinics/dentiks.json`).
+1. ~~Avaldamiskoht~~ **Otsustatud:** eraldi avalik repo kliiniku kohta, Dentiksil `Wivodent/wivo-dentiks-releases`, release `stable` (`clinics/dentiks.json`).
 2. ~~Nimekirja aegumine~~ **Otsustatud:** 30 päeva vaikimisi.
 3. **Paigaldus jääb kasutajapõhiseks** (`perMachine: false`): uuendused ei vaja administraatorit. Ilja peab installeri käivitama iga kasutaja kontos. Soovitan: jah.
 4. **Tüübifilter nuppudena** (mitte senine valik ümber tõlgendatud). Kinnita Riiaga, kas see oli see, mida nad mõtlesid.

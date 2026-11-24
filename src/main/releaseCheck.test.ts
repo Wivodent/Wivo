@@ -116,7 +116,7 @@ describe('which build, and where it reads its updates (docs/RELEASE.md)', () => 
   })
 
   it("a clinic's feed is the stable release of its own repository; main keeps package.json's", () => {
-    const own = 'https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download'
+    const own = 'https://github.com/Wivodent/wivo-dentiks-releases/releases/download'
     expect(feedUrlFor('dentiks', own)).toBe(`${own}/stable`)
     expect(feedUrlFor('main', own)).toBeNull()
     expect(feedUrlFor('dentiks', null)).toBeNull()

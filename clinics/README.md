@@ -14,7 +14,7 @@ Names follow the clinic, never the country or the city.
 |---|---|---|
 | `id` | The file's name, and the build id the release statement carries. Lowercase letters, digits and `-`; never `main`. | `dentiks` |
 | `name` | How the tool and the release page name the clinic. | `Dentiks` |
-| `releasesRepo` | The public GitHub repository whose release `stable` holds the clinic's installer, `latest.yml` and `updates.json`. Never main's repository. | `SniperInSuit/wivo-dentiks-releases` |
+| `releasesRepo` | The public GitHub repository whose release `stable` holds the clinic's installer, `latest.yml` and `updates.json`. Never main's repository. | `Wivodent/wivo-dentiks-releases` |
 | `phoneUrl` | The address people open the clinic's phone app at: its own domain when it has one (VITE_PHONE_URL; "What's new" names it). | `https://wivo.dentiks.lv` (custom domain of `wivo-dentiks`) |
 | `supabaseRef` | The clinic's own Supabase project. Never production's or the test copy's. | `fwsrnsdrlrlmjfkkkhvp` |
 | `cloudflareProject` | The Cloudflare Pages project of the phone app. | `wivo-dentiks` |

@@ -379,17 +379,21 @@ describe('the published list, and where it lives', () => {
   })
 
   it("a clinic's build reads its own repository's `stable` release; main reads nothing of a clinic's (docs/RELEASE.md)", () => {
-    const own = clinicReleaseSource('SniperInSuit/wivo-dentiks-releases')
-    expect(own).toBe('https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download')
+    const own = clinicReleaseSource('Wivodent/wivo-dentiks-releases')
+    expect(own).toBe('https://github.com/Wivodent/wivo-dentiks-releases/releases/download')
     expect(updateSourcesFor('dentiks', own)).toEqual([own])
     expect(listAddress(updateSourcesFor('dentiks', own)[0], 'stable'))
-      .toBe('https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable/updates.json')
+      .toBe('https://github.com/Wivodent/wivo-dentiks-releases/releases/download/stable/updates.json')
     expect(updateSourcesFor('main')).toEqual(UPDATE_SOURCES)
     expect(updateSourcesFor('main', own)).not.toContain(own)
     // A clinic's build without its repository reads nothing, so installs nothing.
     expect(updateSourcesFor('somewhere-else')).toEqual([])
     // A clinic's source is never main's own release repository, nor anything but owner/name.
     expect(clinicReleaseSource(MAIN_RELEASE_REPO)).toBeNull()
+    expect(MAIN_RELEASE_REPO).toBe('Wivodent/Wivo')
+    // The old address redirects to main's: refused too.
+    expect(clinicReleaseSource('SniperInSuit/Wivo')).toBeNull()
+    expect(clinicReleaseSource('sniperinsuit/wivo')).toBeNull()
     expect(clinicReleaseSource('sniperinsuit/WIVO')).toBeNull()
     for (const bad of ['', 'x', 'a/b/c', '../a', 'https://evil.example/a', 'a/b?c', undefined, 42]) expect(clinicReleaseSource(bad), String(bad)).toBeNull()
   })

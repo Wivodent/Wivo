@@ -10,7 +10,7 @@ ja jäävad nii: Supabase'i projekt `wivo-riga`, Resendi võtmed `riga-…` ja
 Cloudflare'i haru `riga`. Uuel kliinikul on need `wivo-<id>`, `<id>-…` ja `<id>`.
 
 See on sinu käsiraamat, Kevin. **Üks käsk korraga**, Maci Terminalis, repo
-kaustast (`~/dev/Workly`), haru `testing`. Iga samm ütleb, mida pärast nägema
+kaustast (`~/dev/Wivo`), haru `testing`. Iga samm ütleb, mida pärast nägema
 peaksid. Kui midagi läheb teisiti, **peatu seal** ja küsi; ära paranda
 käsitsi edasi.
 
@@ -418,7 +418,7 @@ avalikud väärtused; clinics/README.md). Dentiksi fail:
 {
   "id": "dentiks",
   "name": "Dentiks",
-  "releasesRepo": "SniperInSuit/wivo-dentiks-releases",
+  "releasesRepo": "Wivodent/wivo-dentiks-releases",
   "phoneUrl": "https://wivo.dentiks.lv",
   "supabaseRef": "fwsrnsdrlrlmjfkkkhvp",
   "cloudflareProject": "wivo-dentiks",

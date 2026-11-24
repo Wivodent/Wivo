@@ -14,7 +14,7 @@ ainult `dentiks` asemel on uus nimi.
 
 Mis see on ja miks see turvaline on, seletab `docs/RELEASE.md`. Lühidalt: 2.0.5
 on esimene Dentiksi installer, mis loeb uuendusi **kliiniku oma GitHubi repost**
-(`SniperInSuit/wivo-dentiks-releases`, release `stable`). Ta paigaldab ainult
+(`Wivodent/wivo-dentiks-releases`, release `stable`). Ta paigaldab ainult
 selle, mille YubiKey C on allkirjastanud **Dentiksi jaoks**. main'i release'id
 sinna kunagi ei jõua, ja teise kliiniku omad ka mitte. 2.0.4 ja varasemad Riia
 installerid loevad main'i GitHubi release'e ja keelduvad neist, sest neil pole
@@ -75,7 +75,7 @@ gh --version
 ```powershell
 gh auth status
 ```
-→ `Logged in to github.com account SniperInSuit`. Kui ei ole: `gh auth login`
+→ `Logged in to github.com account SniperInSuit` (sinu konto, millel on õigus organisatsiooni `Wivodent` reposse kirjutada). Kui ei ole: `gh auth login`
 (GitHub.com → HTTPS → Login with a web browser; brauseris riistvaravõti).
 
 **1.3. YubiKey ja Windows.** Smart Card teenus peab käima ja keegi teine ei
@@ -91,7 +91,7 @@ Get-Service SCardSvr
 
 | Väli | Väärtus (`releasesRepo` failis `clinics/dentiks.json`) |
 |---|---|
-| Owner | `SniperInSuit` |
+| Owner | `Wivodent` (organisatsioon) |
 | Repository name | `wivo-dentiks-releases` |
 | Visibility | **Public** (kliiniku arvutid loevad seda ilma sisselogimiseta) |
 | Add a README file | **sees** (release vajab vähemalt üht commiti) |
@@ -167,7 +167,7 @@ npm run release -- --clinic dentiks --first
 
 Algul näed `Dentiks: project fwsrnsdrlrlmjfkkkhvp · phone
 https://wivo.dentiks.lv · updates
-https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable`.
+https://github.com/Wivodent/wivo-dentiks-releases/releases/download/stable`.
 Lõpus näed:
 
 ```
@@ -214,7 +214,7 @@ avalikult aadressilt tagasi. Lõpus näed:
 
 ```
 Published: Wivo 2.0.5 for Dentiks.
-  Installer: https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable/Wivo-dentiks-Setup-2.0.5.exe
+  Installer: https://github.com/Wivodent/wivo-dentiks-releases/releases/download/stable/Wivo-dentiks-Setup-2.0.5.exe
   SHA-256:   <64 märki>
 …
   git push origin <täispikk commit>:refs/heads/riga
@@ -236,7 +236,7 @@ git push origin testing
 **Saada kahe eri kanali kaudu:** link ühe kaudu (e-kiri), SHA-256 teise kaudu
 (sõnum või telefon).
 
-- Link: `https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable/Wivo-dentiks-Setup-2.0.5.exe`
+- Link: `https://github.com/Wivodent/wivo-dentiks-releases/releases/download/stable/Wivo-dentiks-Setup-2.0.5.exe`
 - SHA-256: see, mille `publish` trükkis.
 
 **Tekst Iljale** (inglise keeles):
@@ -260,7 +260,7 @@ git push origin testing
 >
 > ```powershell
 > $exe = "$env:TEMP\Wivo-dentiks-Setup-2.0.5.exe"
-> Invoke-WebRequest -Uri "https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable/Wivo-dentiks-Setup-2.0.5.exe" -OutFile $exe
+> Invoke-WebRequest -Uri "https://github.com/Wivodent/wivo-dentiks-releases/releases/download/stable/Wivo-dentiks-Setup-2.0.5.exe" -OutFile $exe
 > if ((Get-FileHash $exe -Algorithm SHA256).Hash -ne "<SHA-256>") { throw "SHA-256 does not match: do not install" }
 > Start-Process $exe -ArgumentList '/S' -Wait
 > ```
@@ -274,10 +274,10 @@ git push origin testing
 > It should show `DisplayVersion 2.0.5`. Then open Wivo and go to **Settings →
 > Licence**. The Updates part should say *Version 2.0.5* and *Only Wivo's
 > signed releases install. Updates come from
-> github.com/SniperInSuit/wivo-dentiks-releases*. About 30 seconds after Wivo
+> github.com/Wivodent/wivo-dentiks-releases*. About 30 seconds after Wivo
 > opens, `%APPDATA%\wivo\updater.log` should have the line `build dentiks:
 > updates from
-> https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable`.
+> https://github.com/Wivodent/wivo-dentiks-releases/releases/download/stable`.
 >
 > If you run the installer by hand, Windows SmartScreen may say "unknown
 > publisher": choose More info → Run anyway. The SHA-256 check above is what

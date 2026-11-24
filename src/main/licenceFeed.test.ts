@@ -9,7 +9,7 @@ import { encodePayload, parseToken, signingInput, type LicencePayload } from '..
 import { licenceFileText } from '../../shared/license/published'
 import { checkPublishedLicence, licenceAddress, type LicenceFeedDeps } from './licenceFeed'
 
-const SOURCE = 'https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download'
+const SOURCE = 'https://github.com/Wivodent/wivo-dentiks-releases/releases/download'
 const ORG = '3f1c2a9e-5b7d-4e2a-9c1f-0a1b2c3d4e5f'
 const API = 'https://fwsrnsdrlrlmjfkkkhvp.supabase.co'
 const keys = generateKeyPairSync('ed25519')

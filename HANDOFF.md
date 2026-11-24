@@ -343,7 +343,7 @@ state behind it, is in `docs/night-run/RUN-3.md`.
 - Revoke the `sbp_…` Supabase access tokens used on 2 November.
 - Reset the production database password (it was exposed in an error message
   on 2 November).
-- GitHub: the repo belongs to `SniperInSuit`, but the local git credential is
+- GitHub: the repo belongs to the `Wivodent` organisation, but the local git credential is
   `fullgevity`, so pushes go through GitHub Desktop. Align them or set up a
   deploy key.
 

@@ -1,4 +1,4 @@
-# Wivo — Dental Production Tracker
+# Wivo — dental clinic and lab management
 
 A local Electron desktop app for tracking dental restoration jobs through a six-stage
 production pipeline. Data persists to **Supabase** (hosted Postgres) so it's backed up

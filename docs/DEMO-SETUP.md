@@ -1,7 +1,7 @@
 # Demokliinik: samm-sammult Windowsis
 
 See on sinu käsiraamat, Kevin. **Üks käsk korraga**, PowerShellis, repo
-kaustast (`C:\Users\fullg\Documents\GitHub\Workly`). Iga samm ütleb, mida sa
+kaustast (`C:\Users\fullg\Documents\GitHub\Wivo`). Iga samm ütleb, mida sa
 pärast nägema peaksid.
 
 Mida demo sisaldab: `sql/demo/seed.sql` päis. Mis ta tegi ja miks: NEXT.md.
@@ -237,7 +237,7 @@ VITE_SUPABASE_ANON_KEY=<demoprojekti anon key>
 Siis käivita nii, et testvõti on nähtav:
 
 ```powershell
-$env:WIVO_LICENCE_TEST_KEY = "C:\Users\fullg\Documents\GitHub\Workly\license-test-public.hex"; npm run dev
+$env:WIVO_LICENCE_TEST_KEY = "C:\Users\fullg\Documents\GitHub\Wivo\license-test-public.hex"; npm run dev
 ```
 
 Wivo avaneb. **Seaded → Litsents**, kleebi token, Install. Pead nägema:

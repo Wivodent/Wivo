@@ -123,7 +123,7 @@ pushed.
 10. **Change the production database password** — it was exposed in an error
     message during the session. Supabase dashboard → Database → Connection Info →
     Reset database password.
-11. **GitHub accounts** — the repo belongs to `SniperInSuit` but the local git
+11. **GitHub accounts** — the repo belongs to the `Wivodent` organisation but the local git
     credential is `fullgevity`. Pushes from this machine go through GitHub
     Desktop. Align these or set up a deploy key.
 

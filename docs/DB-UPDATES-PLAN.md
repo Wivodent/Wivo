@@ -53,7 +53,7 @@ Funktsioonide uuendused (token) jäävad hilisemaks. Otsused §7.
    This replaces the setup secret of §5f for Riga (no setup tool yet).
 3. **Where `wivo-update` reads.** Its generated `UPDATE_SOURCES` is empty.
    Proposal: function secrets `WIVO_BUILD=dentiks` and
-   `WIVO_RELEASES_REPO=SniperInSuit/wivo-dentiks-releases` (from clinics/<id>.json),
+   `WIVO_RELEASES_REPO=Wivodent/wivo-dentiks-releases` (from clinics/<id>.json),
    and the function uses `updateSourcesFor(build, clinicReleaseSource(repo))`, as the desktop does. Safe because the address
    is not trusted (signatures and the stored channel and serial floor are).
    Alternative: generate the copy per clinic at deploy (decision 2).

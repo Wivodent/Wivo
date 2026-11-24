@@ -1,7 +1,7 @@
 # Wivo admin console: the plan
 
 **Status: Kevin's OK (November 2026), decisions in §8. The MVP is built in
-the private repository `SniperInSuit/wivo-admin` (local folder `..\wivo-admin`).
+the private repository `Wivodent/wivo-admin` (local folder `..\wivo-admin`).
 Kevin's setup steps are in its `docs/SETUP.md`.**
 The entry in docs/ROADMAP.md ("Wivo admin console") points here.
 
@@ -54,7 +54,7 @@ The entry in docs/ROADMAP.md ("Wivo admin console") points here.
 | Database | Supabase project `wivo-admin`, Kevin's own organisation, EU region (Stockholm, as the clinics) | Free plan pauses a project after a week without use; Pro does not, and keeps daily backups (decision 3) |
 | Web page | Cloudflare Pages project `wivo-admin`, e.g. `https://admin.wivodent.com` | Production branch only, previews off, as `wivo` |
 | In front of the page | Cloudflare Access: only Kevin's identity gets the page at all | A second lock in front of the sign-in, free for one person |
-| Code | A private repository `SniperInSuit/wivo-admin` (recommended), or `admin/` in this repo (decision 1) | |
+| Code | A private repository `Wivodent/wivo-admin` (recommended), or `admin/` in this repo (decision 1) | |
 
 **Why a repository of its own (recommended):**
 - the clinics' app and the console never ship together;
@@ -102,7 +102,7 @@ own machine.
 | country | Latvia | |
 | contacts | owner, IT: name, e-mail, phone, role | Business contacts: personal data, but not patients' (§7) |
 | Supabase ref | `fwsrnsdrlrlmjfkkkhvp` | the ref only, never a key |
-| releases repo | `SniperInSuit/wivo-dentiks-releases` | |
+| releases repo | `Wivodent/wivo-dentiks-releases` | |
 | phone address | `https://wivo.dentiks.lv` | |
 | status | trial, active, paused, leaving, left | |
 
@@ -305,7 +305,7 @@ roles.
 
 ## 8. Decisions (Kevin, November 2026)
 
-1. **Code:** a private repository, `SniperInSuit/wivo-admin`.
+1. **Code:** a private repository, `Wivodent/wivo-admin`.
 2. **The address:** `admin.wivodent.com`, behind Cloudflare Access.
 3. **Supabase:** Pro, in Kevin's existing organisation. Production and the
    test copy are deleted later, and the subscription stays for the console.

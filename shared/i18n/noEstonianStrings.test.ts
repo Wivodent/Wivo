@@ -59,6 +59,8 @@ const DATA_NOT_LANGUAGE: Record<string, string> = {
     'Matches Estonian CSV headers and stage words as they were typed by a person.',
   'src/renderer/src/components/NewJobWizard/jobtype/ToothGlyph.tsx':
     'Matches free-text work type names against Estonian terms.',
+  'src/renderer/src/components/NewJobWizard/jobtype/WorkKindIcon.tsx':
+    'Matches free-text work type names (Estonian, English, Russian) to their icon.',
   'src/renderer/src/components/Invoices/InvoiceForm.tsx':
     'Writes invoice line text, and an invoice is Estonian by spec — see InvoicePrintView DOC_LANG.',
 }

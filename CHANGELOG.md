@@ -363,7 +363,7 @@ Igal release'il on nüüd lisaks versiooniga failile ka **muutumatu nimega
 koopia**, nii et kodulehe nupp võib osutada ühele aadressile igavesti:
 
 ```
-https://github.com/SniperInSuit/Wivo/releases/latest/download/Wivo-Setup.exe
+https://github.com/Wivodent/Wivo/releases/latest/download/Wivo-Setup.exe
 ```
 
 **Koopia, mitte ümbernimetamine — ja see on oluline.** electron-updater ehitab

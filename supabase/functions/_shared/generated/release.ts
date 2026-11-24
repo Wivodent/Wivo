@@ -436,7 +436,14 @@ export const PINNED_ROOTS: RootKey[] = [
 export const UPDATE_SOURCES: string[] = []
 
 /** main's own GitHub repository: its CI publishes there. A clinic's releases never live there. */
-export const MAIN_RELEASE_REPO = 'SniperInSuit/Wivo'
+export const MAIN_RELEASE_REPO = 'Wivodent/Wivo'
+
+/**
+ * main's repository's old address, from before the repositories moved to the
+ * Wivodent organisation (November 2026). GitHub redirects it to main's, so it
+ * is refused the same way.
+ */
+export const OLD_MAIN_RELEASE_REPO = 'SniperInSuit/Wivo'
 
 /**
  * Where a clinic's desktop reads its releases (docs/RELEASE.md): a public
@@ -450,7 +457,7 @@ export const MAIN_RELEASE_REPO = 'SniperInSuit/Wivo'
  */
 export function clinicReleaseSource(repo: unknown): string | null {
   if (typeof repo !== 'string' || !/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(repo)) return null
-  if (repo.toLowerCase() === MAIN_RELEASE_REPO.toLowerCase()) return null
+  if ([MAIN_RELEASE_REPO, OLD_MAIN_RELEASE_REPO].some(main => repo.toLowerCase() === main.toLowerCase())) return null
   return `https://github.com/${repo}/releases/download`
 }
 

@@ -1,7 +1,7 @@
 {
   "name": "wivo",
-  "version": "2.0.7",
-  "description": "SprintRay Dental Production Tracker",
+  "version": "2.0.8",
+  "description": "Wivo — dental clinic and lab management",
   "author": "Wivo",
   "main": "out/main/index.js",
   "scripts": {
@@ -75,7 +75,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "SniperInSuit",
+      "owner": "Wivodent",
       "repo": "Wivo"
     },
     "win": {

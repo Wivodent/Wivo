@@ -24,14 +24,14 @@ Kevin's Windows machine (clean `testing`)
                                   then checks both with the app's own code
   npm run release:publish -- --clinic dentiks
                                   uploads to the clinic's repository
-                                  (SniperInSuit/wivo-dentiks-releases), release `stable`:
+                                  (Wivodent/wivo-dentiks-releases), release `stable`:
                                     Wivo-dentiks-Setup-<v>.exe, its .blockmap,
                                     updates.json, then latest.yml
             │
             ▼
 A Dentiks desktop (installed from a Dentiks installer, 2.0.5 or later)
   every 30 minutes: electron-updater reads
-      https://github.com/SniperInSuit/wivo-dentiks-releases/releases/download/stable/latest.yml
+      https://github.com/Wivodent/wivo-dentiks-releases/releases/download/stable/latest.yml
   a newer version → downloads the installer in the background (sha512 from latest.yml)
   before staging it: fetches updates.json from the same place and checks the signatures
   (src/main/releaseCheck.ts → shared/release checkAppUpdate); refused → stays on its version
@@ -93,7 +93,7 @@ A refusal never stops anyone working. The app stays on its version, the log
   key, with its PIN and a touch. The private keys never leave YubiKeys C and D.
 - **Main's releases can never reach a clinic, and one clinic's never reaches
   another.** There are three separate locks:
-  - main's CI publishes to `SniperInSuit/Wivo`, which a clinic's app never reads,
+  - main's CI publishes to `Wivodent/Wivo`, which a clinic's app never reads,
     and the tool and the app both refuse that repository as a clinic's;
   - main's `GITHUB_TOKEN` cannot write to a clinic's repository;
   - a clinic's app refuses any release statement that does not name its clinic.

@@ -54,7 +54,7 @@ export type UpdateState =
 export interface UpdateInfo {
   /** The clinic's id for a clinic's installer (`dentiks`), `main` otherwise. */
   build: string
-  /** `github.com/SniperInSuit/wivo-dentiks-releases`, or null for main's feed. */
+  /** `github.com/Wivodent/wivo-dentiks-releases`, or null for main's feed. */
   source: string | null
   /** Root keys are pinned: an update installs only as Wivo's signed release. */
   signedOnly: boolean

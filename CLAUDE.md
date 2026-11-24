@@ -1,4 +1,6 @@
-# Wivo (Workly repo)
+# Wivo
+
+GitHub: the repositories are in the organisation **Wivodent** (`Wivodent/Wivo`, `Wivodent/wivo-dentiks-releases`, `Wivodent/wivo-admin`); the local folder is `C:\Users\fullg\Documents\GitHub\Wivo` (on the Mac `~/dev/Wivo`). The old `SniperInSuit/…` addresses redirect there, so installed apps keep finding their updates: never create a repository with one of the old names under `SniperInSuit`, or the redirect stops.
 
 Electron + React + TypeScript desktop app with a Supabase/Postgres backend.
 

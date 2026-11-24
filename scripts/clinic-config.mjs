@@ -18,7 +18,9 @@ export const PRODUCTION_REF = 'wrtucsfmpbwekugzzzxw'
 export const TEST_REF = 'jhqyvancrzykxhzwnost'
 
 /** main's own GitHub repository: its CI publishes main's releases there, never a clinic's. */
-export const MAIN_REPO = 'SniperInSuit/Wivo'
+export const MAIN_REPO = 'Wivodent/Wivo'
+/** Its old address, before the move to the Wivodent organisation: GitHub redirects it to main's. */
+export const OLD_MAIN_REPO = 'SniperInSuit/Wivo'
 /** The release in a clinic's repository that holds its installer, latest.yml and updates.json. */
 export const RELEASE_TAG = 'stable'
 
@@ -62,8 +64,8 @@ export function parseClinic(text, id) {
   if (!str('name').trim()) problems.push('name is missing')
 
   const repo = str('releasesRepo')
-  if (!/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(repo)) problems.push('releasesRepo must be owner/name, e.g. SniperInSuit/wivo-dentiks-releases')
-  else if (repo.toLowerCase() === MAIN_REPO.toLowerCase()) problems.push("releasesRepo is main's repository: a clinic's releases live in a repository of their own (docs/RELEASE.md)")
+  if (!/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(repo)) problems.push('releasesRepo must be owner/name, e.g. Wivodent/wivo-dentiks-releases')
+  else if ([MAIN_REPO, OLD_MAIN_REPO].some(main => repo.toLowerCase() === main.toLowerCase())) problems.push("releasesRepo is main's repository: a clinic's releases live in a repository of their own (docs/RELEASE.md)")
 
   const phone = phoneUrlProblem(str('phoneUrl'))
   if (phone) problems.push(phone)

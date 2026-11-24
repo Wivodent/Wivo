@@ -22,7 +22,7 @@ ajada.
 `supabase secrets set` ja `supabase functions deploy` on **CLI käsud** — nad
 lähevad PowerShelli, mitte SQL editorisse. Nad saadavad asjad ise pilve.
 
-Repo kaust: `C:\Users\fullg\Documents\GitHub\Workly`
+Repo kaust: `C:\Users\fullg\Documents\GitHub\Wivo`
 
 ---
 
@@ -201,7 +201,7 @@ ka lehel punase kastiga.
 Alles siis, kui punkt 4 töötab.
 
 ```powershell
-cd c:\Users\fullg\Documents\GitHub\Workly
+cd c:\Users\fullg\Documents\GitHub\Wivo
 node web/embed/build-embed.mjs --clinic fullgevity --title "Broneeri aeg" > paste-me.html
 ```
 

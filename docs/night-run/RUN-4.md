@@ -232,7 +232,7 @@ Migrations 092–095 are frozen from here, because Kevin is applying them to the
 **Deploy to the test copy only.** Kevin runs it, from the repo on `testing`, with his own token:
 
 ```sh
-cd ~/dev/Workly && git switch testing
+cd ~/dev/Wivo && git switch testing
 read -rs SUPABASE_ACCESS_TOKEN && export SUPABASE_ACCESS_TOKEN   # paste the token, nothing is shown
 npx supabase functions deploy send-notifications --project-ref jhqyvancrzykxhzwnost --use-api
 unset SUPABASE_ACCESS_TOKEN
@@ -303,7 +303,7 @@ To check: a minute later, `select created, status_code, left(content, 300) from 
 **Deploy to the test copy only.** Kevin runs it, from the repo on `testing`:
 
 ```sh
-cd ~/dev/Workly && git switch testing
+cd ~/dev/Wivo && git switch testing
 read -rs SUPABASE_ACCESS_TOKEN && export SUPABASE_ACCESS_TOKEN   # paste the token, nothing is shown
 npx supabase functions deploy send-notifications --project-ref jhqyvancrzykxhzwnost --use-api --no-verify-jwt
 unset SUPABASE_ACCESS_TOKEN

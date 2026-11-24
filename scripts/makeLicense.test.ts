@@ -364,7 +364,7 @@ describe('publishing a licence to a clinic', () => {
   mkdirSync(FEED, { recursive: true })
   mkdirSync(join(CLINICS, 'clinics'), { recursive: true })
   const clinicFile = (extra: object) => writeFileSync(join(CLINICS, 'clinics', 'dentiks.json'), JSON.stringify({
-    id: 'dentiks', name: 'Dentiks', releasesRepo: 'SniperInSuit/wivo-dentiks-releases', phoneUrl: 'https://wivo.dentiks.lv',
+    id: 'dentiks', name: 'Dentiks', releasesRepo: 'Wivodent/wivo-dentiks-releases', phoneUrl: 'https://wivo.dentiks.lv',
     supabaseRef: 'fwsrnsdrlrlmjfkkkhvp', cloudflareProject: 'wivo-dentiks', phoneBranch: 'riga', ...extra,
   }))
   writeFileSync(FAKE_YK, [
@@ -442,7 +442,7 @@ describe('publishing a licence to a clinic', () => {
     expect(published()).toEqual({ v: 1, clinic: 'dentiks', token })
     expect(readFileSync(join(RELEASES, 'licence', 'licence.json'), 'utf8')).toBe(readFileSync(join(FEED, 'licence.json'), 'utf8'))
     const gh = readFileSync(GH_LOG, 'utf8').trim().split('\n').map(l => JSON.parse(l))
-    expect(gh.pop()).toEqual(['release', 'upload', 'stable', join(RELEASES, 'licence', 'licence.json'), '--repo', 'SniperInSuit/wivo-dentiks-releases', '--clobber'])
+    expect(gh.pop()).toEqual(['release', 'upload', 'stable', join(RELEASES, 'licence', 'licence.json'), '--repo', 'Wivodent/wivo-dentiks-releases', '--clobber'])
   })
 
   it('renew publishes too, keeping the organisation and address', () => {
