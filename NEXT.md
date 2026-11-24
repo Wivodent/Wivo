@@ -41,8 +41,8 @@ hetkeseis: mis on tehtud, mis ootab sind, mis on blokeeritud.
        `%USERPROFILE%\.claude\projects\c--Users-fullg-Documents-GitHub-Workly`
        nimega `…-Wivo`, siis jääb mälu alles.
   4. 2.0.8 release Dentiksile nagu tavaliselt (`npm run release -- --clinic
-     dentiks`). Enne seda lisa `orgId` `clinics/dentiks.json`-i (vt 2.0.7
-     allpool).
+     dentiks`). `orgId` on `clinics/dentiks.json`-is juba olemas (`9e02563`), nii
+     et 2.0.8 installer teab Dentiksi organisatsiooni.
 - **Teadlikult muutmata:**
   - `supabase/config.toml` `project_id = "Workly"`: kohaliku Supabase'i
     konteinerite nimi. Muutmine alustaks kohaliku baasi tühjalt.
