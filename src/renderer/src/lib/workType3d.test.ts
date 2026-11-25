@@ -9,8 +9,9 @@ import { describe, expect, it } from 'vitest'
 import { defaultWorkTypesFor } from '@shared/pricing/workTypes'
 import { WORK_KINDS } from '../components/NewJobWizard/jobtype/workKindShapes'
 import { KIND_3D_FILES, VARIANT_3D_FILES } from './workType3dMap'
-import { kind3dFileIn, workType3dFileIn } from './workType3d'
+import { PHRASES, choiceValue, kind3dFileIn, pictureChoice, workType3dFileIn, workTypeKind } from './workType3d'
 import { CATALOGUE, OPTIONS } from '@shared/pricing/workTypeCatalogue'
+import { workKindFor } from '../components/NewJobWizard/jobtype/WorkKindIcon'
 
 const all = (): boolean => true
 const none = (): boolean => false
@@ -118,6 +119,79 @@ describe('which picture for which type', () => {
     expect(workType3dFileIn({ nimi: 'Disain' }, all)).toBeNull()
     expect(kind3dFileIn('crown', none)).toBeNull()
     expect(kind3dFileIn('crown', all)).toBe('crown-zirconia.webp')
+  })
+})
+
+// A type renamed in Settings keeps the synonyms of what it was called before
+// ("smile design" was "Implantaadisild", and still says "implant bridge").
+// What the name itself says precisely decides; a phrase of several words wins
+// over any single word (implant, crown, bridge, design).
+const STALE = {
+  implantCrown: ['implantkroon', 'abutmendile'],
+  implantBridge: ['implantsild', 'implant bridge', 'implantaadi sild'],
+  bridge: ['bridge'],
+  crown: ['crown'],
+}
+
+describe('the precise phrase wins over a single word (Dentiks, 2.2.1)', () => {
+  it.each([
+    ['implant surgical guide', 'surgical-guide', STALE.implantCrown],
+    ['smile design', 'smile-design', STALE.implantBridge],
+    ['Crown design', 'crown-design', STALE.bridge],
+    ['Titanium mesh', 'titanium-mesh', STALE.crown],
+  ])('"%s" is %s, whatever synonyms it kept', (nimi, id, match) => {
+    expect(workType3dFileIn({ nimi }, all)).toBe(`${id}.webp`)
+    expect(workType3dFileIn({ nimi, match }, all)).toBe(`${id}.webp`)
+  })
+
+  it('every catalogue name of several words, in every language, finds its own picture, though the type kept other synonyms', () => {
+    const multi = CATALOGUE.flatMap(e => (['en', 'et', 'ru', 'lv'] as const).map(lang => ({ id: e.id, nimi: e.names[lang] })))
+      .filter(x => /[\s-]/.test(x.nimi.trim()))
+    expect(multi.length).toBeGreaterThan(60)
+    for (const { id, nimi } of multi) {
+      for (const match of [undefined, ...Object.values(STALE)]) {
+        expect(workType3dFileIn({ nimi, match }, all), `${nimi} ${match?.join(',') ?? ''}`).toBe(`${id}.webp`)
+      }
+    }
+  })
+
+  it('a phrase inside a longer name counts, but only from the start of a word', () => {
+    expect(workType3dFileIn({ nimi: 'Implant surgical guide (digital)' }, all)).toBe('surgical-guide.webp')
+    expect(workType3dFileIn({ nimi: 'Digital smile design' }, all)).toBe('smile-design.webp')
+    expect(workType3dFileIn({ nimi: 'Несъёмный ретейнер' }, all)).toBe('retainer-fixed.webp') // not "Съёмный ретейнер"
+    expect(PHRASES.every(p => /[\s-]/.test(p.phrase))).toBe(true)
+    // Longest first: "All-on-4 on a bar" before "All-on-4".
+    const at = (p: string) => PHRASES.findIndex(x => x.phrase === p)
+    expect(at('all-on-4 on a bar')).toBeLessThan(at('all-on-4'))
+  })
+
+  it('the line icon reads the name first too: a surgical guide is not an implant crown', () => {
+    expect(workKindFor(['implant surgical guide'])).toBe('surgicalGuide')
+    expect(workTypeKind({ nimi: 'smile design', match: STALE.implantBridge })).toBe('tooth')
+    expect(workTypeKind({ nimi: 'Zirkoon', match: ['kroon'] })).toBe('crown') // a name that says nothing: its synonyms
+  })
+})
+
+describe("the owner's own choice (work_types[].pildiValik)", () => {
+  it('a chosen 3D picture wins over everything, a chosen line icon means no picture', () => {
+    expect(workType3dFileIn({ nimi: 'Kroon', katalog: 'crown-zirconia', pildiValik: 'surgical-guide' }, all)).toBe('surgical-guide.webp')
+    expect(workType3dFileIn({ nimi: 'Kroon', pildiValik: 'icon:bridge' }, all)).toBeNull()
+    expect(workTypeKind({ nimi: 'Kroon', pildiValik: 'icon:bridge' })).toBe('bridge')
+  })
+
+  it('a choice that is not there, or not a choice, is automatic', () => {
+    expect(workType3dFileIn({ nimi: 'Kroon', pildiValik: 'surgical-guide' }, only('crown-zirconia.webp'))).toBe('crown-zirconia.webp')
+    for (const v of ['', 'Surgical guide', '../x', 'icon:spaceship', 'surgical-guide.webp']) {
+      expect(pictureChoice(v), v).toBeNull()
+      expect(workType3dFileIn({ nimi: 'Kroon', pildiValik: v }, all), v).toBe('crown-zirconia.webp')
+    }
+  })
+
+  it('stored as the picture\'s id or icon:<kind>, and read back the same', () => {
+    expect(choiceValue({ file: 'smile-design.webp' })).toBe('smile-design')
+    expect(choiceValue({ kind: 'surgicalGuide' })).toBe('icon:surgicalGuide')
+    for (const kind of WORK_KINDS) expect(pictureChoice(choiceValue({ kind }))).toEqual({ kind })
+    for (const e of CATALOGUE) expect(pictureChoice(e.id)).toEqual({ file: `${e.id}.webp` })
   })
 })
 

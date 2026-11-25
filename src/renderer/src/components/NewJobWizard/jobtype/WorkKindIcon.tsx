@@ -58,11 +58,13 @@ export function WorkKindIcon({ kind, size = 40, ...rest }: WorkKindIconProps): J
 // implant bridge, not a bridge; "Laminate veneer" is a laminate, not a veneer.
 // Words in Estonian, English and Russian, as the lab may name its types in
 // any of them (shared/pricing/workTypes.ts defaultWorkTypesFor).
+// A surgical guide comes first: it is made for implants, so its name often
+// says "implant" too ("Implant surgical guide"), and it is still a guide.
 const FAMILIES: { kind: WorkKind; all?: string[][]; any?: string[] }[] = [
+  { kind: 'surgicalGuide', any: ['kirurg', 'surgic', 'guide', 'juhik', 'шаблон', 'хирург'] },
   { kind: 'implantBridge', all: [['implant', 'имплант'], ['sild', 'bridge', 'мост']] },
   { kind: 'allOnX',        any: ['all-on', 'allon', 'all on', 'hübriid', 'hybrid'] },
   { kind: 'implantCrown',  any: ['implant', 'abutment', 'abutmendile', 'имплант'] },
-  { kind: 'surgicalGuide', any: ['kirurg', 'surgic', 'guide', 'juhik', 'шаблон', 'хирург'] },
   { kind: 'ibt',           any: ['ibt', 'bonding', 'брекет'] },
   { kind: 'retainer',      any: ['retainer', 'ретейнер', 'traat'] },
   { kind: 'nightGuard',    any: ['splint', 'kaitse', 'nightguard', 'night guard', 'öökaitse', 'ookaitse', 'lahas', 'splaad', 'guard', 'kapp', 'сплинт', 'капп'] },

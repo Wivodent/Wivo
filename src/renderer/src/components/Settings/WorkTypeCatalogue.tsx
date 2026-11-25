@@ -47,8 +47,8 @@ export function WorkTypeCatalogue({ onClose }: { onClose: () => void }) {
     [q],
   )
 
-  /** "Added ✓": a type made from this entry. */
-  const added = (e: CatalogueEntry) => types.some(type => type.katalog === e.id)
+  /** "Added ✓": the type made from this entry, shown with the picture the owner chose for it. */
+  const addedType = (e: CatalogueEntry) => types.find(type => type.katalog === e.id)
   /** Work of the same kind the clinic already has, under its own names. */
   const sameKind = (e: CatalogueEntry): string[] => {
     const kind = workKindFor(entryWords(e))
@@ -88,11 +88,12 @@ export function WorkTypeCatalogue({ onClose }: { onClose: () => void }) {
                 <h3 className="text-sm font-bold text-ink-soft uppercase tracking-wider">{KIND_LABEL[kind]()}</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {entries.map(e => {
-                    const isAdded = added(e)
+                    const own = addedType(e)
+                    const isAdded = !!own
                     const others = isAdded ? [] : sameKind(e)
                     return (
                       <div key={e.id} className="rounded-2xl border border-ink-faint/25 bg-bg-card p-3 flex flex-col items-center gap-2 text-center">
-                        <WorkTypeArt type={{ nimi: e.names[lang], match: entryWords(e), katalog: e.id } as WorkType} size={128} iconSize={64} />
+                        <WorkTypeArt type={own ?? ({ nimi: e.names[lang], match: entryWords(e), katalog: e.id } as WorkType)} size={128} iconSize={64} />
                         <span className="text-base font-semibold text-ink leading-snug">{e.names[lang]}</span>
                         <span className="text-sm text-ink-muted">
                           {e.unit === 'hammas' ? t('catalogue.perTooth') : t('catalogue.perJob')}

@@ -15,7 +15,8 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useClinicSyncState } from './ClinicSettingsSync'
 import { WORK_TYPE_PALETTE, sortedTiers, type WorkType, type PriceMode, type WorkTypeCost } from '../config/workTypes'
 import { workTypeImage, slugifyWorkType } from '../lib/workTypeImages'
-import { workType3dImage } from '../lib/workType3d'
+import { pictureChoice, workType3dImage } from '../lib/workType3d'
+import { WorkTypePicturePicker } from './Settings/WorkTypePicturePicker'
 import { WorkTypeArt } from './ui/WorkTypeArt'
 import { OptionLibrarySection, TypeOptionGroups } from './Settings/WorkOptionsEditor'
 import { WorkTypeCatalogue } from './Settings/WorkTypeCatalogue'
@@ -783,16 +784,19 @@ function ProfileSection({ auth }: { auth: ReturnType<typeof useAuth> }) {
 // behind the page's "i". Every field keeps its text locally and saves on blur
 // or Enter (DraftInput), so typing never loses the focus.
 //
-// The picture: a file the clinic pinned on the type (`pilt`) first, then the
-// type's 3D illustration (lib/workType3dMap.ts) in a larger box, then the photo
-// found by its name, then the line icon.
+// The picture: the one the owner chose (`pildiValik`: a 3D picture or a line
+// icon; click the picture or "Change picture") first; then a file pinned on
+// the type (`pilt`), then the type's 3D illustration (lib/workType3dMap.ts) in
+// a larger box, then the photo found by its name, then the line icon.
 function WorkTypePriceCard({ type, onPatch }: {
   type: WorkType
   onPatch: (patch: Partial<WorkType>) => void
 }) {
-  const pinned = type.pilt?.trim() ? workTypeImage(type.nimi, type.pilt) : null
+  const [picking, setPicking] = useState(false)
+  const chosen = pictureChoice(type.pildiValik)
+  const pinned = !chosen && type.pilt?.trim() ? workTypeImage(type.nimi, type.pilt) : null
   const art3d = pinned ? null : workType3dImage(type)
-  const img = pinned ?? (art3d ? null : workTypeImage(type.nimi))
+  const img = pinned ?? (art3d || chosen ? null : workTypeImage(type.nimi))
   const mode: PriceMode = type.hinnaTyyp ?? 'too'
   const unit = mode === 'hammas' ? t('settingsPage.tooth') : t('settingsPage.job')
 
@@ -820,24 +824,35 @@ function WorkTypePriceCard({ type, onPatch }: {
     <div className="card p-5 flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3.5 min-w-0">
-          <span
-            className={`${art3d ? 'w-24 h-24 bg-white border border-ink-faint/20' : 'w-14 h-14'} rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0`}
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            aria-label={t('picturePicker.change')}
+            title={t('picturePicker.change')}
+            className={`${art3d ? 'w-24 h-24 bg-white border border-ink-faint/20' : 'w-14 h-14'} rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0 hover:ring-2 hover:ring-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
             style={art3d ? undefined : { backgroundColor: `${type.hex}1f` }}
-            aria-hidden="true"
           >
             {art3d
               ? <img src={art3d} alt="" className="h-full w-full object-contain" />
               : img
               ? <img src={img} alt="" className="h-full w-full object-cover" />
               : <WorkTypeArt type={type} size={36} />}
-          </span>
+          </button>
           <div className="min-w-0">
             <h3 className="text-lg font-bold text-ink truncate" title={type.nimi}>{type.nimi}</h3>
             {type.hind == null
               ? <p className="text-sm font-semibold text-amber-600">{t('settingsPage.priceNotSet')}</p>
               : <p className="text-sm font-semibold text-accent tabular-nums">{type.hind.toFixed(2)} {unit}</p>}
+            <button type="button" onClick={() => setPicking(true)}
+              className="mt-0.5 text-sm font-medium text-accent hover:underline min-h-[32px]">
+              {t('picturePicker.change')}
+            </button>
           </div>
         </div>
+        {picking && (
+          <WorkTypePicturePicker type={type} onClose={() => setPicking(false)}
+            onChoose={value => onPatch({ pildiValik: value })} />
+        )}
         <div role="group" aria-label={t('settingsPage.pricingUnit')} className="flex bg-bg-sidebar rounded-xl p-1">
           {([
             { key: 'too', label: t('settingsPage.perJob') },

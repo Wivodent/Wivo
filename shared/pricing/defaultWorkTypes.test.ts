@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_WORK_TYPES, defaultWorkTypesFor, isUntouchedDefaultList, resolveWorkType, seedMissingTypes,
+  DEFAULT_WORK_TYPES, defaultWorkTypesFor, isUntouchedDefaultList, resolveWorkType, seedMissingTypes, storedPictureChoice,
 } from './workTypes'
 import { workTypeRules } from '../wizard/workTypeRules'
 
@@ -56,5 +56,15 @@ describe('only an untouched default list is translated', () => {
     expect(isUntouchedDefaultList(d().map((t, i) => (i === 0 ? { ...t, pilt: 'x.png' } : t)))).toBe(false)
     expect(isUntouchedDefaultList(d().slice(1))).toBe(false)
     expect(isUntouchedDefaultList(defaultWorkTypesFor('en'))).toBe(false)
+  })
+})
+
+describe("a work type's picture choice (pildiValik, 2.2.1)", () => {
+  it('keeps a 3D picture id or icon:<kind>, drops anything else', () => {
+    expect(storedPictureChoice('smile-design')).toBe('smile-design')
+    expect(storedPictureChoice('icon:surgicalGuide')).toBe('icon:surgicalGuide')
+    for (const v of [undefined, null, 3, '', 'Smile design', '../x', 'smile-design.webp', 'icon:', `x${'-a'.repeat(40)}`]) {
+      expect(storedPictureChoice(v), String(v)).toBeUndefined()
+    }
   })
 })

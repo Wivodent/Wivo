@@ -26,6 +26,7 @@ export {
 import { workTypeImageFile } from '../lib/workTypeImages'
 import { workTypePriceFor } from '@shared/pricing/priceBook'
 import { normaliseGroups, normaliseOptionPrices, normaliseOptions, type WorkOption } from '@shared/pricing/workOptions'
+import { storedPictureChoice } from '@shared/pricing/workTypes'
 import type { MailPolicy } from '@shared/billing/sendGuard'
 import { DEFAULT_MAIL_TEMPLATE, type MailTemplate } from '@shared/billing/mailTemplate'
 import type { MaterialPricing, FixedCost, ExtraService, Overhead, PriceBook } from '@shared/pricing/priceBook'
@@ -404,6 +405,8 @@ function workTypeList(v: unknown, fallback: WorkType[], repairColours: boolean):
         soodushind: numOrUndef(type.soodushind),
         hinnaTyyp: type.hinnaTyyp === 'hammas' ? 'hammas' : type.hinnaTyyp === 'too' ? 'too' : undefined,
         pilt: typeof type.pilt === 'string' && type.pilt.trim() ? type.pilt.trim() : undefined,
+        // The owner's choice of picture: a 3D picture's id or icon:<kind> (lib/workType3d pictureChoice).
+        pildiValik: storedPictureChoice(type.pildiValik),
         kulud: Array.isArray(type.kulud)
           ? type.kulud
               .filter(k => k && typeof k === 'object')

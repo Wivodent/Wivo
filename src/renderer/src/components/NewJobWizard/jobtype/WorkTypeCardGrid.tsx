@@ -22,8 +22,8 @@ import type { WorkType } from '@shared/pricing/workTypes'
 import { slugifyWorkType } from '@/lib/workTypeImages'
 import { SelectableCard } from '../ui/SelectableCard'
 import { WIZARD_BTN } from '../wizardTheme'
-import { WorkKindIcon, workKindFor } from './WorkKindIcon'
-import { workType3dImage } from '@/lib/workType3d'
+import { WorkKindIcon } from './WorkKindIcon'
+import { workType3dImage, workTypeKind } from '@/lib/workType3d'
 import { WorkTypeArt } from '../../ui/WorkTypeArt'
 import { t } from '@/lib/i18n'
 
@@ -121,7 +121,7 @@ export function WorkTypeCardGrid({
             label={type.nimi}
             sublabel={priceLabel(type)}
             imageSrc={workType3dImage(type)}
-            icon={<WorkKindIcon kind={workKindFor(identityTokens(type))} size={44} />}
+            icon={<WorkKindIcon kind={workTypeKind(type)} size={44} />}
             tone="cyan"
             size="tile"
             multi

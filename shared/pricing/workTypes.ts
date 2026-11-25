@@ -75,6 +75,13 @@ export interface WorkType {
   astmed?: PriceTier[]
   pilt?: string           // file name in assets/worktypes, defaults to the slug
   /**
+   * The picture the owner chose for this type (Settings → Prices, from 2.2.1):
+   * a 3D picture's id (`surgical-guide`, its file in assets/worktypes/3d
+   * without .webp) or a line icon (`icon:surgicalGuide`). Absent: chosen
+   * automatically from the type's name (renderer lib/workType3d).
+   */
+  pildiValik?: string
+  /**
    * Consumables this type always needs — the implant screw, the abutment, the
    * library file. A COST, never added to what the client is charged: it exists
    * so the margin knows what the job actually consumed.
@@ -134,6 +141,16 @@ export const DEFAULT_WORK_TYPES: WorkType[] = [
   { nimi: 'IBT',             hex: '#A855F7' },
   { nimi: 'Kirurgiline',     hex: '#0EA5E9', match: ['kirur', 'surgic'] },
 ]
+
+/**
+ * A stored picture choice (WorkType.pildiValik) as it may be kept: a 3D
+ * picture's id or `icon:<kind>`, else undefined. The settings drop anything
+ * else on load (the jsonb can be edited by hand); the renderer checks the id
+ * and the kind against what exists (lib/workType3d pictureChoice).
+ */
+export function storedPictureChoice(v: unknown): string | undefined {
+  return typeof v === 'string' && /^(icon:[A-Za-z]{1,30}|[a-z0-9]+(-[a-z0-9]+)*)$/.test(v) && v.length <= 60 ? v : undefined
+}
 
 export const UNKNOWN_WORK_TYPE: WorkType = { nimi: 'Muu / määramata', hex: '#94A3B8' }
 
