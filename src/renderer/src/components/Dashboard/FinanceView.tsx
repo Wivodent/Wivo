@@ -23,7 +23,7 @@ import { calculateFinance, profitOf, type Coverage } from '../../lib/finance'
 import { workTypeImage } from '../../lib/workTypeImages'
 import { employerCost, employerTaxAmount } from '../../lib/earnings'
 import { useAuth } from '../../context/AuthContext'
-import { clinicCountry, hasEstonianTax, employerRatePct } from '../../lib/country'
+import { clinicCountry, hasEstonianTax, employerRatePct, employerRateForStaff } from '../../lib/country'
 import { StatTile } from '../ui/StatTile'
 import type { Period, DateRange } from './useDashboardStats'
 import { periodMetrics, rangeFor, elapsedEndOf, unitSplitLabel, teethSplitLabel, MONEY_HINT } from '../../lib/periodMetrics'
@@ -42,7 +42,10 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
   // A net agreement is Estonian (lib/country): elsewhere everyone's pay is gross.
   const estonianTax = hasEstonianTax(clinicCountry(useAuth().clinic))
   // The employer's share for the clinic's cost: Settings in Estonia, the law's rate in Latvia.
-  const employerPct = employerRatePct(clinicCountry(useAuth().clinic), settings.tooandjaMaksudProtsent)
+  // `baseEmployerPct` goes into the finance figures (it turns a net agreement
+  // into gross); the cost uses `employerPct` below, per person in Latvia.
+  const country = clinicCountry(useAuth().clinic)
+  const baseEmployerPct = employerRatePct(country, settings.tooandjaMaksudProtsent)
   const wt = useWorkTypes()
   const { data: invoices = [], isError: invoicesMissing } = useInvoices()
   const { data: payments = [] } = usePayments()
@@ -107,7 +110,7 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
       maksuvaba_tulu: w.maksuvaba_tulu,
     })),
     taxRates: {
-      tooandjaMaksudProtsent: employerPct,
+      tooandjaMaksudProtsent: baseEmployerPct,
       tulumaksProtsent: settings.tulumaksProtsent,
       maksuvabaTuluKuus: settings.maksuvabaTuluKuus,
       tootajaTootuskindlustusProtsent: settings.tootajaTootuskindlustusProtsent,
@@ -125,12 +128,20 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
     // Rent does not accrue for days that have not happened. Counts use the
     // whole period; overheads use only the elapsed part of it.
     overheadEnd: elapsedEndOf(range),
-  }), [jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers, wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob, settings.yldkulud, settings.toopaevadNadalas, employerPct, settings.tulumaksProtsent, settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent, settings.kogumispensionProtsent, doneStageKey, range, estonianTax])
+  }), [jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers, wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob, settings.yldkulud, settings.toopaevadNadalas, baseEmployerPct, settings.tulumaksProtsent, settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent, settings.kogumispensionProtsent, doneStageKey, range, estonianTax])
 
   // Margin against the FULL cost of employment, not gross pay: the taxes are
   // real money leaving the account.
   // Employer tax applies to WAGES only. A contractor's invoice already carries
   // its own tax treatment, and grossing it up here would invent a liability.
+  // Each employee's own rate in Latvia (a pensioner's is lower), weighted by
+  // their gross; elsewhere the one rate. lib/country employerRateForStaff.
+  const employerPct = useMemo(() => {
+    const pensioner = new Map(workers.map(w => [w.id, w.pensionar]))
+    return employerRateForStaff(country, baseEmployerPct, fin.byWorker
+      .filter(w => w.engagement === 'tootaja')
+      .map(w => ({ grossPay: w.grossPay, pensioner: pensioner.get(w.profileId) })))
+  }, [country, baseEmployerPct, fin, workers])
   const employerTax = employerTaxAmount(fin.labourEmployeeGross, employerPct)
   const p = useMemo(
     () => profitOf(fin, employerPct),

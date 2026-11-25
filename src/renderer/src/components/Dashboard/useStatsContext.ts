@@ -46,7 +46,7 @@ import { funFacts, type FunFacts } from '../../lib/funFacts'
 import type { PermissionKey } from '../../hooks/usePermissions'
 import { t } from '@/lib/i18n'
 import { useAuth } from '../../context/AuthContext'
-import { clinicCountry, hasEstonianTax, employerRatePct } from '../../lib/country'
+import { clinicCountry, hasEstonianTax, employerRatePct, employerRateForStaff } from '../../lib/country'
 
 /**
  * Which expensive slice a panel needs. See `PanelMeta.needs`.
@@ -123,7 +123,10 @@ export function useStatsContext(
   // A net agreement is Estonian (lib/country): elsewhere everyone's pay is gross.
   const estonianTax = hasEstonianTax(clinicCountry(useAuth().clinic))
   // The employer's share for the clinic's cost: Settings in Estonia, the law's rate in Latvia.
-  const employerPct = employerRatePct(clinicCountry(useAuth().clinic), settings.tooandjaMaksudProtsent)
+  // `baseEmployerPct` goes into the finance figures (it turns a net agreement
+  // into gross); the cost uses `employerPct` below, per person in Latvia.
+  const country = clinicCountry(useAuth().clinic)
+  const baseEmployerPct = employerRatePct(country, settings.tooandjaMaksudProtsent)
   const wt = useWorkTypes()
   const { can } = usePermissions()
   const { data: invoices = [], isError: invoicesMissing } = useInvoices()
@@ -189,7 +192,7 @@ export function useStatsContext(
         maksuvaba_tulu: w.maksuvaba_tulu,
       })),
       taxRates: {
-        tooandjaMaksudProtsent: employerPct,
+        tooandjaMaksudProtsent: baseEmployerPct,
         tulumaksProtsent: settings.tulumaksProtsent,
         maksuvabaTuluKuus: settings.maksuvabaTuluKuus,
         tootajaTootuskindlustusProtsent: settings.tootajaTootuskindlustusProtsent,
@@ -211,11 +214,19 @@ export function useStatsContext(
   }, [
     wantsFinance, jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers,
     wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob,
-    settings.yldkulud, settings.toopaevadNadalas, employerPct, settings.tulumaksProtsent,
+    settings.yldkulud, settings.toopaevadNadalas, baseEmployerPct, settings.tulumaksProtsent,
     settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent,
     settings.kogumispensionProtsent, doneStageKey, range, estonianTax,
   ])
 
+  // Each employee's own rate in Latvia (a pensioner's is lower), weighted by
+  // their gross; elsewhere the one rate. lib/country employerRateForStaff.
+  const employerPct = useMemo(() => {
+    const pensioner = new Map(workers.map(w => [w.id, w.pensionar]))
+    return employerRateForStaff(country, baseEmployerPct, fin.byWorker
+      .filter(w => w.engagement === 'tootaja')
+      .map(w => ({ grossPay: w.grossPay, pensioner: pensioner.get(w.profileId) })))
+  }, [country, baseEmployerPct, fin, workers])
   const profit = useMemo(
     () => profitOf(fin, employerPct),
     [fin, employerPct],

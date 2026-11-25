@@ -46,3 +46,27 @@ export { taxSystemOf as payrollTaxSystem } from '@shared/payroll/countryTax'
 export function employerRatePct(country: string, settingsPct: number, year = new Date().getFullYear()): number {
   return taxSystemOf(country) === 'LV' ? latviaRulesFor(year).employerSocialPct : settingsPct
 }
+
+/**
+ * The employer's share for a group of employees, as one percentage of their
+ * total gross. Latvia: each person's own rate, weighted by what they earned
+ * (a working pensioner's is lower, 20.77% against 23.59% in 2026). Anywhere
+ * else every employee has the same rate, the one in Settings.
+ *
+ * One percentage rather than an amount, so Finance and Statistics keep
+ * applying it to the employees' gross exactly as before.
+ */
+export function employerRateForStaff(
+  country: string,
+  settingsPct: number,
+  staff: readonly { grossPay: number; pensioner?: boolean | null }[],
+  year = new Date().getFullYear(),
+): number {
+  if (taxSystemOf(country) !== 'LV') return settingsPct
+  const rules = latviaRulesFor(year)
+  const total = staff.reduce((s, p) => s + Math.max(0, p.grossPay), 0)
+  if (total <= 0) return rules.employerSocialPct
+  const tax = staff.reduce((s, p) =>
+    s + Math.max(0, p.grossPay) * (p.pensioner === true ? rules.pensionerEmployerSocialPct : rules.employerSocialPct), 0)
+  return tax / total
+}
