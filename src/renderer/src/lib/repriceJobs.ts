@@ -113,7 +113,7 @@ export function planReprice(
     // with no material of its own and is quoted from `job.materjal` as before.
     const quote = quoteJob({
       items: jobWorkItems(job).map(i => ({
-        too: i.too, hambad: i.hambad, materjal: i.materjal ?? null,
+        too: i.too, hambad: i.hambad, materjal: i.materjal ?? null, valikud: i.valikud ?? null,
       })),
       materjal: job.materjal,
       kiirtoo: job.kiirtoo ?? false,
@@ -127,12 +127,12 @@ export function planReprice(
       continue
     }
 
-    // Add-ons are not a pricing METHOD. Rush and the model ride on top of
-    // however the work itself was priced, so counting them would report every
-    // rush job with a model as a "segu" of three sources.
+    // Add-ons are not a pricing METHOD. Rush, the model and the chosen options
+    // ride on top of however the work itself was priced, so counting them would
+    // report every rush job with a model as a "segu" of three sources.
     const sources = new Set(
       quote.lines
-        .filter(l => l.source !== 'kiirtöö' && l.source !== 'mudel')
+        .filter(l => l.source !== 'kiirtöö' && l.source !== 'mudel' && l.source !== 'valik')
         .map(l => l.source)
     )
     const source = (sources.size === 1

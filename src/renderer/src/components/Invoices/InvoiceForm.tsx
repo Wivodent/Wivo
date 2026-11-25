@@ -20,6 +20,7 @@ import { useCustomers } from '../../hooks/useCustomers'
 import type { BillToKind } from '../../types/customer'
 import { toDate } from '../../lib/dates'
 import { instalmentSchedule, scheduleProblems } from '@shared/billing/instalments'
+import { workWithOptionsLabel } from '@shared/pricing/workOptions'
 import { useCreatePaymentPlan } from '../../hooks/usePaymentPlans'
 import { t } from '@/lib/i18n'
 import { useHoldRestart } from '../../lib/restartGuard'
@@ -111,8 +112,9 @@ export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: Invoic
           job_id: j.id,
           revision_id: null,
           description: [
-            // All work types, not just the first one
-            [...new Set(jobWorkItems(j).map(i => i.too))].join(' + ') || j.too?.trim() || 'Töö',
+            // All work types, not just the first one, each with the options
+            // chosen for it: "All-on-4 (Metal bar)". Their price is in the job's.
+            workWithOptionsLabel(jobWorkItems(j), settings.tooValikud) || j.too?.trim() || 'Töö',
             billTo === 'customer'
               ? (j.customer_ref?.trim() || j.patsient?.trim() || null)
               : null,
@@ -147,7 +149,7 @@ export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: Invoic
       }
     }
     return out
-  }, [jobs, billTo, customerId, patientKey, patientId, billedJobIds, lines])
+  }, [jobs, billTo, customerId, patientKey, patientId, billedJobIds, lines, settings.tooValikud])
 
   const net = Math.round(lines.reduce((s, l) => s + l.qty * l.unit_price, 0) * 100) / 100
   const vat = Math.round(net * vatRate) / 100

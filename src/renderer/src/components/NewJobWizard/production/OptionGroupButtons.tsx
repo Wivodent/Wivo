@@ -88,7 +88,7 @@ function OptionButton({ option, on, multi, onClick }: {
   multi: boolean
   onClick: () => void
 }) {
-  const img = workOptionImage(option.id)
+  const img = workOptionImage(option.id, option.nimi)
   const extra = option.lisahind
     ? option.yhik === 'hammas'
       ? t('wizard.optionExtraTooth', { amount: option.lisahind.toFixed(2) })

@@ -182,6 +182,25 @@ export function optionTotals(
   }
 }
 
+/**
+ * A job's work for one line of text, such as an invoice line: each type once,
+ * in order, with the options chosen for it ("All-on-4 (Metal bar) + Kroon").
+ */
+export function workWithOptionsLabel(
+  items: readonly { too?: string | null; valikud?: ItemOptions | null }[],
+  library: readonly WorkOption[] | undefined,
+): string {
+  const byType = new Map<string, string[]>()
+  for (const item of items) {
+    const too = item.too?.trim()
+    if (!too) continue
+    const names = byType.get(too) ?? []
+    for (const n of chosenOptionNames(item.valikud, library)) if (!names.includes(n)) names.push(n)
+    byType.set(too, names)
+  }
+  return [...byType].map(([too, names]) => (names.length > 0 ? `${too} (${names.join(', ')})` : too)).join(' + ')
+}
+
 /** The names of an item's chosen options, for a card or a list ("Metal bar"). */
 export function chosenOptionNames(valikud: ItemOptions | null | undefined, library: readonly WorkOption[] | undefined): string[] {
   if (!valikud || !library?.length) return []

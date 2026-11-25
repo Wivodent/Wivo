@@ -8,7 +8,8 @@
  *
  * TypeOptionGroups: on one work type's price card, the groups it offers
  * ("Framework: Metal bar, Titanium mesh"), each pointing at library options,
- * pick one or pick any. Prices are never typed here: they are the library's.
+ * pick one or pick any, with each option's extra price and cost (the
+ * library's, so the same everywhere it is offered).
  */
 import { useState } from 'react'
 import { Plus, X, Archive, ArchiveRestore, Layers } from 'lucide-react'
@@ -17,6 +18,7 @@ import { newId, type WorkOption, type WorkOptionGroup } from '@shared/pricing/wo
 import { useSettings } from '../../stores/useSettings'
 import { workOptionImage } from '../../lib/workOptionImages'
 import { DraftNumberInput, DraftTextInput } from '../ui/DraftInput'
+import { InfoButton } from '../ui/InfoButton'
 import { SectionCard } from '../ui/SectionCard'
 import { t } from '@/lib/i18n'
 
@@ -49,7 +51,7 @@ export function OptionLibrarySection() {
       {library.length === 0 && <p className="text-sm text-ink-muted">{t('settingsPage.noOptionsYet')}</p>}
       <div className="flex flex-col gap-2">
         {shown.map(o => {
-          const img = workOptionImage(o.id)
+          const img = workOptionImage(o.id, o.nimi)
           return (
             <div key={o.id}
               className={`grid grid-cols-[48px_minmax(0,1fr)_120px_120px_auto_44px] gap-2 items-center ${o.arhiivis ? 'opacity-60' : ''}`}>
@@ -103,7 +105,14 @@ export function OptionLibrarySection() {
   )
 }
 
-/** On a work type's price card: the option groups it offers. */
+/**
+ * On a work type's price card: the option groups it offers, each a question
+ * asked when a job is added ("Framework"), its options the answers, one row
+ * each like a cost row: picture, name, the extra on the client's price, our
+ * cost, remove. The amounts are the library option's, so the same option has
+ * the same price wherever it is offered; set here, they follow this type's
+ * unit (per job or per tooth).
+ */
 export function TypeOptionGroups({ type, onPatch }: {
   type: WorkType
   onPatch: (patch: Partial<WorkType>) => void
@@ -112,35 +121,52 @@ export function TypeOptionGroups({ type, onPatch }: {
   const library = settings.tooValikud
   const byId = new Map(library.map(o => [o.id, o]))
   const groups = type.valikuGrupid ?? []
+  const mode = type.hinnaTyyp ?? 'too'
 
   const save = (next: WorkOptionGroup[]) => onPatch({ valikuGrupid: next.length > 0 ? next : undefined })
   const patchGroup = (key: string, p: Partial<WorkOptionGroup>) =>
     save(groups.map(g => (g.key === key ? { ...g, ...p } : g)))
-  const addGroup = () => {
-    const nimi = t('settingsPage.newGroupName')
-    save([...groups, { key: newId(nimi, groups.map(g => g.key), 'group'), nimi, mitu: false, valikud: [] }])
-  }
+  // Empty, with "e.g. Framework" in it: a ready-made name here was taken for
+  // an option and overwritten with one ("Metal bar" as the group's name).
+  const addGroup = () =>
+    save([...groups, { key: newId('', groups.map(g => g.key), 'group'), nimi: '', mitu: false, valikud: [] }])
+
+  /** An amount set on this card is in this type's unit. */
+  const patchOption = (id: string, p: Partial<WorkOption>) =>
+    setTooValikud(library.map(o => (o.id === id ? { ...o, ...p, yhik: mode } : o)))
 
   /** A new library option, made here and put in the group at once. */
   const createInGroup = (g: WorkOptionGroup, nimi: string) => {
     const id = newId(nimi, library.map(o => o.id))
-    setTooValikud([...library, { id, nimi, yhik: 'too' }])
+    setTooValikud([...library, { id, nimi, yhik: mode }])
     patchGroup(g.key, { valikud: [...g.valikud, id] })
   }
 
+  /** The other types that offer an option: their price is this one. */
+  const alsoIn = (id: string): string[] => settings.tooTuubid
+    .filter(x => x.nimi !== type.nimi && (x.valikuGrupid ?? []).some(g => g.valikud.includes(id)))
+    .map(x => x.nimi)
+
   return (
     <div className="flex flex-col gap-3 border-t border-ink-faint/15 pt-4">
-      <h4 className="text-base font-bold text-ink">{t('settingsPage.optionsOfType')}</h4>
+      <div className="flex items-center gap-2">
+        <h4 className="text-base font-bold text-ink">{t('settingsPage.optionsOfType')}</h4>
+        <InfoButton label={t('settingsPage.optionsOfTypeInfoLabel')} text={t('settingsPage.optionsOfTypeInfo')} />
+      </div>
+      <p className="text-sm text-ink-muted -mt-1">{t('settingsPage.optionsOfTypeSub')}</p>
       {groups.length === 0 && <p className="text-sm text-ink-muted">{t('settingsPage.noOptionGroups')}</p>}
       {groups.map(g => (
-        <div key={g.key} className="rounded-xl border border-ink-faint/20 p-3 flex flex-col gap-2.5">
-          <div className="flex items-center gap-2">
-            <DraftTextInput value={g.nimi} onCommit={v => patchGroup(g.key, { nimi: v })}
-              aria-label={t('settingsPage.groupName')} placeholder={t('settingsPage.groupNamePlaceholder')}
-              className="input h-10 text-base font-semibold flex-1 min-w-0" />
+        <div key={g.key} className="rounded-xl border border-ink-faint/20 p-3 flex flex-col gap-3">
+          <div className="flex items-end gap-2">
+            <label className="flex flex-col gap-1 flex-1 min-w-0 text-sm font-semibold text-ink-soft">
+              {t('settingsPage.groupLabel')}
+              <DraftTextInput value={g.nimi} onCommit={v => patchGroup(g.key, { nimi: v.trim() })}
+                placeholder={t('settingsPage.groupNamePlaceholder')}
+                className="input h-11 text-base font-semibold w-full" />
+            </label>
             <button type="button" aria-label={t('settingsPage.removeGroup')} title={t('settingsPage.removeGroup')}
               onClick={() => save(groups.filter(x => x.key !== g.key))}
-              className="w-10 h-10 rounded-xl border border-ink-faint/25 flex items-center justify-center text-ink-faint hover:text-red-500">
+              className="w-11 h-11 rounded-xl border border-ink-faint/25 flex items-center justify-center text-ink-faint hover:text-red-500 flex-shrink-0">
               <X size={16} />
             </button>
           </div>
@@ -148,20 +174,43 @@ export function TypeOptionGroups({ type, onPatch }: {
             <input type="checkbox" checked={g.mitu} onChange={e => patchGroup(g.key, { mitu: e.target.checked })} />
             {t('settingsPage.groupPickMany')}
           </label>
-          <div className="flex flex-wrap gap-1.5">
-            {g.valikud.map(id => {
-              const o = byId.get(id)
-              return (
-                <span key={id} className={`inline-flex items-center gap-1 rounded-lg bg-bg-sidebar px-2.5 py-1 text-sm ${o?.arhiivis ? 'opacity-60' : ''}`}>
-                  {o?.nimi ?? id}
-                  {o?.lisahind ? <span className="text-ink-muted tabular-nums">+{o.lisahind.toFixed(2)} €{o.yhik === 'hammas' ? ` / ${t('settingsPage.tooth3')}` : ''}</span> : null}
-                  <button type="button" aria-label={t('settingsPage.removeFromGroup', { name: o?.nimi ?? id })}
-                    onClick={() => patchGroup(g.key, { valikud: g.valikud.filter(x => x !== id) })}
-                    className="text-ink-faint hover:text-red-500"><X size={13} /></button>
-                </span>
-              )
-            })}
+
+          <div className={OPTION_ROW}>
+            <span />
+            <span className="text-xs font-semibold text-ink-muted">{t('settingsPage.optionColName')}</span>
+            <span className="text-xs font-semibold text-ink-muted text-right">{t('settingsPage.optionColPrice')}</span>
+            <span className="text-xs font-semibold text-ink-muted text-right">{t('settingsPage.optionColCost')}</span>
+            <span />
           </div>
+          {g.valikud.length === 0 && <ExampleRow unit={unitOf(mode)} />}
+          {g.valikud.map(id => {
+            const o = byId.get(id)
+            const others = alsoIn(id)
+            return (
+              <div key={id} className="flex flex-col gap-1">
+                <div className={`${OPTION_ROW} ${o?.arhiivis ? 'opacity-60' : ''}`}>
+                  <OptionPicture id={id} nimi={o?.nimi} />
+                  {o ? (
+                    <DraftTextInput value={o.nimi} onCommit={v => v.trim() && setTooValikud(library.map(x => (x.id === id ? { ...x, nimi: v.trim() } : x)))}
+                      aria-label={t('settingsPage.optionName')} className="input h-11 text-base min-w-0" />
+                  ) : <span className="text-sm text-ink-muted truncate">{id}</span>}
+                  <MoneyCell label={t('settingsPage.optionExtraPrice')} value={o?.lisahind} plus
+                    unit={unitOf(o?.yhik ?? mode)} disabled={!o} onCommit={v => patchOption(id, { lisahind: v })} />
+                  <MoneyCell label={t('settingsPage.optionCost')} value={o?.kulu}
+                    unit={unitOf(o?.yhik ?? mode)} disabled={!o} onCommit={v => patchOption(id, { kulu: v })} />
+                  <button type="button" aria-label={t('settingsPage.removeFromGroup', { name: o?.nimi ?? id })}
+                    title={t('settingsPage.removeFromGroup', { name: o?.nimi ?? id })}
+                    onClick={() => patchGroup(g.key, { valikud: g.valikud.filter(x => x !== id) })}
+                    className="w-11 h-11 rounded-xl border border-ink-faint/25 flex items-center justify-center text-ink-faint hover:text-red-500">
+                    <X size={16} />
+                  </button>
+                </div>
+                {others.length > 0 && (
+                  <p className="text-xs text-ink-muted pl-[52px]">{t('settingsPage.optionSamePriceIn', { names: others.join(', ') })}</p>
+                )}
+              </div>
+            )
+          })}
           <AddToGroup group={g} library={library} onAdd={id => patchGroup(g.key, { valikud: [...g.valikud, id] })}
             onCreate={nimi => createInGroup(g, nimi)} />
         </div>
@@ -170,6 +219,53 @@ export function TypeOptionGroups({ type, onPatch }: {
         className="self-start min-h-[44px] px-3.5 rounded-xl border border-dashed border-ink-faint/60 bg-bg-card text-sm text-ink hover:border-accent inline-flex items-center gap-1.5">
         <Plus size={14} aria-hidden="true" /> {t('settingsPage.addOptionGroup')}
       </button>
+    </div>
+  )
+}
+
+const OPTION_ROW = 'grid grid-cols-[44px_minmax(0,1fr)_130px_130px_44px] gap-2 items-center'
+
+const unitOf = (mode: WorkOption['yhik']): string => (mode === 'hammas' ? t('settingsPage.tooth') : t('settingsPage.job'))
+
+/** The option's picture from the library (assets/worktypes/3d/options), or a plain mark. */
+function OptionPicture({ id, nimi }: { id: string; nimi?: string }) {
+  const img = workOptionImage(id, nimi)
+  return (
+    <span className="w-11 h-11 rounded-lg bg-white border border-ink-faint/20 flex items-center justify-center overflow-hidden">
+      {img ? <img src={img} alt="" className="w-full h-full object-contain" /> : <Layers size={16} className="text-ink-faint" aria-hidden="true" />}
+    </span>
+  )
+}
+
+/** An amount in euros, per job or per tooth, as on the type's own price. */
+function MoneyCell({ label, value, unit, plus, disabled, onCommit }: {
+  label: string
+  value: number | undefined
+  unit: string
+  plus?: boolean
+  disabled?: boolean
+  onCommit: (v: number | undefined) => void
+}) {
+  return (
+    <label className="relative">
+      <span className="sr-only">{label}</span>
+      <DraftNumberInput allowEmpty value={value} placeholder={plus ? '+0.00' : '0.00'} onCommit={onCommit} disabled={disabled}
+        title={label} className="input h-11 pr-14 text-base text-right w-full tabular-nums" />
+      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">{unit}</span>
+    </label>
+  )
+}
+
+/** What a row looks like, in an empty group: greyed, not a field. */
+function ExampleRow({ unit }: { unit: string }) {
+  const cell = 'h-11 rounded-xl border border-dashed border-ink-faint/40 flex items-center px-3 text-base text-ink-faint'
+  return (
+    <div className={OPTION_ROW} aria-label={t('settingsPage.optionExample')}>
+      <OptionPicture id="metal-bar" />
+      <span className={cell}>{t('settingsPage.optionExampleName')}</span>
+      <span className={`${cell} justify-end tabular-nums`}>+400.00 <span className="ml-1 text-xs">{unit}</span></span>
+      <span className={`${cell} justify-end tabular-nums`}>120.00 <span className="ml-1 text-xs">{unit}</span></span>
+      <span className="text-xs text-ink-faint text-center">{t('settingsPage.optionExample')}</span>
     </div>
   )
 }

@@ -26,6 +26,7 @@ import { jobMaterialDetail } from './finance'
 import { workTypeConsumables, abutmentUnitPrice, type WorkType } from '../config/workTypes'
 import type { MaterialPricing } from '@shared/pricing/priceBook'
 import { splitMaterials } from '@shared/pricing/materials'
+import { optionLines, type WorkOption } from '@shared/pricing/workOptions'
 import { t } from '@shared/i18n' // not @/lib/i18n: that touches `document` on load, and node tests import this
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -75,6 +76,11 @@ export interface JobCostsInput {
   workers: { id: string; kiirtoo_kordaja?: number | null; full_name?: string | null }[]
   /** 'YYYY-MM-DD' — which rates were active. Defaults to today. */
   on?: string
+  /**
+   * The option library (shared/pricing/workOptions): each chosen option's
+   * cost is a consumables line ("All-on-4 · Metal bar"). Absent: none.
+   */
+  options?: WorkOption[]
 }
 
 export interface JobCosts {
@@ -231,8 +237,14 @@ export function jobCosts(input: JobCostsInput): JobCosts {
     const tag = implants != null
       ? t('jobCosts.implantImplants', { implants })
       : ''
-    return workTypeConsumables(i.too, workTypes, implants ?? toothCount(i.hambad)).items
-      .map(c => ({ label: `${c.nimi}${tag}`, amount: c.summa }))
+    return [
+      ...workTypeConsumables(i.too, workTypes, implants ?? toothCount(i.hambad)).items
+        .map(c => ({ label: `${c.nimi}${tag}`, amount: c.summa })),
+      // What the chosen options cost us: the same numbers the finance view adds.
+      ...optionLines(i, input.options)
+        .filter(o => o.cost > 0)
+        .map(o => ({ label: `${i.too} · ${o.nimi}`, amount: o.cost })),
+    ]
   })
 
   const yle = (job.kulu_yle ?? {}) as Partial<Record<CostKey, number>>
