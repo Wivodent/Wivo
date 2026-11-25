@@ -18,8 +18,9 @@
  * so old jobs still read and price.
  *
  * An option's id is English kebab-case and is also its picture's file name:
- * assets/worktypes/3d/options/<id>.webp. Not yet in this version: stages and
- * pay rules that depend on an option (docs/ROADMAP.md).
+ * assets/worktypes/3d/options/<id>.webp. A pay rule may apply only with an
+ * option (worker_rates.option_key, sql/129, lib/earnings.ts). Not yet: stages
+ * that depend on an option (docs/ROADMAP.md).
  */
 import type { PriceMode } from './workTypes'
 import { toothCount } from './teeth'

@@ -1863,6 +1863,11 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
     await save.mutateAsync({ ...r, amount: v })
   }
   const wt = useWorkTypes()
+  const { settings: rateSettings } = useSettings()
+  // The option library (Settings → Prices): a rule may pay only when one of
+  // them was chosen (sql/129). Archived ones are not offered for new rules.
+  const optionLibrary = rateSettings.tooValikud
+  const optionName = (id: string): string => optionLibrary.find(o => o.id === id)?.nimi ?? id
 
   const [kind, setKind] = useState<RateKind>('hammas')
   const [scope, setScope] = useState<RateScope>('too')
@@ -1870,6 +1875,8 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
   // A list, not one name: "igeme tasu on these four types" is one decision and
   // was previously four near-identical rules to write and keep in step.
   const [workTypes, setWorkTypes] = useState<string[]>([])
+  // One option or none: "All-on-4, and with a metal bar 50 € more".
+  const [optionKey, setOptionKey] = useState('')
   // "Lisandub" and "mille eest" are different questions: gum design IS design,
   // it just stacks instead of competing. Forcing one dropdown to say both left
   // the ordinary design rule with nowhere to go.
@@ -1894,14 +1901,18 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
         work_type: workTypes.length > 0 ? workTypes.join('|') : null,
         priority: workTypes.length > 0 ? 10 : 0,
         additive,
-        label: label.trim() || null,
+        // An extra for an option is called after it unless named otherwise.
+        label: label.trim() || (additive && optionKey ? optionName(optionKey) : null),
+        // Only when set: a database before sql/129 has no such column, and
+        // every rule without an option must still save there.
+        ...(SCOPED_KINDS.includes(kind) && optionKey ? { option_key: optionKey } : {}),
         pay_revisions: payRevisions,
         auto_hours: kind === 'tund' || kind === 'kuu' ? autoHours : false,
         hours_per_day: kind === 'tund' || kind === 'kuu' ? parseFloat(hoursPerDay) || null : null,
         work_days: kind === 'tund' || kind === 'kuu' ? workDays : '12345',
         active_from: null, active_to: null, note: null,
       })
-      setAmount(''); setWorkTypes([]); setLabel(''); setAdditive(false)
+      setAmount(''); setWorkTypes([]); setOptionKey(''); setLabel(''); setAdditive(false)
     } catch (err) { setError(describeError(err)) }
   }
 
@@ -1989,6 +2000,11 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
                 {name}
               </span>
             ))}
+            {r.option_key && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-700">
+                {t('workers.withOption', { name: optionName(r.option_key) })}
+              </span>
+            )}
             {r.pay_revisions && (
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
                 {t('workers.revisionsPaid')}
@@ -2168,10 +2184,23 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
               )
             })}
           </div>
+          {optionLibrary.some(o => !o.arhiivis) && (
+            <div className="mt-2">
+              <label className="label" htmlFor="rate-option">
+                {t('workers.onlyWithOption')}
+                <span className="font-normal text-ink-faint ml-1">{t('workers.onlyWithOptionHint')}</span>
+              </label>
+              <select id="rate-option" value={optionKey} onChange={e => setOptionKey(e.target.value)}
+                className="input py-1.5 text-sm w-56">
+                <option value="">{t('workers.anyOption')}</option>
+                {optionLibrary.filter(o => !o.arhiivis).map(o => <option key={o.id} value={o.id}>{o.nimi}</option>)}
+              </select>
+            </div>
+          )}
           {/* An additive rule with no type named would pay on every piece of
               work there is. Legal, almost never meant, and expensive to
               discover at the end of the month. */}
-          {additive && workTypes.length === 0 && (
+          {additive && workTypes.length === 0 && !optionKey && (
             <p className="text-[10px] text-amber-600 mt-1">
               {t('workers.pickWorkTypesAsItStands')}
             </p>

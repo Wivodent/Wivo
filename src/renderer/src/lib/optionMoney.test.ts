@@ -8,6 +8,7 @@ import './_domStub'
 import { describe, it, expect } from 'vitest'
 import { planReprice } from './repriceJobs'
 import { jobCosts, type JobCostsInput } from './jobCosts'
+import type { WorkerRate } from './earnings'
 import type { Job } from '../types/job'
 import type { WivoSettings } from '../stores/useSettings'
 import type { WorkType } from '@shared/pricing/workTypes'
@@ -72,6 +73,28 @@ describe('the job\'s cost table and margin', () => {
 
   it('without the library, nothing is added (as before options)', () => {
     expect(jobCosts(input()).total).toBe(0)
+  })
+
+  it('the technician\'s cost follows a pay rule that names an option (sql/129)', () => {
+    const rule = (over: Partial<WorkerRate>): WorkerRate => ({
+      id: crypto.randomUUID(), clinic_id: 'c', profile_id: 'tech', kind: 'too', applies_to: 'too', amount: 0,
+      work_type: 'All-on-4', priority: 0, additive: false, label: null, pay_revisions: false, auto_hours: false,
+      hours_per_day: null, work_days: '12345', active_from: null, active_to: null, note: null,
+      created_at: '', updated_at: '', ...over,
+    })
+    const base = input(LIBRARY)
+    const withTech = (rates: WorkerRate[], valikud: typeof ITEM.valikud | undefined) => jobCosts({
+      ...base,
+      job: { ...base.job, assigned_to: 'tech', work_items: [{ ...ITEM, valikud }] },
+      rates,
+      workers: [{ id: 'tech' }],
+    })
+    const rates = [
+      rule({ amount: 200 }),
+      rule({ amount: 50, additive: true, label: 'Metal bar', option_key: 'metal-bar' }),
+    ]
+    expect(withTech(rates, ITEM.valikud).categories.find(c => c.key === 'tehnik')!.computed).toBe(250)
+    expect(withTech(rates, undefined).categories.find(c => c.key === 'tehnik')!.computed).toBe(200)
   })
 })
 

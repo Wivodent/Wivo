@@ -78,6 +78,14 @@ export function useWorkerRates() {
   })
 }
 
+/**
+ * A rule naming an option on a database before sql/129: PostgREST does not
+ * know the column. Said neutrally (app.notAvailableYet), never as a database
+ * instruction.
+ */
+export const lacksOptionColumn = (error: { code?: string; message?: string } | null | undefined): boolean =>
+  !!error && (error.code === 'PGRST204' || error.code === '42703') && /option_key/.test(error.message ?? '')
+
 export function useSaveWorkerRate() {
   const qc = useQueryClient()
   return useMutation({
@@ -90,6 +98,7 @@ export function useSaveWorkerRate() {
           .from('worker_rates')
           .update({ ...patch, updated_at: new Date().toISOString() })
           .eq('id', id).select().single()
+        if (lacksOptionColumn(error)) throw new Error(t('app.notAvailableYet'))
         if (error) throw error
         return data as WorkerRate
       }
@@ -97,6 +106,7 @@ export function useSaveWorkerRate() {
         .from('worker_rates')
         .insert({ ...rate, clinic_id: clinicId })
         .select().single()
+      if (lacksOptionColumn(error)) throw new Error(t('app.notAvailableYet'))
       if (error) throw error
       return data as WorkerRate
     },

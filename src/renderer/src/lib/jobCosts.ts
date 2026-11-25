@@ -21,12 +21,12 @@
 import type { Job } from '../types/job'
 import { jobWorkItems, workItemDesigner, implantCount, designTeeth, designIsPartial } from '../types/job'
 import type { WorkerRate } from './earnings'
-import { pickRateFor, calculateEarnings } from './earnings'
+import { pickRateFor, calculateEarnings, rateHasOption } from './earnings'
 import { jobMaterialDetail } from './finance'
 import { workTypeConsumables, abutmentUnitPrice, type WorkType } from '../config/workTypes'
 import type { MaterialPricing } from '@shared/pricing/priceBook'
 import { splitMaterials } from '@shared/pricing/materials'
-import { optionLines, type WorkOption } from '@shared/pricing/workOptions'
+import { optionLines, type ItemOptions, type WorkOption } from '@shared/pricing/workOptions'
 import { t } from '@shared/i18n' // not @/lib/i18n: that touches `document` on load, and node tests import this
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -121,7 +121,7 @@ export function jobCosts(input: JobCostsInput): JobCosts {
 
   for (const item of tId ? items : []) {
     const tc = toothCount(item.hambad)
-    const rate = pickRateFor(tRates, item.too, on, workTypes, 'too')
+    const rate = pickRateFor(tRates, item.too, on, workTypes, 'too', undefined, item.valikud)
     if (!rate) continue
     const amt = (rate.kind === 'hammas' ? tc * rate.amount : rate.kind === 'too' ? rate.amount : 0) * tRush
     if (amt > 0) techLines.push({ label: `${item.too}: ${tc} × ${rate.amount} €${rushTag(tRush)}`, amount: amt })
@@ -168,7 +168,7 @@ export function jobCosts(input: JobCostsInput): JobCosts {
     // the technician can design part of an item himself, and this line used to
     // bill the designer for those teeth too.
     const tc = toothCount(designTeeth(item))
-    const rate = pickRateFor(dRates, item.too, on, workTypes, 'disain')
+    const rate = pickRateFor(dRates, item.too, on, workTypes, 'disain', undefined, item.valikud)
     if (!rate) continue
     const amt = (rate.kind === 'hammas' ? tc * rate.amount : rate.kind === 'too' ? rate.amount : 0) * dRush
     if (amt > 0) {
@@ -295,11 +295,15 @@ export function jobCosts(input: JobCostsInput): JobCosts {
   }
 }
 
-/** Items an additive rule covers. Empty `work_type` means every one of them. */
-function coveredBy<T extends { too: string }>(r: WorkerRate, items: T[]): T[] {
+/**
+ * Items an additive rule covers. Empty `work_type` means every one of them;
+ * a rule with an option, only those on which it was chosen.
+ */
+function coveredBy<T extends { too: string; valikud?: ItemOptions | null }>(r: WorkerRate, items: T[]): T[] {
+  const withOption = items.filter(i => rateHasOption(r, i.valikud))
   const rt = (r.work_type ?? '').toLowerCase()
-  if (!rt) return items
-  return items.filter(i => rt.split('|').some(wt => i.too.toLowerCase().includes(wt.trim())))
+  if (!rt) return withOption
+  return withOption.filter(i => rt.split('|').some(wt => i.too.toLowerCase().includes(wt.trim())))
 }
 
 // ─── The whole case: original + every remake ─────────────────────────────────

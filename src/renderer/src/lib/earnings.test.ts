@@ -1592,3 +1592,60 @@ describe("payout lines are written in the clinic's language (phase 1, slice 7)",
     expect(salary[0].description).toBe('Monthly salary 2026-08-01 – 2026-08-31')
   })
 })
+
+// ── Pay by option (sql/129) ─────────────────────────────────────────────────
+describe('a rule that applies only with an option', () => {
+  const withOptions = (valikud: WorkItem['valikud']) =>
+    job({ work_items: [{ ...item('All-on-X', '13,12,11,21,22,23'), valikud }] })
+  const metalBar = withOptions({ framework: ['metal-bar'] })
+  const zirconia = withOptions({ framework: ['zirconia-framework'] })
+  const plain = withOptions(undefined)
+
+  it('All-on-4 200 €, and with a metal bar 50 € more (additive)', () => {
+    const rules = [
+      rate({ kind: 'too', amount: 200, work_type: 'All-on-X' }),
+      rate({ kind: 'too', amount: 50, additive: true, label: 'Metal bar', work_type: 'All-on-X', option_key: 'metal-bar' }),
+    ]
+    expect(earningsTotal(run(rules, [metalBar]))).toBe(250)
+    expect(run(rules, [metalBar]).find(l => l.description.startsWith('Metal bar'))?.amount).toBe(50)
+    // Another framework, or none: the type's rule only.
+    expect(earningsTotal(run(rules, [zirconia]))).toBe(200)
+    expect(earningsTotal(run(rules, [plain]))).toBe(200)
+  })
+
+  it('a rule with the option is more specific than one with the type only, whatever the priority', () => {
+    const rules = [
+      rate({ kind: 'too', amount: 200, work_type: 'All-on-X', priority: 99 }),
+      rate({ kind: 'too', amount: 260, work_type: 'All-on-X', option_key: 'metal-bar' }),
+    ]
+    expect(earningsTotal(run(rules, [metalBar]))).toBe(260)
+    expect(earningsTotal(run(rules, [zirconia]))).toBe(200)
+  })
+
+  it('an option with no type named beats a type-only rule, and a catch-all loses to both', () => {
+    const rules = [
+      rate({ kind: 'hammas', amount: 10 }),
+      rate({ kind: 'too', amount: 200, work_type: 'All-on-X' }),
+      rate({ kind: 'too', amount: 300, option_key: 'metal-bar' }),
+      rate({ kind: 'too', amount: 320, work_type: 'All-on-X', option_key: 'metal-bar' }),
+    ]
+    expect(earningsTotal(run(rules, [metalBar]))).toBe(320)
+    expect(earningsTotal(run(rules.slice(0, 3), [metalBar]))).toBe(300)
+    expect(earningsTotal(run(rules.slice(0, 2), [metalBar]))).toBe(200)
+  })
+
+  it('found in any group, a pick-many one too', () => {
+    const rules = [
+      rate({ kind: 'too', amount: 200, work_type: 'All-on-X' }),
+      rate({ kind: 'hammas', amount: 3, additive: true, label: 'Pink gingiva', option_key: 'pink-gingiva' }),
+    ]
+    const both = withOptions({ framework: ['metal-bar'], extras: ['temporary-pmma', 'pink-gingiva'] })
+    expect(earningsTotal(run(rules, [both]))).toBe(218)
+  })
+
+  it('a rule written before options (no option_key at all) pays as before', () => {
+    const old = rate({ kind: 'too', amount: 200, work_type: 'All-on-X' })
+    delete (old as Partial<WorkerRate>).option_key
+    expect(earningsTotal(run([old], [metalBar]))).toBe(200)
+  })
+})

@@ -26,6 +26,7 @@ import { jobWorkItems, jobPeriodDate, workItemDesigner, designTeeth, jobDesigner
 import { resolveWorkType, type WorkType } from '../config/workTypes'
 import { t, translate, lang as uiLang, type Lang } from '@shared/i18n' // not @/lib/i18n: that touches `document` on load, and node tests import this
 import { jobPayees, revisionPayees, paysPerson, partOf, type Payees } from '@shared/workflow/pay'
+import type { ItemOptions } from '@shared/pricing/workOptions'
 
 // How the money is calculated. Deliberately ONLY billing methods: "design" used
 // to sit in this list, which is a category error — design is a kind of work, not
@@ -100,6 +101,13 @@ export interface WorkerRate {
   additive: boolean
   /** What to call it on the payslip: "Igeme disain". Null on older rules. */
   label: string | null
+  /**
+   * Only for work on which this option was chosen: an id from the clinic's
+   * option library ('metal-bar', shared/pricing/workOptions). Null or absent
+   * (a rule written before sql/129, or a database without the column): the
+   * rule does not ask about options, as every rule did before.
+   */
+  option_key?: string | null
   pay_revisions: boolean
   // Hourly rules only: fill the period from the working calendar instead of
   // making someone type an identical row every day.
@@ -165,13 +173,13 @@ function activeOn(rate: WorkerRate, isoDate: string): boolean {
   return true
 }
 
-/** One piece of work to pay for: a type and the teeth it covers. */
-export interface PayItem { too: string; hambad: string }
+/** One piece of work to pay for: a type, the teeth it covers, the options chosen for it. */
+export interface PayItem { too: string; hambad: string; valikud?: ItemOptions | null }
 
 /** The items on a job. A job with no `work_items` yields exactly one, built
  *  from its legacy `too`/`hambad`, so old rows are paid exactly as before. */
 const payItemsOf = (job: Job): PayItem[] =>
-  jobWorkItems(job).map(i => ({ too: i.too, hambad: i.hambad }))
+  jobWorkItems(job).map(i => ({ too: i.too, hambad: i.hambad, valikud: i.valikud }))
 
 /**
  * The items of a job THIS person designed.
@@ -190,7 +198,7 @@ const designPayItemsOf = (job: Job, profileId: string): PayItem[] =>
     // designs the easy unit himself and hands over the third molar was paying
     // the designer for both — see WorkItem.disain_hambad. An item with nothing
     // marked returns all of them, so a whole-item design is unchanged.
-    .map(i => ({ too: i.too, hambad: designTeeth(i) }))
+    .map(i => ({ too: i.too, hambad: designTeeth(i), valikud: i.valikud }))
 
 /**
  * The share of a job's price that belongs to a subset of its items.
@@ -217,7 +225,7 @@ function priceShare(all: PayItem[], subset: PayItem[]): number {
 function revisionPayItems(rev: Revision, job: Job): PayItem[] {
   const items = rev.work_items
   if (Array.isArray(items) && items.length > 0) {
-    return items.map((i: WorkItem) => ({ too: i.too, hambad: i.hambad }))
+    return items.map((i: WorkItem) => ({ too: i.too, hambad: i.hambad, valikud: i.valikud }))
   }
   return [{ too: job.too ?? '', hambad: rev.hambad ?? job.hambad ?? '' }]
 }
@@ -233,7 +241,7 @@ function revisionDesignItems(rev: Revision, job: Job, profileId: string): PayIte
     return items
       .filter((i: WorkItem) => workItemDesigner(i, fallback) === profileId)
       // Same rule as the job: a remake can also be part self-designed.
-      .map((i: WorkItem) => ({ too: i.too, hambad: designTeeth(i) }))
+      .map((i: WorkItem) => ({ too: i.too, hambad: designTeeth(i), valikud: i.valikud }))
   }
   return fallback === profileId ? revisionPayItems(rev, job) : []
 }
@@ -247,13 +255,13 @@ function revisionDesignItems(rev: Revision, job: Job, profileId: string): PayIte
  * today.
  */
 const stageDesignItemsOf = (job: Job): PayItem[] =>
-  jobWorkItems(job).map(i => ({ too: i.too, hambad: designTeeth(i) }))
+  jobWorkItems(job).map(i => ({ too: i.too, hambad: designTeeth(i), valikud: i.valikud }))
 
 /** The same for a revision: its items, else the job's as today's fallback. */
 function stageRevisionDesignItems(rev: Revision, job: Job): PayItem[] {
   const items = rev.work_items
   if (Array.isArray(items) && items.length > 0) {
-    return items.map((i: WorkItem) => ({ too: i.too, hambad: designTeeth(i) }))
+    return items.map((i: WorkItem) => ({ too: i.too, hambad: designTeeth(i), valikud: i.valikud }))
   }
   return revisionPayItems(rev, job)
 }
@@ -310,8 +318,10 @@ export function rateWorkTypes(rate: Pick<WorkerRate, 'work_type'>): string[] {
  * considered, and the bridge was paid at the crown rate or not at all.
  */
 export function rateCovers(
-  rate: WorkerRate, too: string | null | undefined, types: WorkType[]
+  rate: WorkerRate, too: string | null | undefined, types: WorkType[],
+  valikud?: ItemOptions | null,
 ): boolean {
+  if (!rateHasOption(rate, valikud)) return false
   const wanted = rateWorkTypes(rate)
   if (wanted.length === 0) return true
   const resolved = resolveWorkType(too, types).nimi.toLowerCase()
@@ -322,23 +332,43 @@ export function rateCovers(
   })
 }
 
+/**
+ * Whether a rule's option, if it names one, was chosen for this work (in any
+ * of the item's groups). A rule naming none asks nothing.
+ */
+export function rateHasOption(rate: Pick<WorkerRate, 'option_key'>, valikud: ItemOptions | null | undefined): boolean {
+  const key = rate.option_key?.trim()
+  if (!key) return true
+  return Object.values(valikud ?? {}).some(ids => (ids ?? []).includes(key))
+}
+
+/**
+ * How narrowly a rule is aimed: an option is narrower than a work type, and
+ * a work type narrower than a catch-all. "All-on-4 with a metal bar" beats
+ * "All-on-4", which beats "every job", whatever the priorities say.
+ */
+const specificity = (r: WorkerRate): number =>
+  (r.option_key?.trim() ? 2 : 0) + (rateWorkTypes(r).length > 0 ? 1 : 0)
+
 export function pickRateFor(
   rates: WorkerRate[], too: string | null | undefined, isoDate: string,
-  types: WorkType[], scope: RateScope, kinds: RateKind[] = PRODUCTION_KINDS
+  types: WorkType[], scope: RateScope, kinds: RateKind[] = PRODUCTION_KINDS,
+  valikud?: ItemOptions | null,
 ): WorkerRate | null {
   const matches = rates.filter(r => {
     if (r.additive) return false        // additive rules never enter the contest
     if (!kinds.includes(r.kind)) return false
     if ((r.applies_to ?? 'too') !== scope) return false
     if (!activeOn(r, isoDate)) return false
-    return rateCovers(r, too, types)
+    return rateCovers(r, too, types, valikud)
   })
   if (matches.length === 0) return null
 
   return matches.sort((a, b) => {
     // A rule that names ANY type is specific, however many it names — the
-    // question is whether it was aimed at this work or is a catch-all.
-    const spec = (rateWorkTypes(a).length > 0 ? 1 : 0) - (rateWorkTypes(b).length > 0 ? 1 : 0)
+    // question is whether it was aimed at this work or is a catch-all. One
+    // that names an option is more specific still.
+    const spec = specificity(a) - specificity(b)
     if (spec !== 0) return -spec
     return b.priority - a.priority
   })[0]
@@ -409,7 +439,7 @@ function payAdditive(
     if ((r.applies_to ?? 'too') !== scope) continue
     if (!activeOn(r, isoDate)) continue
 
-    const covered = items.filter(i => rateCovers(r, i.too, types))
+    const covered = items.filter(i => rateCovers(r, i.too, types, i.valikud))
     if (covered.length === 0) continue
     const teeth = covered.reduce((s, i) => s + toothCount(i.hambad), 0)
 
@@ -454,7 +484,7 @@ function payProduction(
   let matchedTeeth = 0
 
   for (const item of items) {
-    const rate = pickRateFor(mine, item.too, isoDate, types, scope)
+    const rate = pickRateFor(mine, item.too, isoDate, types, scope, PRODUCTION_KINDS, item.valikud)
     if (!rate) {
       unmatched.push(item.too?.trim() || t('earnings.unspecifiedWorkItem'))
       continue

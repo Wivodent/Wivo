@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions.
--- Expected rows: 2163.
+-- Expected rows: 2164.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -331,6 +331,7 @@ with expected(kind, key, def) as (values
     ('constraint', 'public.worker_rates.worker_rates_applies_valid', 'CHECK ((applies_to = ANY (ARRAY[''too''::text, ''disain''::text, ''muudatus''::text, ''mudel''::text])))'),
     ('constraint', 'public.worker_rates.worker_rates_clinic_id_fkey', 'FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE'),
     ('constraint', 'public.worker_rates.worker_rates_kind_valid', 'CHECK ((kind = ANY (ARRAY[''tund''::text, ''hammas''::text, ''too''::text, ''protsent''::text, ''kuu''::text])))'),
+    ('constraint', 'public.worker_rates.worker_rates_option_key_format', 'CHECK (((option_key IS NULL) OR ((length(option_key) <= 80) AND (option_key ~ ''^[a-z0-9]+(-[a-z0-9]+)*$''::text))))'),
     ('constraint', 'public.worker_rates.worker_rates_pkey', 'PRIMARY KEY (id)'),
     ('constraint', 'public.worker_rates.worker_rates_profile_id_fkey', 'FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE'),
     ('constraint', 'public.workflow_template.workflow_template_id_org', 'UNIQUE (id, org_id)'),
