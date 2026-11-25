@@ -139,8 +139,11 @@ export function SelectableCard({
           className={[
             'flex items-center justify-center rounded-xl flex-shrink-0 overflow-hidden',
             tile ? (imageSrc ? 'w-24 h-24' : 'w-14 h-14') : 'w-11 h-11 rounded-lg',
+            // The 3D pictures are drawn on white (scripts/optimize-worktype-images):
+            // a white plate, so they read as one picture on the dark chosen card too.
+            imageSrc ? 'bg-white' : '',
           ].join(' ')}
-          style={{ backgroundColor: hex && !cyan ? `${hex}1f` : undefined }}
+          style={{ backgroundColor: hex && !cyan && !imageSrc ? `${hex}1f` : undefined }}
           aria-hidden="true"
         >
           {imageSrc ? (

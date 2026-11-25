@@ -6,6 +6,9 @@
  *
  * Give `type` for a work type, or `kind` for a page that shows a kind of work
  * rather than a lab's type (an empty list).
+ *
+ * The pictures are drawn on white (scripts/optimize-worktype-images.py says
+ * why), so they sit on a white rounded plate.
  */
 import type { WorkType } from '@shared/pricing/workTypes'
 import { WorkKindIcon, workKindFor } from '../NewJobWizard/jobtype/WorkKindIcon'
@@ -31,7 +34,7 @@ export function WorkTypeArt({ size, iconSize, className = '', ...which }: WorkTy
         aria-hidden="true"
         width={size}
         height={size}
-        className={`object-contain flex-shrink-0 ${className}`}
+        className={`object-contain flex-shrink-0 rounded-2xl bg-white ${className}`}
         style={{ width: size, height: size }}
         draggable={false}
       />

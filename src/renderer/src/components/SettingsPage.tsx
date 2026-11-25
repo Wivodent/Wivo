@@ -819,8 +819,8 @@ function WorkTypePriceCard({ type, onPatch }: {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3.5 min-w-0">
           <span
-            className={`${art3d ? 'w-24 h-24' : 'w-14 h-14'} rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0`}
-            style={{ backgroundColor: `${type.hex}1f` }}
+            className={`${art3d ? 'w-24 h-24 bg-white border border-ink-faint/20' : 'w-14 h-14'} rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0`}
+            style={art3d ? undefined : { backgroundColor: `${type.hex}1f` }}
             aria-hidden="true"
           >
             {art3d

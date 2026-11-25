@@ -28,3 +28,7 @@ clinics/*.env
 riga.env
 dist-riga
 release-riga
+
+# The original work type pictures (large PNGs). Never committed: the app uses
+# the WebP files scripts/optimize-worktype-images.mjs makes from them.
+/assets-src/
