@@ -40,10 +40,10 @@ describe('the catalogue', () => {
     expect(groups.find(g => g.key === 'attachments')!.options).toEqual(['multi-unit', 'ti-base'])
   })
 
-  it('built on implants: the implant crown, abutments, All-on-4/5/6, hybrid and overdenture', () => {
+  it('built on implants: the implant crown and bridge, abutments, All-on-4/5/6, hybrid and overdenture', () => {
     expect(CATALOGUE.filter(e => e.implantBased).map(e => e.id).sort()).toEqual([
       'all-on-4', 'all-on-4-bar', 'all-on-5', 'all-on-6', 'crown-implant', 'custom-abutment',
-      'hybrid-denture', 'implant-abutment', 'overdenture',
+      'hybrid-denture', 'implant-abutment', 'implant-bridge', 'overdenture',
     ])
   })
 

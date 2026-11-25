@@ -56,6 +56,60 @@ describe('which picture for which type', () => {
     expect(workType3dFileIn({ nimi: 'Labor', match: ['телескопическая коронка'] }, all)).toBe('telescopic-crown.webp')
   })
 
+  // The names a clinic gives its own types, in Estonian, Russian and English:
+  // each finds its catalogue picture without being added from the catalogue.
+  it.each([
+    ['bridge', ['Sild', 'Мост', 'Bridge', 'Tsirkooniumsild']],
+    ['implant-bridge', ['Implantaadisild', 'Implantsild', 'Sild implantaatidel', 'Мост на имплантах', 'Implant bridge']],
+    ['filling', ['Täidis', 'Taidis', 'Пломба', 'Filling']],
+    ['crown-zirconia', ['Kroon', 'Tsirkooniumkroon', 'Коронка', 'Crown']],
+    ['crown-metal-ceramic', ['Metallkeraamika kroon', 'Металлокерамическая коронка', 'PFM crown']],
+    ['crown-temporary', ['Ajutine kroon', 'Временная коронка', 'Temporary crown']],
+    ['crown-implant', ['Implantkroon', 'Kroon implantaadil', 'Коронка на импланте', 'Implant crown']],
+    ['implant-abutment', ['Abutment', 'Абатмент']],
+    ['custom-abutment', ['Individuaalne abutment', 'Индивидуальный абатмент', 'Custom abutment']],
+    ['telescopic-crown', ['Teleskoopkroon', 'Телескопическая коронка']],
+    ['post-core', ['Tihvtkänd', 'Культевая вкладка', 'Post and core']],
+    ['inlay-onlay', ['Inlay', 'Onlay', 'Вкладка', 'Накладка']],
+    ['veneer', ['Viniir', 'Laminaat', 'Винир', 'Ламинат', 'Veneer']],
+    ['maryland-bridge', ['Maryland sild', 'Мэриленд мост']],
+    ['denture-full', ['Proteez', 'Protees', 'Täisprotees', 'Полный протез', 'Протез', 'Denture']],
+    ['denture-partial', ['Osaproteez', 'Bügelprotees', 'Частичный протез', 'Бюгельный протез', 'Partial denture']],
+    ['denture-immediate', ['Immediaatprotees', 'Иммедиат-протез']],
+    ['denture-reline', ['Rebaseerimine', 'Proteesi ümbervooderdus', 'Перебазировка', 'Reline']],
+    ['denture-repair', ['Proteesi parandus', 'Ремонт протеза', 'Denture repair']],
+    ['hybrid-denture', ['Hübriidproteez', 'Гибридный протез']],
+    ['overdenture', ['Katteproteez', 'Покрывной протез']],
+    ['all-on-4', ['All-on-4', 'Allon4']],
+    ['all-on-4-bar', ['All-on-4 raamil', 'All-on-4 на балке']],
+    ['night-guard', ['Kaitse / splint', 'Öökaitse', 'Nightguard', 'Splint', 'Сплинт', 'Капа', 'Каппа', 'Окклюзионная шина']],
+    ['sports-guard', ['Spordikaitse', 'Спортивная капа', 'Sports guard']],
+    ['whitening-tray', ['Valgenduskapp', 'Капа для отбеливания']],
+    ['sleep-apnea', ['Norskamisvastane aparaat', 'Аппарат от храпа']],
+    ['aligner', ['Alainer', 'Элайнер', 'Aligner']],
+    ['retainer-fixed', ['Retainer', 'Ретейнер', 'Ретайнер', 'Несъёмный ретейнер']],
+    ['retainer-removable', ['Eemaldatav retainer', 'Съёмный ретейнер']],
+    ['surgical-guide', ['Kirurgiline juhik', 'Хирургический шаблон']],
+    ['titanium-mesh', ['Titaanvõrk', 'Титановая сетка']],
+    ['wax-up', ['Vahamodelleering', 'Wax-up', 'Восковое моделирование']],
+    ['bite-rim', ['Vahavall', 'Восковой валик']],
+    ['gingival-mask', ['Igemmask', 'Десневая маска']],
+    ['model', ['Mudel', 'Модель']],
+    ['impression-tray', ['Individuaalne lusikas', 'Индивидуальная ложка']],
+    ['digital-scan', ['Skaneerimine', 'Сканирование']],
+    ['crown-design', ['Krooni disain', 'Дизайн коронки']],
+    ['smile-design', ['Naeratuse disain', 'Дизайн улыбки']],
+    ['remake', ['Ümbertegemine', 'Переделка']],
+  ])('%s: found by the names clinics use', (id, names) => {
+    for (const nimi of names) expect(workType3dFileIn({ nimi }, all), nimi).toBe(`${id}.webp`)
+  })
+
+  it('every catalogue entry is found by its own name in en, et and ru', () => {
+    for (const e of CATALOGUE) for (const lang of ['en', 'et', 'ru'] as const) {
+      expect(workType3dFileIn({ nimi: e.names[lang] }, all), `${e.id} ${lang}`).toBe(`${e.id}.webp`)
+    }
+  })
+
   it('no file, or a type nothing recognises: no picture (the line icon shows)', () => {
     expect(workType3dFileIn({ nimi: 'Kroon' }, none)).toBeNull()
     expect(workType3dFileIn({ nimi: 'Disain' }, all)).toBeNull()

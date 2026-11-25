@@ -101,6 +101,8 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     names: { en: 'Post and core', et: 'Tihvtkänd', ru: 'Культевая вкладка', lv: 'Kultes ieliktnis' } },
   { id: 'inlay-onlay', kind: 'crown', unit: 'hammas', implantBased: false,
     names: { en: 'Inlay / onlay', et: 'Inlay / onlay', ru: 'Вкладка / накладка', lv: 'Inleja / onleja' } },
+  { id: 'filling', kind: 'crown', unit: 'hammas', implantBased: false,
+    names: { en: 'Filling', et: 'Täidis', ru: 'Пломба', lv: 'Plomba' } },
   { id: 'veneer', kind: 'crown', unit: 'hammas', implantBased: false,
     names: { en: 'Veneer', et: 'Viniir', ru: 'Винир', lv: 'Venīrs' } },
 
@@ -113,6 +115,8 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
   // On implants
   { id: 'crown-implant', kind: 'implant', unit: 'hammas', implantBased: true, groups: [RETENTION, ATTACHMENTS],
     names: { en: 'Implant crown', et: 'Implantaadikroon', ru: 'Коронка на импланте', lv: 'Kronis uz implanta' } },
+  { id: 'implant-bridge', kind: 'implant', unit: 'hammas', implantBased: true, groups: [RETENTION, ATTACHMENTS],
+    names: { en: 'Implant bridge', et: 'Implantaadisild', ru: 'Мост на имплантах', lv: 'Tilts uz implantiem' } },
   { id: 'implant-abutment', kind: 'implant', unit: 'hammas', implantBased: true, groups: [ABUTMENT_BASE],
     names: { en: 'Implant abutment', et: 'Implantaadi abutment', ru: 'Абатмент на имплант', lv: 'Implanta abatments' } },
   { id: 'custom-abutment', kind: 'implant', unit: 'hammas', implantBased: true, groups: [ABUTMENT_BASE],

@@ -35,11 +35,18 @@ neid muuta). Järjekord (`src/renderer/src/lib/workType3d.ts`):
 1. kataloogist lisatud töötüüp: selle kirje pilt (`katalog`), mis nimega tahes;
 2. töötüüp, mille nimi või sünonüüm on täpselt kataloogi kirje nimi mõnes
    keeles (nt „Metallkeraamiline kroon"): selle kirje pilt;
-3. kitsam variant sõnade järgi (`workType3dMap.ts`, nt All-on-6);
+3. kitsam variant sõnade järgi eesti, vene ja inglise keeles
+   (`workType3dMap.ts` `VARIANT_3D_FILES`, nt „Proteesi parandus",
+   „Spordikaitse", „Бюгельный протез", All-on-6); täpsem enne üldisemat;
 4. töö liigi järgi (`workType3dMap.ts`): kroon → `crown-zirconia`, sild →
-   `bridge`, implantaadi kroon → `crown-implant`, proteez → `denture-full`,
-   All-on-X → `all-on-4`, kaitse → `night-guard`, retainer → `retainer-fixed`,
-   viniir ja laminaat → `veneer`, inlay ja onlay → `inlay-onlay`, kirurgiline
-   juhik → `surgical-guide`; implantaadisild, täidis ja IBT: joonikoon.
+   `bridge`, implantaadisild → `implant-bridge`, implantaadi kroon →
+   `crown-implant`, täidis → `filling`, proteez/protees → `denture-full`,
+   All-on-X → `all-on-4`, kaitse/splint/nightguard → `night-guard`, retainer →
+   `retainer-fixed`, viniir ja laminaat → `veneer`, inlay ja onlay →
+   `inlay-onlay`, kirurgiline juhik → `surgical-guide`; IBT: joonikoon.
+
+Test (`workType3d.test.ts`) hoiab nimekirja nimedest, mida kliinikud oma
+töötüüpidele panevad, ja millise pildi igaüks saab. Uus sünonüüm: lisa sõna
+`VARIANT_3D_FILES`-i ja nimi testi.
 
 Uue pildi jaoks lisa kataloogi kirje (või valik) sama id-ga.

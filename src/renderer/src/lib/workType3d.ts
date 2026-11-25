@@ -9,7 +9,7 @@
 import type { WorkType } from '@shared/pricing/workTypes'
 import { workKindFor } from '../components/NewJobWizard/jobtype/WorkKindIcon'
 import type { WorkKind } from '../components/NewJobWizard/jobtype/workKindShapes'
-import { KIND_3D_FILES, VARIANT_3D_FILES } from './workType3dMap'
+import { KIND_3D_FILES, VARIANT_3D_FILES, variantMatches } from './workType3dMap'
 import { CATALOGUE, entryWords } from '@shared/pricing/workTypeCatalogue'
 
 const modules = import.meta.glob(
@@ -40,9 +40,10 @@ export function workType3dFileIn(type: TypeLike, has: (file: string) => boolean)
   //    ("Metallkeraamiline kroon"): that entry's picture.
   const named = CATALOGUE.find(e => has(`${e.id}.webp`) && entryWords(e).some(w => tokens.includes(w)))
   if (named) return `${named.id}.webp`
-  const variant = VARIANT_3D_FILES.find(v =>
-    has(v.file) && v.words.some(w => tokens.some(tok => tok.includes(w))))
+  // 3. A narrower kind by its words ("Proteesi parandus", "Spordikaitse").
+  const variant = VARIANT_3D_FILES.find(v => has(v.file) && variantMatches(v, tokens))
   if (variant) return variant.file
+  // 4. Its kind, the same one the line icon is drawn for.
   return kind3dFileIn(workKindFor(tokens), has)
 }
 
