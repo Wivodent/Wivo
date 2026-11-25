@@ -25,7 +25,7 @@ export {
 } from '@shared/pricing/priceBook'
 import { workTypeImageFile } from '../lib/workTypeImages'
 import { workTypePriceFor } from '@shared/pricing/priceBook'
-import { normaliseGroups, normaliseOptions, type WorkOption } from '@shared/pricing/workOptions'
+import { normaliseGroups, normaliseOptionPrices, normaliseOptions, type WorkOption } from '@shared/pricing/workOptions'
 import type { MailPolicy } from '@shared/billing/sendGuard'
 import { DEFAULT_MAIL_TEMPLATE, type MailTemplate } from '@shared/billing/mailTemplate'
 import type { MaterialPricing, FixedCost, ExtraService, Overhead, PriceBook } from '@shared/pricing/priceBook'
@@ -429,6 +429,7 @@ function workTypeList(v: unknown, fallback: WorkType[], repairColours: boolean):
           : undefined,
         ...(Array.isArray(type.match) ? { match: type.match } : {}),
         valikuGrupid: normaliseGroups(type.valikuGrupid),
+        valikuHinnad: normaliseOptionPrices(type.valikuHinnad),
       }]
     }
     return []

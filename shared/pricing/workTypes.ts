@@ -92,6 +92,11 @@ export interface WorkType {
    */
   valikuGrupid?: import('./workOptions').WorkOptionGroup[]
   /**
+   * This type's own extra price and cost for an option, over the library's
+   * default, in this type's unit (Metal bar: 400 € here, 600 € on All-on-6).
+   */
+  valikuHinnad?: import('./workOptions').OptionPrices
+  /**
    * The catalogue entry this type was added from (shared/pricing/workTypeCatalogue):
    * its picture, and whether it is built on implants, whatever it is renamed to.
    */

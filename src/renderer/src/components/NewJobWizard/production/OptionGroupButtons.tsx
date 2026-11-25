@@ -10,7 +10,8 @@
 import { Check } from 'lucide-react'
 import type { NewJobState } from '@shared/wizard'
 import { baseTypeName } from '@shared/wizard'
-import type { WorkOption, WorkOptionGroup } from '@shared/pricing/workOptions'
+import { effectiveOption, type WorkOption, type WorkOptionGroup } from '@shared/pricing/workOptions'
+import type { WorkType } from '@shared/pricing/workTypes'
 import { useSettings, useWorkTypes } from '@/stores/useSettings'
 import { workOptionImage } from '@/lib/workOptionImages'
 import { FOCUS_RING } from '../wizardTheme'
@@ -56,7 +57,7 @@ export function OptionGroupButtons({ typeKey, state, patch }: {
               {offered.map(o => {
                 const on = chosen.includes(o.id)
                 const toggle = () => set(g, g.mitu ? (on ? chosen.filter(x => x !== o.id) : [...chosen, o.id]) : (on ? [] : [o.id]))
-                return <OptionButton key={o.id} option={o} on={on} multi={g.mitu} onClick={toggle} />
+                return <OptionButton key={o.id} option={o} type={type} on={on} multi={g.mitu} onClick={toggle} />
               })}
               {!g.mitu && (
                 <button
@@ -82,17 +83,20 @@ const buttonClass = (on: boolean) => [
   on ? 'border-2 border-accent bg-accent/10 font-bold text-ink' : 'border border-ink-faint/40 bg-bg-card text-ink-soft hover:text-ink',
 ].join(' ')
 
-function OptionButton({ option, on, multi, onClick }: {
+function OptionButton({ option, type, on, multi, onClick }: {
   option: WorkOption
+  /** The item's type: its own price for the option counts over the default. */
+  type: WorkType | undefined
   on: boolean
   multi: boolean
   onClick: () => void
 }) {
   const img = workOptionImage(option.id, option.nimi)
-  const extra = option.lisahind
-    ? option.yhik === 'hammas'
-      ? t('wizard.optionExtraTooth', { amount: option.lisahind.toFixed(2) })
-      : t('wizard.optionExtraJob', { amount: option.lisahind.toFixed(2) })
+  const { price, priceUnit } = effectiveOption(option, type)
+  const extra = price
+    ? priceUnit === 'hammas'
+      ? t('wizard.optionExtraTooth', { amount: price.toFixed(2) })
+      : t('wizard.optionExtraJob', { amount: price.toFixed(2) })
     : null
   return (
     <button

@@ -165,7 +165,7 @@ export function quoteJob(input: QuoteInput, book: PriceBook): Quote {
     // The options chosen for this work: each its own line, so the price says
     // "All-on-4" and "Metal bar" apart. Part of production, so a rush job
     // multiplies them like the work they belong to.
-    for (const o of optionLines(item, book.options)) {
+    for (const o of optionLines(item, book.options, book.workTypes)) {
       if (o.price === 0) continue
       base += o.price
       lines.push({ source: 'valik', label: `${label} · ${o.nimi}`, amount: o.price })

@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   kebab, newId, normaliseOptions, normaliseGroups, cleanChoice, optionLines, optionTotals, chosenOptionNames,
+  normaliseOptionPrices, withOptionPrice, withoutOptionPrice, effectiveOption,
   type WorkOption, type WorkOptionGroup,
 } from './workOptions'
 import { quoteJob } from './quote'
@@ -104,5 +105,37 @@ describe('in the quote', () => {
   it('a job with no options is quoted exactly as before', () => {
     expect(quoteJob({ items: [{ too: 'All-on-4', hambad: '11' }] }, book).production).toBe(3000)
     expect(quoteJob({ items }, { ...book, options: undefined }).production).toBe(3000)
+  })
+})
+
+describe("a work type's own price for an option", () => {
+  it('stored cleaned: numbers only, an empty entry dropped', () => {
+    expect(normaliseOptionPrices({ 'metal-bar': { lisahind: '600', kulu: 'x' }, gone: {}, bad: 3 }))
+      .toEqual({ 'metal-bar': { lisahind: 600 } })
+    expect(normaliseOptionPrices([])).toBeUndefined()
+    expect(normaliseOptionPrices(undefined)).toBeUndefined()
+  })
+
+  it('set one amount, keep the other; clearing both leaves nothing (the default again)', () => {
+    let p = withOptionPrice(undefined, 'metal-bar', { lisahind: 600 })
+    p = withOptionPrice(p, 'metal-bar', { kulu: 200 })
+    expect(p).toEqual({ 'metal-bar': { lisahind: 600, kulu: 200 } })
+    p = withOptionPrice(p, 'metal-bar', { lisahind: undefined })
+    expect(p).toEqual({ 'metal-bar': { kulu: 200 } })
+    expect(withOptionPrice(p, 'metal-bar', { kulu: undefined })).toBeUndefined()
+  })
+
+  it('"Use default" takes the type\'s own away, the others stay', () => {
+    const p = { 'metal-bar': { lisahind: 600 }, 'ti-base': { kulu: 30 } }
+    expect(withoutOptionPrice(p, 'metal-bar')).toEqual({ 'ti-base': { kulu: 30 } })
+    expect(withoutOptionPrice({ 'metal-bar': { lisahind: 600 } }, 'metal-bar')).toBeUndefined()
+  })
+
+  it('own amounts are in the type\'s unit, defaults in the option\'s', () => {
+    const pink = LIBRARY[2] // 15 € per tooth by default
+    expect(effectiveOption(pink, { hinnaTyyp: 'too', valikuHinnad: { 'pink-gingiva': { lisahind: 90 } } }))
+      .toEqual({ price: 90, priceUnit: 'too', cost: 4, costUnit: 'hammas', ownPrice: true, ownCost: false })
+    expect(effectiveOption(pink, undefined))
+      .toEqual({ price: 15, priceUnit: 'hammas', cost: 4, costUnit: 'hammas', ownPrice: false, ownCost: false })
   })
 })

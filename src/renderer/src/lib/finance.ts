@@ -433,7 +433,7 @@ export function calculateFinance(input: FinanceInput): FinanceStats {
     // Hardware, so implants where they are marked — see jobHardwareUnits.
     consumableCost += workTypeConsumables(j.too, types, jobHardwareUnits(j)).total
     // And what the chosen options cost (a metal bar, a titanium mesh).
-    for (const item of jobWorkItems(j)) consumableCost += optionTotals(item, options).cost
+    for (const item of jobWorkItems(j)) consumableCost += optionTotals(item, options, types).cost
   }
   materialCost = round2(materialCost)
   consumableCost = round2(consumableCost)
@@ -490,7 +490,7 @@ export function calculateFinance(input: FinanceInput): FinanceStats {
       b.income += jobIncome
       b.revenue += jobRev
       b.material += jobMatCost
-      b.costs += jobCons + perJobFixed + (items[0] ? optionTotals(items[0], options).cost : 0)
+      b.costs += jobCons + perJobFixed + (items[0] ? optionTotals(items[0], options, types).cost : 0)
       typeBuckets.set(name, b)
     } else {
       // Multi-type — each work item gets its share.
@@ -526,7 +526,7 @@ export function calculateFinance(input: FinanceInput): FinanceStats {
         b.material += round2(jobMatCost * share)
         b.costs += round2(
           workTypeConsumables(item.too, types, implantCount(item) ?? itemTeeth).total + fixedShare
-          + optionTotals(item, options).cost
+          + optionTotals(item, options, types).cost
         )
         typeBuckets.set(name, b)
       }

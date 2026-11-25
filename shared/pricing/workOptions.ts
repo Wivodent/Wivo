@@ -4,14 +4,22 @@
  * a titanium mesh.
  *
  * ONE LIBRARY. An option ("Metal bar") is defined once for the clinic, with
- * its extra price and its cost, and any number of work types use it through
- * their option groups ("Framework: Metal bar, Titanium mesh"). Changing the
- * price of the metal bar changes it for every type that offers it.
+ * its default extra price and cost, and any number of work types use it
+ * through their option groups ("Framework: Metal bar, Titanium mesh").
+ * Changing the default changes it for every type that has no price of its
+ * own for the option (PRICE below).
  *
  * Where it lives, all jsonb, so no migration:
  *   the library     clinic_settings.pricing.tooValikud   (WorkOption[])
  *   a type's groups clinic_settings.work_types[].valikuGrupid
+ *   a type's prices clinic_settings.work_types[].valikuHinnad
  *   a job's choice  jobs.work_items[].valikud  { [group key]: option ids }
+ *
+ * PRICE. The library's extra price and cost are the DEFAULT. A work type may
+ * set its own for an option (work_types[].valikuHinnad: { [option id]:
+ * { lisahind?, kulu? } }), which counts for that type only, in that type's
+ * unit: a metal bar is 400 € on an All-on-4 and 600 € on an All-on-6. Each
+ * amount falls back to the default on its own.
  *
  * Ids, never names, are stored: renaming "Metal bar" to "Metal frame" must not
  * orphan the jobs that chose it. An option a job used is archived, not deleted,
@@ -22,7 +30,8 @@
  * option (worker_rates.option_key, sql/129, lib/earnings.ts). Not yet: stages
  * that depend on an option (docs/ROADMAP.md).
  */
-import type { PriceMode } from './workTypes'
+import type { PriceMode, WorkType } from './workTypes'
+import { resolveWorkType } from './workTypes'
 import { toothCount } from './teeth'
 
 export interface WorkOption {
@@ -50,6 +59,18 @@ export interface WorkOptionGroup {
   /** Option ids from the library, in the order they are offered. */
   valikud: string[]
 }
+
+/**
+ * A work type's own price for one option, over the library's default. Either
+ * amount may be left out (the default then counts for it). In the type's unit.
+ */
+export interface OptionPrice {
+  lisahind?: number
+  kulu?: number
+}
+
+/** A work type's own option prices: option id → its price on this type. */
+export type OptionPrices = Record<string, OptionPrice>
 
 /** A work item's choice: group key → the chosen option ids. */
 export type ItemOptions = Record<string, string[]>
@@ -104,6 +125,81 @@ export function normaliseOptions(raw: unknown): WorkOption[] {
   })
 }
 
+/** A work type's own option prices as stored, cleaned. Undefined when it has none. */
+export function normaliseOptionPrices(raw: unknown): OptionPrices | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const out: OptionPrices = {}
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!id.trim() || !v || typeof v !== 'object') continue
+    const p = v as Record<string, unknown>
+    const lisahind = num(p.lisahind)
+    const kulu = num(p.kulu)
+    if (lisahind === undefined && kulu === undefined) continue
+    out[id] = { ...(lisahind !== undefined ? { lisahind } : {}), ...(kulu !== undefined ? { kulu } : {}) }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+/**
+ * An option's prices with a type's override: change one amount (undefined =
+ * back to the default), keeping the other. Undefined when nothing is left.
+ */
+export function withOptionPrice(
+  prices: OptionPrices | undefined, id: string, patch: OptionPrice,
+): OptionPrices | undefined {
+  const next: OptionPrices = { ...(prices ?? {}) }
+  const merged: OptionPrice = { ...(next[id] ?? {}), ...patch }
+  const kept: OptionPrice = {
+    ...(merged.lisahind !== undefined ? { lisahind: merged.lisahind } : {}),
+    ...(merged.kulu !== undefined ? { kulu: merged.kulu } : {}),
+  }
+  if (Object.keys(kept).length > 0) next[id] = kept
+  else delete next[id]
+  return Object.keys(next).length > 0 ? next : undefined
+}
+
+/** Without a type's override for an option ("Use default"). */
+export function withoutOptionPrice(prices: OptionPrices | undefined, id: string): OptionPrices | undefined {
+  if (!prices?.[id]) return prices
+  const { [id]: _gone, ...rest } = prices
+  return Object.keys(rest).length > 0 ? rest : undefined
+}
+
+export interface EffectiveOption {
+  /** Extra on the client's price, per `priceUnit`. */
+  price: number
+  priceUnit: PriceMode
+  /** Our cost, per `costUnit`. */
+  cost: number
+  costUnit: PriceMode
+  /** Which amounts are this type's own rather than the library's default. */
+  ownPrice: boolean
+  ownCost: boolean
+}
+
+/**
+ * What an option costs on one work type: the type's own amount where it set
+ * one (in the type's unit), else the library's default (in the option's unit).
+ */
+export function effectiveOption(
+  o: WorkOption,
+  type: Pick<WorkType, 'valikuHinnad' | 'hinnaTyyp'> | null | undefined,
+): EffectiveOption {
+  const own = type?.valikuHinnad?.[o.id]
+  const typeUnit: PriceMode = type?.hinnaTyyp ?? 'too'
+  const optUnit: PriceMode = o.yhik === 'hammas' ? 'hammas' : 'too'
+  const ownPrice = own?.lisahind !== undefined
+  const ownCost = own?.kulu !== undefined
+  return {
+    price: ownPrice ? own!.lisahind! : (o.lisahind ?? 0),
+    priceUnit: ownPrice ? typeUnit : optUnit,
+    cost: ownCost ? own!.kulu! : (o.kulu ?? 0),
+    costUnit: ownCost ? typeUnit : optUnit,
+    ownPrice,
+    ownCost,
+  }
+}
+
 /** A work type's groups as stored, cleaned. Undefined when it has none. */
 export function normaliseGroups(raw: unknown): WorkOptionGroup[] | undefined {
   if (!Array.isArray(raw)) return undefined
@@ -151,21 +247,27 @@ const round2 = (n: number): number => Math.round(n * 100) / 100
  * per job or times the item's teeth. An id the library does not have (deleted
  * by hand) adds nothing. Archived options still count: an old job keeps its
  * price.
+ *
+ * `types`: the clinic's work types, so the item's own type's prices count
+ * where it set them (effectiveOption). Without them, the library's defaults.
  */
 export function optionLines(
-  item: { hambad?: string | null; valikud?: ItemOptions | null },
+  item: { too?: string | null; hambad?: string | null; valikud?: ItemOptions | null },
   library: readonly WorkOption[] | undefined,
+  types?: readonly WorkType[],
 ): OptionLine[] {
   if (!item.valikud || !library?.length) return []
   const byId = new Map(library.map(o => [o.id, o]))
+  const type = types?.length ? resolveWorkType(item.too, [...types]) : undefined
   const teeth = toothCount(item.hambad ?? '')
+  const times = (unit: PriceMode) => (unit === 'hammas' ? teeth : 1)
   const lines: OptionLine[] = []
   for (const ids of Object.values(item.valikud)) {
     for (const id of ids ?? []) {
       const o = byId.get(id)
       if (!o) continue
-      const times = o.yhik === 'hammas' ? teeth : 1
-      lines.push({ id, nimi: o.nimi, price: round2((o.lisahind ?? 0) * times), cost: round2((o.kulu ?? 0) * times) })
+      const e = effectiveOption(o, type)
+      lines.push({ id, nimi: o.nimi, price: round2(e.price * times(e.priceUnit)), cost: round2(e.cost * times(e.costUnit)) })
     }
   }
   return lines
@@ -173,10 +275,11 @@ export function optionLines(
 
 /** The extra price and the cost of one item's options. */
 export function optionTotals(
-  item: { hambad?: string | null; valikud?: ItemOptions | null },
+  item: { too?: string | null; hambad?: string | null; valikud?: ItemOptions | null },
   library: readonly WorkOption[] | undefined,
+  types?: readonly WorkType[],
 ): { price: number; cost: number } {
-  const lines = optionLines(item, library)
+  const lines = optionLines(item, library, types)
   return {
     price: round2(lines.reduce((s, l) => s + l.price, 0)),
     cost: round2(lines.reduce((s, l) => s + l.cost, 0)),

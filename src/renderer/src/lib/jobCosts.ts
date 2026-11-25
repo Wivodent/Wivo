@@ -241,7 +241,7 @@ export function jobCosts(input: JobCostsInput): JobCosts {
       ...workTypeConsumables(i.too, workTypes, implants ?? toothCount(i.hambad)).items
         .map(c => ({ label: `${c.nimi}${tag}`, amount: c.summa })),
       // What the chosen options cost us: the same numbers the finance view adds.
-      ...optionLines(i, input.options)
+      ...optionLines(i, input.options, workTypes)
         .filter(o => o.cost > 0)
         .map(o => ({ label: `${i.too} · ${o.nimi}`, amount: o.cost })),
     ]

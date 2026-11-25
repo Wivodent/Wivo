@@ -1,20 +1,24 @@
 /**
  * Settings → Prices: work type options (shared/pricing/workOptions).
  *
- * OptionLibrarySection: the clinic's options, each defined once with its
- * extra price for the client and its cost to us, per job or per tooth. An
- * option is archived, never deleted: a job that chose it must still read and
- * price.
+ * OptionLibrarySection ("Option library"): the clinic's options, each
+ * defined once with its DEFAULT extra price for the client and cost to us, per
+ * job or per tooth. The only place the default is changed. An option is
+ * archived, never deleted: a job that chose it must still read and price.
  *
  * TypeOptionGroups: on one work type's price card, the groups it offers
  * ("Framework: Metal bar, Titanium mesh"), each pointing at library options,
- * pick one or pick any, with each option's extra price and cost (the
- * library's, so the same everywhere it is offered).
+ * pick one or pick any, with this type's own price and cost for each option
+ * (work_types[].valikuHinnad), or the default when it has none. Nothing on a
+ * card changes another work type.
  */
 import { useState } from 'react'
-import { Plus, X, Archive, ArchiveRestore, Layers } from 'lucide-react'
+import { Plus, X, Archive, ArchiveRestore, Layers, RotateCcw } from 'lucide-react'
 import type { WorkType } from '@shared/pricing/workTypes'
-import { newId, type WorkOption, type WorkOptionGroup } from '@shared/pricing/workOptions'
+import {
+  newId, effectiveOption, withOptionPrice, withoutOptionPrice,
+  type OptionPrice, type WorkOption, type WorkOptionGroup,
+} from '@shared/pricing/workOptions'
 import { useSettings } from '../../stores/useSettings'
 import { workOptionImage } from '../../lib/workOptionImages'
 import { DraftNumberInput, DraftTextInput } from '../ui/DraftInput'
@@ -109,9 +113,12 @@ export function OptionLibrarySection() {
  * On a work type's price card: the option groups it offers, each a question
  * asked when a job is added ("Framework"), its options the answers, one row
  * each like a cost row: picture, name, the extra on the client's price, our
- * cost, remove. The amounts are the library option's, so the same option has
- * the same price wherever it is offered; set here, they follow this type's
- * unit (per job or per tooth).
+ * cost, remove.
+ *
+ * The amounts are THIS type's: typing one sets this type's own price for the
+ * option, in this type's unit, and no other type's. Without one, the
+ * library's default shows greyed, marked "Default price"; "Use default" takes
+ * this type's own away again.
  */
 export function TypeOptionGroups({ type, onPatch }: {
   type: WorkType
@@ -131,21 +138,26 @@ export function TypeOptionGroups({ type, onPatch }: {
   const addGroup = () =>
     save([...groups, { key: newId('', groups.map(g => g.key), 'group'), nimi: '', mitu: false, valikud: [] }])
 
-  /** An amount set on this card is in this type's unit. */
-  const patchOption = (id: string, p: Partial<WorkOption>) =>
-    setTooValikud(library.map(o => (o.id === id ? { ...o, ...p, yhik: mode } : o)))
+  /** This type's own price for an option; undefined = back to the default for that amount. */
+  const setOwn = (id: string, p: OptionPrice) => onPatch({ valikuHinnad: withOptionPrice(type.valikuHinnad, id, p) })
+  const useDefault = (id: string) => onPatch({ valikuHinnad: withoutOptionPrice(type.valikuHinnad, id) })
 
-  /** A new library option, made here and put in the group at once. */
+  /** Out of a group; its own price goes too once no group of this type offers it. */
+  const removeFromGroup = (g: WorkOptionGroup, id: string) => {
+    const next = groups.map(x => (x.key === g.key ? { ...x, valikud: x.valikud.filter(v => v !== id) } : x))
+    const stillOffered = next.some(x => x.valikud.includes(id))
+    onPatch({
+      valikuGrupid: next.length > 0 ? next : undefined,
+      ...(stillOffered ? {} : { valikuHinnad: withoutOptionPrice(type.valikuHinnad, id) }),
+    })
+  }
+
+  /** A new library option (no default price yet), made here and put in the group at once. */
   const createInGroup = (g: WorkOptionGroup, nimi: string) => {
     const id = newId(nimi, library.map(o => o.id))
     setTooValikud([...library, { id, nimi, yhik: mode }])
     patchGroup(g.key, { valikud: [...g.valikud, id] })
   }
-
-  /** The other types that offer an option: their price is this one. */
-  const alsoIn = (id: string): string[] => settings.tooTuubid
-    .filter(x => x.nimi !== type.nimi && (x.valikuGrupid ?? []).some(g => g.valikud.includes(id)))
-    .map(x => x.nimi)
 
   return (
     <div className="flex flex-col gap-3 border-t border-ink-faint/15 pt-4">
@@ -185,28 +197,43 @@ export function TypeOptionGroups({ type, onPatch }: {
           {g.valikud.length === 0 && <ExampleRow unit={unitOf(mode)} />}
           {g.valikud.map(id => {
             const o = byId.get(id)
-            const others = alsoIn(id)
+            const e = o ? effectiveOption(o, type) : null
+            const own = type.valikuHinnad?.[id]
+            const hasOwn = !!e && (e.ownPrice || e.ownCost)
             return (
               <div key={id} className="flex flex-col gap-1">
                 <div className={`${OPTION_ROW} ${o?.arhiivis ? 'opacity-60' : ''}`}>
                   <OptionPicture id={id} nimi={o?.nimi} />
-                  {o ? (
-                    <DraftTextInput value={o.nimi} onCommit={v => v.trim() && setTooValikud(library.map(x => (x.id === id ? { ...x, nimi: v.trim() } : x)))}
-                      aria-label={t('settingsPage.optionName')} className="input h-11 text-base min-w-0" />
-                  ) : <span className="text-sm text-ink-muted truncate">{id}</span>}
-                  <MoneyCell label={t('settingsPage.optionExtraPrice')} value={o?.lisahind} plus
-                    unit={unitOf(o?.yhik ?? mode)} disabled={!o} onCommit={v => patchOption(id, { lisahind: v })} />
-                  <MoneyCell label={t('settingsPage.optionCost')} value={o?.kulu}
-                    unit={unitOf(o?.yhik ?? mode)} disabled={!o} onCommit={v => patchOption(id, { kulu: v })} />
+                  {/* The name is the option's own, the same in every type:
+                      renamed in the option library, not here. */}
+                  <span className="text-base text-ink truncate">{o?.nimi ?? id}</span>
+                  <MoneyCell label={t('settingsPage.optionExtraPrice')} value={own?.lisahind} plus
+                    fallback={o?.lisahind} unit={unitOf(e?.priceUnit ?? mode)} disabled={!o}
+                    onCommit={v => setOwn(id, { lisahind: v })} />
+                  <MoneyCell label={t('settingsPage.optionCost')} value={own?.kulu}
+                    fallback={o?.kulu} unit={unitOf(e?.costUnit ?? mode)} disabled={!o}
+                    onCommit={v => setOwn(id, { kulu: v })} />
                   <button type="button" aria-label={t('settingsPage.removeFromGroup', { name: o?.nimi ?? id })}
                     title={t('settingsPage.removeFromGroup', { name: o?.nimi ?? id })}
-                    onClick={() => patchGroup(g.key, { valikud: g.valikud.filter(x => x !== id) })}
+                    onClick={() => removeFromGroup(g, id)}
                     className="w-11 h-11 rounded-xl border border-ink-faint/25 flex items-center justify-center text-ink-faint hover:text-red-500">
                     <X size={16} />
                   </button>
                 </div>
-                {others.length > 0 && (
-                  <p className="text-xs text-ink-muted pl-[52px]">{t('settingsPage.optionSamePriceIn', { names: others.join(', ') })}</p>
+                {o && (
+                  <div className="flex items-center gap-2 pl-[52px] text-xs">
+                    {hasOwn ? (
+                      <>
+                        <span className="px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">{t('settingsPage.optionOwnPrice')}</span>
+                        <button type="button" onClick={() => useDefault(id)}
+                          className="inline-flex items-center gap-1 text-ink-muted hover:text-ink underline-offset-2 hover:underline">
+                          <RotateCcw size={12} aria-hidden="true" /> {t('settingsPage.optionUseDefault')}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded bg-bg-sidebar text-ink-muted">{t('settingsPage.optionDefaultPrice')}</span>
+                    )}
+                  </div>
                 )}
               </div>
             )
@@ -237,19 +264,24 @@ function OptionPicture({ id, nimi }: { id: string; nimi?: string }) {
   )
 }
 
-/** An amount in euros, per job or per tooth, as on the type's own price. */
-function MoneyCell({ label, value, unit, plus, disabled, onCommit }: {
+/**
+ * An amount in euros, per job or per tooth, as on the type's own price. Empty
+ * shows the default (`fallback`) greyed, as the placeholder.
+ */
+function MoneyCell({ label, value, fallback, unit, plus, disabled, onCommit }: {
   label: string
   value: number | undefined
+  fallback?: number
   unit: string
   plus?: boolean
   disabled?: boolean
   onCommit: (v: number | undefined) => void
 }) {
+  const shown = (fallback ?? 0).toFixed(2)
   return (
     <label className="relative">
       <span className="sr-only">{label}</span>
-      <DraftNumberInput allowEmpty value={value} placeholder={plus ? '+0.00' : '0.00'} onCommit={onCommit} disabled={disabled}
+      <DraftNumberInput allowEmpty value={value} placeholder={plus ? `+${shown}` : shown} onCommit={onCommit} disabled={disabled}
         title={label} className="input h-11 pr-14 text-base text-right w-full tabular-nums" />
       <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-ink-faint pointer-events-none">{unit}</span>
     </label>

@@ -95,4 +95,18 @@ describe('work type options in the cost (2.2.0)', () => {
     expect(withOptions([base({ hambad: '11' })]).consumableCost).toBe(0)
     expect(withOptions([job], []).consumableCost).toBe(0)
   })
+
+  it("a work type's own option cost counts over the library's, for that type only", () => {
+    const types = [
+      { nimi: 'Kroon', hex: '#111', hinnaTyyp: 'hammas', valikuHinnad: { 'metal-bar': { kulu: 200 } } },
+    ]
+    const fin = calculateFinance({
+      jobs: [job], allJobs: [job], invoices: [], payments: [], payouts: [], rates: [], hours: [],
+      workers: [], types: types as never, options,
+      materialCosts: {}, fixedCosts: [], overheads: [],
+      doneStageKey: 'valmis', periodStart: '2026-08-01', periodEnd: '2026-08-31',
+    })
+    // The crown's own metal bar cost is per tooth like the crown: 3 x 200, plus 3 x 4 pink gingiva (default).
+    expect(fin.consumableCost).toBe(612)
+  })
 })
