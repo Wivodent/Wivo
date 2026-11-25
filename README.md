@@ -87,6 +87,32 @@ npm install
 npm run dev        # Development — hot reload, opens Electron window
 ```
 
+### Test mode (`npm run dev:test`)
+
+Runs the desktop app against the **test copy** database, with its own sign-in
+and its own data folder. It needs **no `.env.test`**: that file is no longer
+read (it was git-ignored, and GitHub Desktop kept stashing it away on a branch
+switch). Test mode reads `config/test-copy.env`, which is in git and already
+filled in. Nothing to create or copy.
+
+`config/test-copy.env` holds exactly two values, both public by design (they
+ship in the test website's bundle):
+
+```
+VITE_SUPABASE_URL=https://<test copy project ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<the test copy's anon / publishable key>
+```
+
+Only if the test copy is ever replaced by a new project: take both values from
+that project's Supabase dashboard, **Project Settings → API** (the Project URL
+and the `anon` `public` key), put them in this file, and change `TEST_REF` in
+`src/renderer/src/lib/testCopy.ts` to the new project's ref in the same commit
+(test mode connects to that project only). Never put anything else in it: no
+`service_role` or secret key, no access token, no Resend key. `dev:test`
+refuses to start, and `config/testCopyEnv.test.ts` fails, if one is there.
+
+Test mode also needs a test licence key; see docs/MODULES-AND-RATINGS.md.
+
 ---
 
 ## Build & package
