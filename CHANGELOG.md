@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.2.1] — 2026-11-25
+
+**A work type's picture chosen by the owner, better automatic pictures; the minimum version and ending a contract**
+
+"What's new": release-notes/2.2.1. Details and every commit: docs/REPORT-2.2.1.md.
+
+- **Work type picture:** the owner picks a 3D picture or line icon in
+  Settings → Prices (work_types[].pildiValik, no migration); "Automatic" puts
+  back the automatic one. The automatic picture reads the type's own name
+  before its old synonyms, and a phrase of several words before a single word.
+- **Minimum version** (internal): `--min-version` on the release tool, signed
+  into updates.json; a desktop below it shows "Please update Wivo" and saves
+  nothing, reading goes on. 2.2.0 desktops do not read it.
+- **Ending a contract** (internal): make-license.mjs `terminate`, and `--until`
+  on sign and renew. No offline locking.
+
+**Database:** no migration.
+
 ## [2.2.0] — 2026-11-25
 
 **Implants on the teeth, Ordered by, work type options with their own prices, the catalogue, pay by option**
