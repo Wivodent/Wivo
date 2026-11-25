@@ -444,8 +444,13 @@ const minimumPath = (): string => join(app.getPath('userData'), 'release-minimum
 let minimum: string | null | undefined
 let minimumLogged = ''
 
+/**
+ * Test mode reads the kept file too (its own userData folder), so the screen
+ * and the refused saves can be tried by hand against the test copy; it never
+ * reads the list (checkMinimum).
+ */
 function currentMinimum(): string | null {
-  if (minimum === undefined) minimum = TEST_MODE ? null : storedMinimum(minimumPath())?.min_version ?? null
+  if (minimum === undefined) minimum = storedMinimum(minimumPath())?.min_version ?? null
   return minimum
 }
 
