@@ -8,7 +8,7 @@ import { overheadsMonthly } from '@shared/pricing/priceBook'
 import type { OverheadPeriood } from '@shared/pricing/priceBook'
 import type { ThemeKey } from '../stores/useSettings'
 import { usePipeline } from '../context/PipelineContext'
-import { useAuth, type Clinic } from '../context/AuthContext'
+import { useAuth, fetchClinic, type Clinic } from '../context/AuthContext'
 import { clinicCountry, hasEstonianTax, invoicesAvailable, fieldExamples, payrollTaxSystem } from '../lib/country'
 import { latviaRulesFor } from '@shared/payroll/countryTax'
 import { usePermissions } from '../hooks/usePermissions'
@@ -37,7 +37,7 @@ import { DeletedJobsSection } from './Settings/DeletedJobsSection'
 import { DraftNumberInput, DraftTextInput } from './ui/DraftInput'
 import { InfoButton } from './ui/InfoButton'
 import { SectionCard } from './ui/SectionCard'
-import { SettingsHome, countryName } from './Settings/SettingsHome'
+import { SettingsHome, countryName, COUNTRY_CHOICES, OTHER_COUNTRY } from './Settings/SettingsHome'
 import type { ViewMode } from '../types/view'
 import { wivoMailto } from '../config/contact'
 import { t, lang, setLang, intlLocale, LANGUAGES, type Lang } from '../lib/i18n'
@@ -1050,11 +1050,19 @@ function ClinicSettingsSection({ clinic, onUpdate, isOwner }: {
     bank_account: clinic.bank_account ?? '',
     public_slug: clinic.public_slug ?? '',
   })
+  // The country (clinics.country, sql/070) is a code and never empty, so it is
+  // kept apart from the text fields, which save an empty field as null.
+  const savedCountry = clinicCountry(clinic)
+  const [country, setCountry] = useState(savedCountry)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const dirty = Object.entries(form).some(([k, v]) => v !== (clinic[k as keyof Clinic] ?? ''))
+  const dirty = country !== savedCountry
+    || Object.entries(form).some(([k, v]) => v !== (clinic[k as keyof Clinic] ?? ''))
+  // "Other" keeps a code that is already there (one not in the list); chosen
+  // anew it stores OTHER_COUNTRY.
+  const otherValue = (COUNTRY_CHOICES as readonly string[]).includes(savedCountry) ? OTHER_COUNTRY : savedCountry
 
   async function handleSave() {
     if (!isOwner || !dirty) return
@@ -1065,6 +1073,7 @@ function ClinicSettingsSection({ clinic, onUpdate, isOwner }: {
       for (const [k, v] of Object.entries(form)) {
         updates[k] = v.trim() || null
       }
+      updates.country = country
       updates.updated_at = new Date().toISOString()
       const { error: err } = await supabase.from('clinics').update(updates).eq('id', clinic.id)
       if (err) throw err
@@ -1080,7 +1089,7 @@ function ClinicSettingsSection({ clinic, onUpdate, isOwner }: {
 
   const set = (key: string, value: string) => setForm(f => ({ ...f, [key]: value }))
   // Sample text in the clinic's own country: no Tallinn or +372 in Riga.
-  const ex = fieldExamples(clinicCountry(clinic))
+  const ex = fieldExamples(country)
 
   // A render helper, called as a function — NOT a component. Declared as
   // `<Field/>` inside this body it was a new component type on every render,
@@ -1112,6 +1121,20 @@ function ClinicSettingsSection({ clinic, onUpdate, isOwner }: {
       )}
       <div className="grid grid-cols-2 gap-3 max-w-lg">
         {field({ label: t('settingsPage.clinicName'), field: 'name', placeholder: t('settingsPage.name'), colSpan: true })}
+        <div className="col-span-2">
+          <label className="label" htmlFor="clinic-country">{t('settingsPage.country')}</label>
+          <select
+            id="clinic-country"
+            value={country}
+            onChange={e => setCountry(e.target.value)}
+            className="input py-1.5 text-sm w-56"
+            disabled={!isOwner}
+          >
+            {COUNTRY_CHOICES.map(code => <option key={code} value={code}>{countryName(code)}</option>)}
+            <option value={otherValue}>{t('country.other')}</option>
+          </select>
+          <p className="text-[11px] text-ink-faint mt-1">{t('settingsPage.countryHelp')}</p>
+        </div>
         {field({ label: t('settingsPage.address'), field: 'address', placeholder: t('settingsPage.streetNumber'), colSpan: true })}
         {field({ label: t('settingsPage.city'), field: 'city', placeholder: ex.city })}
         {field({ label: t('settingsPage.postcode'), field: 'postal_code', placeholder: ex.postcode })}
@@ -1418,8 +1441,8 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
         )}
 
           {/* Taxes (Settings home > Money > Taxes): the clinic's country picks the
-              payroll rules (shared/payroll/countryTax). The country itself is set
-              when Wivo is set up for the clinic. */}
+              payroll rules (shared/payroll/countryTax). The owner changes the
+              country under Clinic details. */}
           {activeGroup === 'maksud' && (
           <section className="2xl:col-span-2">
             <div className="flex items-center gap-2 mb-1">
@@ -1429,6 +1452,18 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
             </div>
             <p className="text-base text-ink-muted mb-4">
               {t('settingsHome.countryIs', { country: countryName(clinicCountry(auth.clinic)) })}
+              {auth.role === 'owner' && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={() => setGroup('kliinik')}
+                    className="text-accent font-semibold hover:underline"
+                  >
+                    {t('settingsHome.changeCountry')}
+                  </button>
+                </>
+              )}
             </p>
             <div className="grid grid-cols-2 gap-4 max-w-3xl">
               {/* Latvia's rates are the law's (shared/payroll/countryTax): shown,
@@ -1677,7 +1712,18 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
           {/* Clinic settings — owner only */}
           {activeGroup === 'kliinik' && (
             auth.clinic ? (
-              <ClinicSettingsSection clinic={auth.clinic} onUpdate={auth.refreshProfile} isOwner={auth.role === 'owner'} />
+              <ClinicSettingsSection
+                clinic={auth.clinic}
+                // The clinic itself is read again: refreshProfile reloads it only
+                // when the person moves to another clinic, so a new country (and
+                // with it the payroll rules) would otherwise wait for a restart.
+                onUpdate={async () => {
+                  await auth.refreshProfile()
+                  const fresh = await fetchClinic(auth.clinic!.id)
+                  if (fresh) auth.setClinic(fresh)
+                }}
+                isOwner={auth.role === 'owner'}
+              />
             ) : (
               // Previously this rendered NOTHING when the clinic was missing,
               // which is how a broken clinic looked identical to an empty page.

@@ -25,8 +25,14 @@ interface Tile {
 }
 
 /** A country's name in the reader's language; the code for one not listed. */
+/** The countries offered under Clinic details; anything else is "Other". */
+export const COUNTRY_CHOICES = ['EE', 'LV', 'LT', 'FI'] as const
+/** Stored for "Other": a user-assigned ISO code, never a real country. */
+export const OTHER_COUNTRY = 'XX'
+
 export function countryName(code: string): string {
   switch (code) {
+    case OTHER_COUNTRY: return t('country.other')
     case 'EE': return t('country.EE')
     case 'LV': return t('country.LV')
     case 'LT': return t('country.LT')

@@ -4140,7 +4140,7 @@ export const en = {
   'settingsHome.advanced': "Advanced",
   'settingsHome.advancedSub': "Rarely needed",
   'settingsHome.countryIs': "Clinic's country: {country}. Payroll taxes follow it.",
-  'settingsHome.countryInfo': "The country is set when Wivo is set up for your clinic. If it is wrong, contact Wivo. Estonia uses the rates below; Latvia uses the law's rates automatically; any other country shows pay before tax.",
+  'settingsHome.countryInfo': "The country is set under Clinic details, and only the owner can change it. Estonia uses the rates below; Latvia uses the law's rates automatically; any other country shows pay before tax.",
   'country.EE': "Estonia",
   'country.LV': "Latvia",
   'country.LT': "Lithuania",
@@ -4171,6 +4171,10 @@ export const en = {
   'setup.phonesIphone': "iPhone: open it in Safari, tap Share, then Add to Home Screen.",
   'setup.phonesAndroid': "Android: open it in Chrome, tap the menu, then Install app.",
   'setup.phonesNotify': "Open Wivo from the home screen, sign in, and turn notifications on when asked.",
+  'country.other': "Other",
+  'settingsPage.country': "Country",
+  'settingsPage.countryHelp': "Decides the payroll taxes and the sample text in these fields.",
+  'settingsHome.changeCountry': "Change",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

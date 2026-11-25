@@ -124,7 +124,7 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'settingsHome.advanced': "Расширенные",
   'settingsHome.advancedSub': "Нужно редко",
   'settingsHome.countryIs': "Страна клиники: {country}. Налоги на зарплату следуют ей.",
-  'settingsHome.countryInfo': "Страна задаётся при настройке Wivo для вашей клиники. Если она неверна, свяжитесь с Wivo. Эстония использует ставки ниже; Латвия — ставки закона автоматически; для других стран зарплата показывается до налогов.",
+  'settingsHome.countryInfo': "Страна задаётся в разделе «Данные клиники», и изменить её может только владелец. Эстония использует ставки ниже; Латвия — ставки закона автоматически; для других стран зарплата показывается до налогов.",
   'country.EE': "Эстония",
   'country.LV': "Латвия",
   'country.LT': "Литва",
@@ -156,4 +156,8 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'setup.phonesAndroid': "Android: откройте в Chrome, нажмите меню, затем «Установить приложение».",
   'setup.phonesNotify': "Откройте Wivo с главного экрана, войдите и включите уведомления, когда спросят.",
   'unsorted.unsorted': "Файлы сканера",
+  'country.other': "Другая",
+  'settingsPage.country': "Страна",
+  'settingsPage.countryHelp': "Определяет налоги на зарплату и примеры в этих полях.",
+  'settingsHome.changeCountry': "Изменить",
 }

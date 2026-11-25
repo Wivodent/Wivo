@@ -4126,7 +4126,7 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'settingsHome.advanced': "Täpsem",
   'settingsHome.advancedSub': "Harva vajalik",
   'settingsHome.countryIs': "Kliiniku riik: {country}. Palgamaksud järgivad seda.",
-  'settingsHome.countryInfo': "Riik määratakse, kui Wivo kliinikule seadistatakse. Kui see on vale, võta Wivoga ühendust. Eesti kasutab allolevaid määrasid; Läti seaduse määrasid automaatselt; muu riigi puhul näidatakse palka enne makse.",
+  'settingsHome.countryInfo': "Riik määratakse Kliiniku andmete all ja seda saab muuta ainult omanik. Eesti kasutab allolevaid määrasid; Läti seaduse määrasid automaatselt; muu riigi puhul näidatakse palka enne makse.",
   'country.EE': "Eesti",
   'country.LV': "Läti",
   'country.LT': "Leedu",
@@ -4157,4 +4157,8 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'setup.phonesIphone': "iPhone: ava Safaris, vajuta Jaga ja siis Lisa avaekraanile.",
   'setup.phonesAndroid': "Android: ava Chrome'is, vajuta menüüd ja siis Installi rakendus.",
   'setup.phonesNotify': "Ava Wivo avaekraanilt, logi sisse ja lülita küsimisel teavitused sisse.",
+  'country.other': "Muu",
+  'settingsPage.country': "Riik",
+  'settingsPage.countryHelp': "Määrab palgamaksud ja nende lahtrite näidisteksti.",
+  'settingsHome.changeCountry': "Muuda",
 }
