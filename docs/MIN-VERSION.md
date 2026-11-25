@@ -1,5 +1,7 @@
 # Minimum app version
 
+**From 2.2.1 a clinic's desktops also take a minimum from the signed release list, set with the release tool and no SQL: docs/RELEASE.md §6a.** This file is the database's minimum (sql/104).
+
 **Built on `testing`. Ships with 2.1.** Not applied anywhere yet. Kevin's steps are in §8.
 Kevin applies migrations in the SQL Editor, test copy first (CLAUDE.md). **Kevin sets the minimum only after every machine runs 2.1**: every build before 2.1 sends no version, so a minimum set earlier refuses all their saves.
 

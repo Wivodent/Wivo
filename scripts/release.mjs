@@ -19,6 +19,9 @@
  *   release:publish -- --clinic <id> --refresh     publishes that list
  *   release:publish -- --clinic <id> --check       only reads back what is published
  *
+ * `--min-version x.y.z` on the build, or on sign (also with --refresh): the oldest
+ *   desktop that may still save (docs/RELEASE.md §6a); `off` removes it. Not given:
+ *   the published minimum stays.
  * `--first` on the build and sign steps: nothing is published yet.
  * `--release-version x.y.z` on sign and publish: another version than package.json's.
  * (In PowerShell npm may drop the `--`; the options still arrive, scripts/clinic-config.mjs cliOptions.)
@@ -38,7 +41,8 @@ import { fileURLToPath } from 'node:url'
 import { cliOptions, loadClinic, phoneBranchCommand } from './clinic-config.mjs'
 import {
   RELEASE_TAG, SIGNERS, SLOTS, appPayload, certificatePayload, indexPayload, keysFor, latestYml,
-  listDays, loadTs, migrationFiles, migrationsAfter, releaseUrl, uploadPlan, versionProblem,
+  listDays, loadTs, migrationFiles, migrationsAfter, minVersionOption, minimumLine, nextMinimum, releaseUrl, uploadPlan,
+  versionProblem,
 } from './release-lib.mjs'
 import { loadRelease } from './yubikey/load-release.mjs'
 import { signStatements } from './yubikey/sign-statements.mjs'
@@ -135,6 +139,11 @@ function letterOf() {
   return { letter, keys }
 }
 
+/** `--min-version`: undefined (keep the published one), null (off) or x.y.z. */
+function askedMinimum() {
+  try { return minVersionOption(flag('--min-version'), R.isVersion) } catch (e) { fail(e.message) }
+}
+
 async function confirm(question) {
   if (!process.stdin.isTTY) return false // no one to answer: no
   const rl = createInterface({ input: process.stdin, output: process.stdout })
@@ -157,6 +166,9 @@ async function build() {
   if (published && has('--first')) fail('--first, but a release is already published')
   const problem = versionProblem(published?.app?.version ?? null, version, R.compareVersions)
   if (problem) fail(problem)
+  const asked = askedMinimum()
+  let minimum
+  try { minimum = nextMinimum({ asked, previous: published?.index, appVersion: version, compareVersions: R.compareVersions }) } catch (e) { fail(e.message) }
 
   console.log(`${NAME} release ${version} · ${REPO} · published now: ${published?.app?.version ?? 'nothing'}\n`)
   const r = spawnSync(process.execPath, [join(ROOT, 'scripts/build-clinic.mjs'), '--clinic', clinic.id], { cwd: ROOT, stdio: 'inherit' })
@@ -179,6 +191,7 @@ async function build() {
   writeFileSync(join(dir, 'latest.yml'), latestYml({ version, file, sha512: facts.sha512, size: facts.size, releaseDate: new Date().toISOString() }))
   writeFileSync(join(dir, 'release.json'), JSON.stringify({
     build: BUILD, version, file, blockmap, ...facts, commit: git('rev-parse', 'HEAD'), schema, new_migrations: newMigrations,
+    ...(asked !== undefined ? { min_version: asked } : {}),
     first: !published, previous: published ? { version: published.app?.version ?? null, schema: published.app?.schema ?? null, serial: published.index.serial } : null,
     built_at: new Date().toISOString(),
   }, null, 2) + '\n')
@@ -189,6 +202,7 @@ async function build() {
   if (!published) console.log(`  First release: ${NAME}'s database must already be at that migration (its baseline). Settings → Database shows it.`)
   else if (newMigrations.length) console.log(`  NEW since ${published.app?.version}: ${newMigrations.join(', ')}\n  Run them in ${NAME}'s database BEFORE signing (docs/RELEASE.md §5).`)
   else console.log(`  No new migrations since ${published.app?.version}.`)
+  console.log(`  ${minimumLine(minimum, published?.index)}`)
   console.log(`\nNext: npm run release:sign ${ON}   (YubiKey C)`)
 }
 
@@ -203,10 +217,13 @@ async function sign() {
 
   if (has('--refresh')) {
     if (!published?.app || !published.list.app) fail('nothing is published to refresh')
-    const index = indexPayload({ keyId: keys.update.id, serial: published.index.serial + 1, now, days, app: published.index.app, previous: published.index })
+    let minimum
+    try { minimum = nextMinimum({ asked: askedMinimum(), previous: published.index, appVersion: published.app.version, compareVersions: R.compareVersions }) } catch (e) { fail(e.message) }
+    const index = indexPayload({ keyId: keys.update.id, serial: published.index.serial + 1, now, days, app: published.index.app, previous: published.index, minVersion: minimum })
     const prep = await R.prepare('index', index)
     console.log(`A new list for the published release ${published.app.version}: serial ${index.serial}, expires ${index.expires}.`)
-    const sigs = signOnKey(letter, [{ id: 'index', label: `The list, serial ${index.serial}, expires ${index.expires.slice(0, 10)} (update key)`, slot: SLOTS.update, bytes: prep.statement, publicKey: keys.update.publicKey, keyId: keys.update.id }])
+    console.log(minimumLine(minimum, published.index))
+    const sigs = signOnKey(letter, [{ id: 'index', label: `The list, serial ${index.serial}, expires ${index.expires.slice(0, 10)}${minimum ? `, minimum ${minimum}` : ''} (update key)`, slot: SLOTS.update, bytes: prep.statement, publicKey: keys.update.publicKey, keyId: keys.update.id }])
     const list = { index: R.assemble('index', prep.payloadB64, sigs.get('index')), certificates: trust.certificates, app: published.list.app }
     const ok = await appAccepts(list, published.app.version, { sha512: published.app.sha512, size: published.app.size }, published)
     if (!ok.ok) fail(`the new list does not pass the app's check (${ok.reason}). Nothing was written.`)
@@ -236,16 +253,23 @@ async function sign() {
     }
   }
 
+  // The minimum: --min-version here, else the one given to the build, else the published one.
+  const asked = askedMinimum()
+  let minimum
+  try {
+    minimum = nextMinimum({ asked: asked !== undefined ? asked : rel.min_version, previous: published?.index, appVersion: version, compareVersions: R.compareVersions })
+  } catch (e) { fail(e.message) }
+
   const app = appPayload({ keyId: keys.app.id, version, file: rel.file, sha512: rel.sha512, size: rel.size, schema: rel.schema, now, build: BUILD })
   const index = indexPayload({
     keyId: keys.update.id, serial: (published?.index.serial ?? 0) + 1, now, days,
-    app: { version, file: rel.file, sha512: rel.sha512, size: rel.size }, previous: published?.index,
+    app: { version, file: rel.file, sha512: rel.sha512, size: rel.size }, previous: published?.index, minVersion: minimum,
   })
   const pi = await R.prepare('index', index)
   const pa = await R.prepare('app', app)
-  console.log(`\nWhat is signed:\n  Wivo ${version} for ${BUILD}, commit ${rel.commit.slice(0, 10)}\n  ${rel.file}, ${rel.size} bytes\n  SHA-256 ${rel.sha256}\n  list serial ${index.serial}, expires ${index.expires}`)
+  console.log(`\nWhat is signed:\n  Wivo ${version} for ${BUILD}, commit ${rel.commit.slice(0, 10)}\n  ${rel.file}, ${rel.size} bytes\n  SHA-256 ${rel.sha256}\n  list serial ${index.serial}, expires ${index.expires}\n  ${minimumLine(minimum, published?.index)}`)
   const sigs = signOnKey(letter, [
-    { id: 'index', label: `The list, serial ${index.serial}, expires ${index.expires.slice(0, 10)} (update key)`, slot: SLOTS.update, bytes: pi.statement, publicKey: keys.update.publicKey, keyId: keys.update.id },
+    { id: 'index', label: `The list, serial ${index.serial}, expires ${index.expires.slice(0, 10)}${minimum ? `, minimum ${minimum}` : ''} (update key)`, slot: SLOTS.update, bytes: pi.statement, publicKey: keys.update.publicKey, keyId: keys.update.id },
     { id: 'app', label: `Wivo ${version} for ${NAME}, the installer's hash (app key)`, slot: SLOTS.app, bytes: pa.statement, publicKey: keys.app.publicKey, keyId: keys.app.id },
   ])
   const list = {
@@ -341,6 +365,6 @@ if (cmd === 'build') await build()
 else if (cmd === 'sign') await sign()
 else if (cmd === 'publish') await publish()
 else {
-  console.log('Usage: npm run release -- --clinic <id> [--first] | release:sign -- --clinic <id> [--yubikey D --days 30 --refresh] | release:publish -- --clinic <id> [--refresh --check]')
+  console.log('Usage: npm run release -- --clinic <id> [--first --min-version x.y.z|off] | release:sign -- --clinic <id> [--yubikey D --days 30 --refresh --min-version x.y.z|off] | release:publish -- --clinic <id> [--refresh --check]')
   process.exit(1)
 }

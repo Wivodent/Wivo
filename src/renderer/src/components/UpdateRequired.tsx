@@ -16,6 +16,7 @@ import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { useUpdate } from '../providers/UpdateProvider'
 import { useMinVersion } from '../hooks/useMinVersion'
 import { onUpdateRequired, updateWasRequired, versionBelow } from '../lib/appVersion'
+import { useReleaseMinimum } from './PleaseUpdate'
 import { restartBlocked } from '../lib/restartGuard'
 import { decideRequiredRestart, canPostpone, COUNTDOWN_SECONDS, POSTPONE_MS, MAX_POSTPONEMENTS } from '../lib/updatePolicy'
 import { t } from '@/lib/i18n'
@@ -23,6 +24,7 @@ import { t } from '@/lib/i18n'
 export function UpdateRequired() {
   const { running, state, installNow, checkNow } = useUpdate()
   const minimum = useMinVersion()
+  const releaseMin = useReleaseMinimum()
   const [refused, setRefused] = useState(updateWasRequired)
   const [countdown, setCountdown] = useState<number | null>(null)
   const [postponements, setPostponements] = useState(0)
@@ -90,7 +92,8 @@ export function UpdateRequired() {
     )
   }
 
-  if (!refused) return null
+  // Below the signed minimum, PleaseUpdate (its full screen, then its bar) says it: one notice, not two.
+  if (!refused || releaseMin?.below) return null
   return (
     <Bar>
       <span className="font-semibold">{t('app.updateRequired')}</span>

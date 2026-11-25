@@ -44,6 +44,9 @@ interface Window {
     checkNow: () => Promise<void>
     /** Where this installer's updates come from (docs/RELEASE.md). Older preloads lack it. */
     updateInfo?: () => Promise<import('../../types/update').UpdateInfo>
+    /** The minimum version from the signed release list (main/releaseMinimum.ts). From 2.2.1. */
+    releaseMinimum?: () => Promise<import('../../types/update').ReleaseMinimum>
+    onReleaseMinimum?: (cb: (m: import('../../types/update').ReleaseMinimum) => void) => () => void
     /** Older builds of the preload do not have it. */
     busy?: () => Promise<{ downloads: number; otherWindows: number }>
     onSplashState: (

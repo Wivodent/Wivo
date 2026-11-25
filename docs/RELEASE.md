@@ -158,6 +158,84 @@ npm run release:publish -- --clinic dentiks --refresh
 
 `--days N` signs a shorter list.
 
+## 6a. The minimum version (from 2.2.1)
+
+The list can say which desktop version is the oldest that may still save:
+`min_version`, signed with the list by the update key (YubiKey C, slot 9c).
+It needs no SQL and no access to the clinic's database. It reaches every
+desktop within 30 minutes, the same way as an update.
+
+**What a desktop below it does:**
+- a full screen: "Please update Wivo", the running version and the minimum,
+  with **Update now** and **View only**;
+- **Update now** fetches the update at once, then becomes **Restart and
+  update**;
+- **View only** hides the full screen; a bar stays at the top with **Update
+  now**;
+- **nothing is saved**: the app refuses every save before it is sent (tables,
+  saving functions, uploads, deletions, account changes) with the same "Update
+  Wivo" message the database gives an old build (docs/MIN-VERSION.md);
+- **reading goes on**: lists, jobs, files, previews, exports, chat history,
+  and the audit entries that reading leaves (opening a job, a download, an
+  export).
+
+**Which desktops:** 2.2.1 and later. A build before 2.2.1 doesn't read the
+minimum, so the first release that can ask anything is the one after 2.2.1.
+Before that, the only ways are a restart (the update installs at the next start)
+or the database minimum (docs/MIN-VERSION.md).
+
+**Setting it, with a release:**
+
+```
+npm run release -- --clinic dentiks --min-version 2.2.1
+npm run release:sign -- --clinic dentiks
+npm run release:publish -- --clinic dentiks
+```
+
+`--min-version` can also be given to `release:sign`. There it wins over the one
+given to the build.
+
+**Setting it without a release** (one touch, the published release stays):
+
+```
+npm run release:sign -- --clinic dentiks --refresh --min-version 2.2.1
+npm run release:publish -- --clinic dentiks --refresh
+```
+
+**Removing it:** `--min-version off`, the same way.
+
+**Rules the tool keeps:**
+- not given: the next list keeps the published minimum. A release never
+  drops it by accident;
+- **never above the release the list names**: a desktop below the minimum
+  would have nothing to update to. The tool refuses it before the key signs;
+- the tool shows "Minimum version: … (new / unchanged / was …)" before
+  signing, and the key's prompt names it too.
+
+**What the desktop accepts:** only a list it would accept for an update:
+- signed by a certified update key;
+- the `stable` channel;
+- not expired;
+- a serial not lower than one it has already seen;
+- a release statement for **its own clinic's build**.
+
+A list copied from another clinic, or from main, sets nothing.
+
+The last minimum accepted is kept in userData (`release-minimum.json`). It
+holds from the first second after a restart. It also holds while the list
+can't be reached or has expired. Only a newer valid list raises it, lowers it
+or takes it away. `updater.log` says when it changed.
+
+**Beware:**
+- A desktop below the minimum can update only if the update installs. Set a
+  minimum only once that release is published and you have seen one machine
+  install it.
+- If the update fails, lower the minimum or turn it off (`--refresh
+  --min-version off`). Desktops follow at their next check: within 30
+  minutes, or at once with Settings → Updates → Check now.
+- The phone app is not affected. It loads the newest version from Cloudflare
+  on every start.
+
 ## 7. A licence, with the updates
 
 From 2.0.7 a clinic's desktops take a new licence from the clinic's own
@@ -207,3 +285,4 @@ is in `licence.json`.
 | `releases/<id>/<version>/` | the installer, `latest.yml`, `release.json`, then the signed `updates.json` (not tracked) |
 | `releases/<id>/refresh/` | a re-signed list |
 | `releases/<id>/licence/licence.json` | the last licence published with `--publish` (not tracked) |
+| userData `release-minimum.json` | on each desktop: the last minimum version accepted (§6a) |

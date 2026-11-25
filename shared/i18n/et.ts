@@ -3896,6 +3896,16 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'updateRequired.fetching': "Laen uuendust…",
   'updateRequired.phoneNotice': "Uuenda Wivo: see versioon ei saa enam salvestada. Laadi leht uuesti, et saada uus.",
   'updateRequired.reload': "Laadi uuesti",
+  'pleaseUpdate.title': "Palun uuenda Wivo",
+  'pleaseUpdate.body': "See on Wivo {running}. Vanim versioon, mis tohib veel salvestada, on {minimum}.",
+  'pleaseUpdate.readOnly': "Kõike saab endiselt vaadata, aga midagi ei saa muuta ega salvestada enne, kui Wivo on uuendatud.",
+  'pleaseUpdate.updateNow': "Uuenda kohe",
+  'pleaseUpdate.restart': "Taaskäivita ja uuenda",
+  'pleaseUpdate.viewOnly': "Ainult vaatamiseks",
+  'pleaseUpdate.bar': "Ainult vaatamiseks: muutmiseks uuenda Wivo.",
+  'pleaseUpdate.downloading': "Laen uuendust… {percent}%",
+  'pleaseUpdate.ready': "Wivo {version} on alla laaditud.",
+  'pleaseUpdate.failed': "Uuendust ei õnnestunud saada. Kontrolli internetiühendust ja proovi uuesti.",
 
   // ── folderUpload ──────────────────────────────────────────────────────────
   'files.typeCt': "KT",

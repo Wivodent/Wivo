@@ -45,6 +45,7 @@ import { ClinicSettingsSync } from './components/ClinicSettingsSync'
 import { UiPrefsSync } from './components/UiPrefsSync'
 import { UpdateBanner } from './components/UpdateBanner'
 import { UpdateRequired } from './components/UpdateRequired'
+import { PleaseUpdate } from './components/PleaseUpdate'
 import { ConfirmHost } from './components/ui/ConfirmHost'
 import { UpdateProvider } from './providers/UpdateProvider'
 import type { Job, JobInput, StageKey } from './types/job'
@@ -546,6 +547,8 @@ export default function App() {
               <AppContent />
               <UpdateBanner />
               <UpdateRequired />
+              {/* Below the signed minimum version: full screen, saves refused (docs/RELEASE.md §6a). */}
+              <PleaseUpdate />
               <ConfirmHost />
             </UpdateProvider>
           </PipelineProvider>

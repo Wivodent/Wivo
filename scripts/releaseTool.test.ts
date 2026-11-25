@@ -19,9 +19,13 @@ import {
 } from '../shared/release/release'
 import { ROOT_A_CERTIFICATES } from '../shared/release/certificates'
 import { verifyDownloadedApp, type ReleaseCheckDeps } from '../src/main/releaseCheck'
+import { checkReleaseMinimum } from '../src/main/releaseMinimum'
+import {
+  appPayload, certificatePayload, indexPayload, keysFor, latestYml, listDays, migrationFiles, migrationsAfter, minVersionOption, minimumLine,
+  nextMinimum, uploadPlan, versionProblem,
 // @ts-expect-error plain .mjs without types
-import { appPayload, certificatePayload, keysFor, latestYml, listDays, migrationFiles, migrationsAfter, uploadPlan, versionProblem } from './release-lib.mjs'
-import { compareVersions } from '../shared/release/release'
+} from './release-lib.mjs'
+import { compareVersions, isVersion } from '../shared/release/release'
 
 const SCRIPT = 'scripts/release.mjs'
 const CLINIC = 'dentiks'
@@ -258,7 +262,61 @@ describe('a new list for the published release (--refresh)', () => {
   })
 })
 
+describe('the minimum version (--min-version, docs/RELEASE.md §6a)', () => {
+  const published = () => JSON.parse(Buffer.from(JSON.parse(readFileSync(join(FEED, 'updates.json'), 'utf8')).index.split('.')[1], 'base64url').toString('utf8'))
+  /** What a Dentiks desktop reads from the published list. */
+  const desktopReads = (build = CLINIC) => checkReleaseMinimum({
+    pinned: roots, sources: [SOURCE], channel: 'stable', build, now: () => new Date(),
+    statePath: join(dir, `minimum-${build}.json`), floorPath: join(dir, `minimum-floor-${build}.json`),
+    fetch: (async url => (url === listAddress(SOURCE, 'stable') ? new Uint8Array(readFileSync(join(FEED, 'updates.json'))) : null)) as Fetcher,
+  })
+
+  it('refuses a minimum above the published release, or one that is not a version: nothing is signed', () => {
+    expect(refusal(['sign', '--refresh', '--min-version', '2.0.6'])).toMatch(/the minimum 2\.0\.6 is above the release 2\.0\.5/)
+    expect(refusal(['sign', '--refresh', '--min-version', 'latest'])).toMatch(/--min-version must be x\.y\.z/)
+  })
+
+  it('a new list with a minimum: one touch, signed in the list, and the desktop takes it', async () => {
+    const out = run(['sign', '--refresh', '--min-version', '2.0.5'])
+    expect(out).toMatch(/Minimum version: 2\.0\.5 \(new\)/)
+    expect(seen().job.statements.map((x: { label: string }) => x.label)).toEqual([expect.stringMatching(/minimum 2\.0\.5/)])
+    run(['publish', '--refresh'])
+    expect(published()).toMatchObject({ serial: 3, min_version: '2.0.5' })
+    expect(await desktopReads()).toEqual({ changed: true, minimum: '2.0.5' })
+    expect(await desktopReads('another-clinic')).toEqual({ refused: 'wrong_build' })
+    expect((await appCheck()).ok).toBe(true) // the update itself still installs
+  })
+
+  it('the next list keeps it unless told otherwise; off takes it away', async () => {
+    expect(run(['sign', '--refresh'])).toMatch(/Minimum version: 2\.0\.5 \(unchanged\)/)
+    run(['publish', '--refresh'])
+    expect(published()).toMatchObject({ serial: 4, min_version: '2.0.5' })
+    expect(run(['sign', '--refresh', '--min-version', 'off'])).toMatch(/Minimum version: none \(was 2\.0\.5\)/)
+    run(['publish', '--refresh'])
+    expect(published().serial).toBe(5)
+    expect(published()).not.toHaveProperty('min_version')
+    expect(await desktopReads()).toEqual({ changed: true, minimum: null })
+  })
+})
+
 describe('the parts', () => {
+  it('the minimum: given, kept, removed, never above the release', () => {
+    expect(minVersionOption(undefined, isVersion)).toBeUndefined()
+    expect(minVersionOption('off', isVersion)).toBeNull()
+    expect(minVersionOption('2.2.1', isVersion)).toBe('2.2.1')
+    expect(() => minVersionOption('2.2', isVersion)).toThrow(/x\.y\.z/)
+    const args = { appVersion: '2.2.1', compareVersions }
+    expect(nextMinimum({ ...args, asked: undefined, previous: { min_version: '2.2.0' } })).toBe('2.2.0')
+    expect(nextMinimum({ ...args, asked: undefined, previous: undefined })).toBeNull()
+    expect(nextMinimum({ ...args, asked: null, previous: { min_version: '2.2.0' } })).toBeNull()
+    expect(nextMinimum({ ...args, asked: '2.2.1', previous: null })).toBe('2.2.1')
+    expect(() => nextMinimum({ ...args, asked: '2.3.0', previous: null })).toThrow(/above the release/)
+    const base = { keyId: 'k', serial: 1, now: new Date(0), days: 30, app: { version: '2.2.1' }, previous: null }
+    expect(indexPayload({ ...base, minVersion: '2.2.1' }).min_version).toBe('2.2.1')
+    expect(indexPayload(base)).not.toHaveProperty('min_version')
+    expect(minimumLine('2.2.1', { min_version: '2.2.0' })).toMatch(/2\.2\.1 \(was 2\.2\.0\)/)
+  })
+
   it('YubiKey C and D: their update and app keys, from root A\'s certificates', () => {
     const payloads = ROOT_A_CERTIFICATES.map(certificatePayload)
     expect(keysFor('C', payloads)).toMatchObject({ update: { id: 'update-C-cfbcf4eb' }, app: { id: 'app-C-c17eb189' } })

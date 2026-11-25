@@ -72,3 +72,17 @@ export interface UpdaterSplashState {
   from: string
   to: string
 }
+
+/**
+ * The minimum desktop version from the clinic's signed release list
+ * (docs/RELEASE.md §6a, main/releaseMinimum.ts). Below it, nothing is saved
+ * until the update is installed; reading goes on.
+ */
+export interface ReleaseMinimum {
+  /** The minimum, or null: none asked. */
+  minimum: string | null
+  /** The version running now. */
+  running: string
+  /** `running` is below `minimum`. */
+  below: boolean
+}

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { UpdateInfo, UpdateState, UpdaterSplashState } from '../types/update'
+import type { ReleaseMinimum, UpdateInfo, UpdateState, UpdaterSplashState } from '../types/update'
 
 /**
  * Minimal bridge for the update prompt. Absence is handled by the renderer —
@@ -64,6 +64,9 @@ const wivoAPI = {
   checkNow: (): Promise<void> => ipcRenderer.invoke('wivo:check-now'),
   /** Which installer this is and where its updates come from (docs/RELEASE.md). */
   updateInfo: (): Promise<UpdateInfo> => ipcRenderer.invoke('wivo:update-info'),
+  /** The minimum version from the signed release list, and whether this build is below it (main/releaseMinimum.ts). From 2.2.1. */
+  releaseMinimum: (): Promise<ReleaseMinimum> => ipcRenderer.invoke('wivo:release-minimum'),
+  onReleaseMinimum: (cb: (m: ReleaseMinimum) => void): (() => void) => subscribe<ReleaseMinimum>('wivo:release-minimum', cb),
   /** A download, a print or a PDF in progress: an update restart waits (main/busy.ts). */
   busy: (): Promise<{ downloads: number; otherWindows: number }> => ipcRenderer.invoke('wivo:busy'),
 

@@ -88,10 +88,35 @@ export function listDays(value) {
 }
 
 /**
- * The next list. What the previous list carried (database packages,
- * withdrawals, revocations) is kept: a list only grows (§5a).
+ * `--min-version` (docs/RELEASE.md §6a): undefined when not given (the
+ * published minimum stays), null for `off` (no minimum), else the version.
  */
-export function indexPayload({ keyId, serial, now, days, app, previous }) {
+export function minVersionOption(value, isVersion) {
+  if (value === undefined) return undefined
+  if (value === 'off' || value === 'none') return null
+  if (!isVersion(value)) throw new Error(`--min-version must be x.y.z (such as 2.2.1), or off to remove it; not "${value}"`)
+  return value
+}
+
+/**
+ * The minimum the next list carries: the one asked for, else the published
+ * one. Null when there is none. It may not be above the release the list
+ * names, or a desktop below it would have nothing to update to.
+ */
+export function nextMinimum({ asked, previous, appVersion, compareVersions }) {
+  const minimum = asked === undefined ? (previous?.min_version ?? null) : asked
+  if (minimum && compareVersions(minimum, appVersion) > 0) {
+    throw new Error(`the minimum ${minimum} is above the release ${appVersion} this list names: a desktop below it would have nothing to update to`)
+  }
+  return minimum
+}
+
+/**
+ * The next list. What the previous list carried (database packages,
+ * withdrawals, revocations) is kept: a list only grows (§5a). The minimum
+ * desktop version is `minVersion` (from nextMinimum): none when null.
+ */
+export function indexPayload({ keyId, serial, now, days, app, previous, minVersion = null }) {
   return {
     v: 1,
     key_id: keyId,
@@ -103,7 +128,16 @@ export function indexPayload({ keyId, serial, now, days, app, previous }) {
     withdrawn: previous?.withdrawn ?? [],
     revocations: previous?.revocations ?? [],
     app,
+    ...(minVersion ? { min_version: minVersion } : {}),
   }
+}
+
+/** How the tool says what the minimum does, before the key signs it. */
+export function minimumLine(minimum, previous) {
+  const was = previous?.min_version ?? null
+  if (!minimum) return was ? `Minimum version: none (was ${was}). Every desktop may save again.` : 'Minimum version: none.'
+  const change = was === minimum ? ' (unchanged)' : was ? ` (was ${was})` : ' (new)'
+  return `Minimum version: ${minimum}${change}. A desktop below it shows "Please update Wivo" and saves nothing until it updates.`
 }
 
 /** The release statement the app key signs: this installer, for this clinic's build (its id). */

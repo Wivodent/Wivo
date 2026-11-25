@@ -3910,6 +3910,16 @@ export const en = {
   'updateRequired.fetching': "Getting the update…",
   'updateRequired.phoneNotice': "Update Wivo: this version can no longer save. Reload the page to get the new one.",
   'updateRequired.reload': "Reload",
+  'pleaseUpdate.title': "Please update Wivo",
+  'pleaseUpdate.body': "This is Wivo {running}. The oldest version that may still save is {minimum}.",
+  'pleaseUpdate.readOnly': "You can still look at everything, but nothing can be changed or saved until Wivo is updated.",
+  'pleaseUpdate.updateNow': "Update now",
+  'pleaseUpdate.restart': "Restart and update",
+  'pleaseUpdate.viewOnly': "View only",
+  'pleaseUpdate.bar': "View only: update Wivo to make changes.",
+  'pleaseUpdate.downloading': "Downloading the update… {percent}%",
+  'pleaseUpdate.ready': "Wivo {version} is downloaded.",
+  'pleaseUpdate.failed': "The update could not be fetched. Check the internet connection and try again.",
 
   // ── folderUpload ──────────────────────────────────────────────────────────
   'files.typeCt': "CT scan",

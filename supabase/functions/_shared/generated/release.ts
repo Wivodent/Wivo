@@ -151,6 +151,14 @@ export interface Index {
   revocations: string[]
   /** The latest desktop release for this channel, so app updates share the list's freshness. */
   app?: { version: string; file: string; sha512: string; size: number }
+  /**
+   * The oldest desktop version that may still save (docs/RELEASE.md §6a). A
+   * desktop below it shows "Please update Wivo" and makes no changes until it
+   * updates; reading goes on. Never above `app.version` (the release tool
+   * refuses that), so there is always a release to update to. Lists signed
+   * before 2.2.1 have none, and builds before 2.2.1 ignore it.
+   */
+  min_version?: string
 }
 
 /** A desktop release: the installer the app may install (5e). */
@@ -595,6 +603,37 @@ export async function checkAppUpdate(args: {
   if (p.version !== version || p.sha512 !== sha512 || p.size !== size || p.file !== named.file) return { ok: false, reason: 'not_this_release' }
   if (releaseBuild(p) !== build) return { ok: false, reason: 'wrong_build' }
   return { ok: true, key_id: r.index.key_id, serial: r.index.serial, signedSha256: r.signedSha256, release: p }
+}
+
+// ─── The minimum desktop version (docs/RELEASE.md §6a) ────────────────────────
+
+/** The list's minimum, or null: none, or not a plain x.y.z (then it asks nothing rather than refusing the whole list). */
+export const indexMinimum = (i: Pick<Index, 'min_version'>): string | null => (isVersion(i.min_version) ? i.min_version : null)
+
+export type CheckedMinimum =
+  | { ok: true; minimum: string | null; key_id: string; serial: number; signedSha256: string }
+  | { ok: false; reason: Refusal | 'too_large' | 'no_app_release' | 'wrong_build' }
+
+/**
+ * The minimum desktop version a published list asks of this build. It counts
+ * only from a list the desktop would accept for an update: signed by a
+ * certified update key, for this channel, not expired, not older than one
+ * already accepted (`floor`), and carrying a release statement signed by an
+ * app key for this desktop's own `build`. So a list copied from another
+ * clinic's releases, or main's, sets nothing here.
+ */
+export async function checkListMinimum(args: {
+  list: PublishedList; pinned: RootKey[]; now: Date; channel: Channel; floor: SerialFloor; build: string
+}): Promise<CheckedMinimum> {
+  const { list, pinned, now, channel, floor, build } = args
+  const trust = await trustFrom(pinned, listedRevocations(list.index))
+  const r = await checkIndex(list.index, list.certificates, trust, now, channel, floor)
+  if (!r.ok) return r
+  if (!list.app || !r.index.app) return { ok: false, reason: 'no_app_release' }
+  const a = await checkSigned('app', list.app, list.certificates, trust, now)
+  if (!a.ok) return a
+  if (releaseBuild(a.payload) !== build) return { ok: false, reason: 'wrong_build' }
+  return { ok: true, minimum: indexMinimum(r.index), key_id: r.index.key_id, serial: r.index.serial, signedSha256: r.signedSha256 }
 }
 
 // ─── Versions and paths ───────────────────────────────────────────────────────

@@ -38,8 +38,9 @@ import { appendFileSync, readFileSync, writeFileSync, rmSync } from 'fs'
 import { join } from 'path'
 import type { UpdateInfo, UpdateState, UpdaterSplashState } from '../types/update'
 import { BUILD, CLINIC_SOURCE, SOURCES, feedUrlFor, releaseCheckDeps, verifyDownloadedApp } from './releaseCheck'
-import { PINNED_ROOTS } from '../../shared/release/release'
+import { PINNED_ROOTS, limitedFetcher } from '../../shared/release/release'
 import { checkDeliveredLicence } from './licenceDelivery'
+import { checkReleaseMinimum, isBelow, storedMinimum, type MinimumStatus } from './releaseMinimum'
 
 /**
  * Test mode (`npm run dev:test`) never checks, downloads or installs a
@@ -435,15 +436,64 @@ function checkLicence(): void {
   }).catch(err => log('ERROR', 'licence check failed', err))
 }
 
+// ── The minimum version, from the signed list (releaseMinimum.ts) ────────────
+/** The first look at the minimum: sooner than the update check, since it decides whether this build may save. */
+const FIRST_MINIMUM_MS = 5_000
+const minimumPath = (): string => join(app.getPath('userData'), 'release-minimum.json')
+/** undefined until first read from userData; then what the last accepted list said. */
+let minimum: string | null | undefined
+let minimumLogged = ''
+
+function currentMinimum(): string | null {
+  if (minimum === undefined) minimum = TEST_MODE ? null : storedMinimum(minimumPath())?.min_version ?? null
+  return minimum
+}
+
+function minimumStatus(): MinimumStatus {
+  const running = app.getVersion()
+  const min = currentMinimum()
+  return { minimum: min, running, below: isBelow(running, min) }
+}
+
+/** Checked with every update check. Below a new minimum: told to the window, and the update fetched at once. */
+function checkMinimum(): void {
+  if (TEST_MODE) return
+  const before = minimumStatus()
+  void checkReleaseMinimum({
+    pinned: PINNED_ROOTS, sources: SOURCES, fetch: limitedFetcher(fetch), channel: 'stable', build: BUILD,
+    statePath: minimumPath(), floorPath: join(app.getPath('userData'), 'release-floor.json'), now: () => new Date(),
+  }).then(r => {
+    if ('refused' in r) {
+      if (r.refused !== 'not_pinned' && r.refused !== 'no_source' && r.refused !== minimumLogged) {
+        minimumLogged = r.refused
+        log('WARN', `minimum version: list not read (${r.refused}); keeping ${currentMinimum() ?? 'none'}`)
+      }
+      return
+    }
+    minimumLogged = ''
+    minimum = r.minimum
+    const now = minimumStatus()
+    if (r.changed) log('INFO', `minimum version: ${now.minimum ?? 'none'} (running ${now.running}${now.below ? ', below it: no saves until updated' : ''})`)
+    if (now.below !== before.below || now.minimum !== before.minimum) {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('wivo:release-minimum', now)
+    }
+    if (now.below && !before.below && autoUpdater.isUpdaterActive() && lastState.stage !== 'ready') {
+      void autoUpdater.checkForUpdates().catch(() => {})
+    }
+  }).catch(err => log('ERROR', 'minimum version check failed', err))
+}
+
 // ── Background checking during the session ───────────────────────────────────
 export function wireUpdater(): void {
   if (TEST_MODE) {
     log('INFO', 'test mode: no update checks')
     return
   }
-  // Before the updater's own guard: the licence does not depend on it.
+  // Before the updater's own guard: the licence and the minimum do not depend on it.
   setTimeout(checkLicence, FIRST_CHECK_MS)
   setInterval(checkLicence, EVERY_MS)
+  setTimeout(checkMinimum, FIRST_MINIMUM_MS)
+  setInterval(checkMinimum, EVERY_MS)
   configure()
   if (!autoUpdater.isUpdaterActive()) {
     log('INFO', 'updater inactive (not packaged) — background checks skipped')
@@ -498,6 +548,9 @@ export function registerUpdaterIpc(): void {
   // update.
   ipcMain.handle('wivo:update-state', () => lastState)
 
+  // The minimum version from the signed list, and whether this build is below it.
+  ipcMain.handle('wivo:release-minimum', (): MinimumStatus => minimumStatus())
+
   // Settings → Updates: where this installer's updates come from, and whether
   // they must be Wivo's signed releases. Public facts only.
   ipcMain.handle('wivo:update-info', (): UpdateInfo => {
@@ -526,6 +579,7 @@ export function registerUpdaterIpc(): void {
   ipcMain.handle('wivo:check-now', async () => {
     if (TEST_MODE) return
     checkLicence()
+    checkMinimum()
     if (!autoUpdater.isUpdaterActive()) {
       pushState({
         stage: 'failed', code: 'devBuild',
