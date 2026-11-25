@@ -264,7 +264,34 @@ In this order unless Riga says otherwise.
 - **Mac installer, signed with an Apple Developer ID**, and notarised, so a
   Mac at the clinic installs and updates Wivo without warnings.
 - **Work type options** (All-on-4 with a metal bar or a titanium mesh): the
-  plan is docs/WORKTYPE-OPTIONS-PLAN.md.
+  plan is docs/WORKTYPE-OPTIONS-PLAN.md. The first version is in 2.2.0 (see
+  below); the rest is next.
+
+## After 2.2.0 (Kevin, 2026-11-25)
+
+Left out of 2.2.0 on purpose (docs/REPORT-2.2.0.md):
+
+- **Work type options, the next version.** 2.2.0 has the library, the groups
+  on a work type, the big buttons on the job and the price and cost. Next:
+  - **extra stages by option**: a template stage that is added only when an
+    option is chosen ("Only when: Titanium mesh"), a widened `only_if` check
+    on `workflow_template_stage` (migration);
+  - **pay rules by option**: `worker_rates.option_key` ("only with Metal
+    bar"), read by `calculateEarnings` (migration);
+  - a **required** group (a job cannot be saved without a choice);
+  - the chosen options on the **job page and the job card**, editable there,
+    and read-only on the phone;
+  - **reprice** (Settings → More price settings) including options, and
+    options as their own invoice lines.
+- **"Ordered by" on the job page.** 2.2.0 asks it on the new-job form and
+  stores it (sql/128); the job page and the table do not show or edit it yet,
+  and the "orderer" stage person (§2.6a) is still the job's creator, not the
+  chosen doctor.
+- **The catalogue, more of it**: an implant bridge (no picture yet), pictures
+  with a transparent background (the 2.2.0 ones are on white).
+- **Minimum version 2.2.0 once Riga runs it** (docs/MIN-VERSION.md): a 2.1.x
+  app that saves the prices writes them without the option library, and the
+  next 2.2.0 save puts it back; raising the minimum ends that window.
 
 ---
 
