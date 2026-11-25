@@ -173,13 +173,28 @@ function activeOn(rate: WorkerRate, isoDate: string): boolean {
   return true
 }
 
-/** One piece of work to pay for: a type, the teeth it covers, the options chosen for it. */
-export interface PayItem { too: string; hambad: string; valikud?: ItemOptions | null }
+/**
+ * One piece of work to pay for: a type, the teeth it covers, the options
+ * chosen for it and who makes them when not the technician (sql/130).
+ */
+export interface PayItem {
+  too: string
+  hambad: string
+  valikud?: ItemOptions | null
+  tegijad?: OptionDoers | null
+}
+
+/** Option id → the person who makes it (WorkItem.valikuTegijad). */
+export type OptionDoers = Record<string, string | null>
+
+/** Who makes an option on an item when someone other than the technician does; null = the technician. */
+export const optionDoerOf = (item: { tegijad?: OptionDoers | null }, optionId: string): string | null =>
+  item.tegijad?.[optionId] || null
 
 /** The items on a job. A job with no `work_items` yields exactly one, built
  *  from its legacy `too`/`hambad`, so old rows are paid exactly as before. */
 const payItemsOf = (job: Job): PayItem[] =>
-  jobWorkItems(job).map(i => ({ too: i.too, hambad: i.hambad, valikud: i.valikud }))
+  jobWorkItems(job).map(i => ({ too: i.too, hambad: i.hambad, valikud: i.valikud, tegijad: i.valikuTegijad }))
 
 /**
  * The items of a job THIS person designed.
@@ -225,7 +240,7 @@ function priceShare(all: PayItem[], subset: PayItem[]): number {
 function revisionPayItems(rev: Revision, job: Job): PayItem[] {
   const items = rev.work_items
   if (Array.isArray(items) && items.length > 0) {
-    return items.map((i: WorkItem) => ({ too: i.too, hambad: i.hambad, valikud: i.valikud }))
+    return items.map((i: WorkItem) => ({ too: i.too, hambad: i.hambad, valikud: i.valikud, tegijad: i.valikuTegijad }))
   }
   return [{ too: job.too ?? '', hambad: rev.hambad ?? job.hambad ?? '' }]
 }
@@ -280,6 +295,8 @@ export function jobPayeeIds(job: Job): string[] {
   add(p.too, () => [job.assigned_to])
   add(p.mudel, () => [job.assigned_to])
   add(p.disain, () => jobDesigners(job))
+  // Whoever makes one of its options (sql/130): paid by their option rules.
+  for (const i of jobWorkItems(job)) ids.push(...Object.values(i.valikuTegijad ?? {}))
   return [...new Set(ids.filter((id): id is string => !!id))]
 }
 
@@ -319,9 +336,9 @@ export function rateWorkTypes(rate: Pick<WorkerRate, 'work_type'>): string[] {
  */
 export function rateCovers(
   rate: WorkerRate, too: string | null | undefined, types: WorkType[],
-  valikud?: ItemOptions | null,
+  match?: OptionMatch,
 ): boolean {
-  if (!rateHasOption(rate, valikud)) return false
+  if (!rateHasOption(rate, match?.valikud, match)) return false
   const wanted = rateWorkTypes(rate)
   if (wanted.length === 0) return true
   const resolved = resolveWorkType(too, types).nimi.toLowerCase()
@@ -336,10 +353,25 @@ export function rateCovers(
  * Whether a rule's option, if it names one, was chosen for this work (in any
  * of the item's groups). A rule naming none asks nothing.
  */
-export function rateHasOption(rate: Pick<WorkerRate, 'option_key'>, valikud: ItemOptions | null | undefined): boolean {
+export function rateHasOption(
+  rate: Pick<WorkerRate, 'option_key'>, valikud: ItemOptions | null | undefined,
+  doer?: { tegijad?: OptionDoers | null; payee?: string },
+): boolean {
   const key = rate.option_key?.trim()
   if (!key) return true
-  return Object.values(valikud ?? {}).some(ids => (ids ?? []).includes(key))
+  if (!Object.values(valikud ?? {}).some(ids => (ids ?? []).includes(key))) return false
+  // Someone else makes this option (sql/130): the rule is theirs to be paid,
+  // not the technician's. No doer: whoever the work pays, as before.
+  const who = doer?.payee ? optionDoerOf({ tegijad: doer.tegijad }, key) : null
+  return !who || who === doer?.payee
+}
+
+/** What a rule is matched against besides the work type: the item's options, their doers, whom it pays. */
+export interface OptionMatch {
+  valikud?: ItemOptions | null
+  tegijad?: OptionDoers | null
+  /** The person being paid: an option someone else makes is not theirs. */
+  payee?: string
 }
 
 /**
@@ -353,14 +385,14 @@ const specificity = (r: WorkerRate): number =>
 export function pickRateFor(
   rates: WorkerRate[], too: string | null | undefined, isoDate: string,
   types: WorkType[], scope: RateScope, kinds: RateKind[] = PRODUCTION_KINDS,
-  valikud?: ItemOptions | null,
+  match?: OptionMatch,
 ): WorkerRate | null {
   const matches = rates.filter(r => {
     if (r.additive) return false        // additive rules never enter the contest
     if (!kinds.includes(r.kind)) return false
     if ((r.applies_to ?? 'too') !== scope) return false
     if (!activeOn(r, isoDate)) return false
-    return rateCovers(r, too, types, valikud)
+    return rateCovers(r, too, types, match)
   })
   if (matches.length === 0) return null
 
@@ -430,7 +462,7 @@ export interface ProductionPay {
  */
 function payAdditive(
   mine: WorkerRate[], items: PayItem[], isoDate: string, types: WorkType[],
-  scope: RateScope, price: number, rush = 1
+  scope: RateScope, price: number, rush = 1, payee?: string
 ): { rule: WorkerRate; amount: number; qty: number; items: PayItem[] }[] {
   const out: { rule: WorkerRate; amount: number; qty: number; items: PayItem[] }[] = []
   for (const r of mine) {
@@ -439,7 +471,7 @@ function payAdditive(
     if ((r.applies_to ?? 'too') !== scope) continue
     if (!activeOn(r, isoDate)) continue
 
-    const covered = items.filter(i => rateCovers(r, i.too, types, i.valikud))
+    const covered = items.filter(i => rateCovers(r, i.too, types, { valikud: i.valikud, tegijad: i.tegijad, payee }))
     if (covered.length === 0) continue
     const teeth = covered.reduce((s, i) => s + toothCount(i.hambad), 0)
 
@@ -463,6 +495,39 @@ function payAdditive(
   return out
 }
 
+/**
+ * What a person earns for the options they make on a job they are not the
+ * technician of (sql/130): every one of their "Only with option" rules, on
+ * the items where they are that option's doer. Priced like an additive rule:
+ * per tooth, per covered item, or a percentage of the job's price.
+ */
+export function payOptionDoer(
+  mine: WorkerRate[], items: PayItem[], isoDate: string, types: WorkType[],
+  doer: string, price: number, rush = 1,
+): { rule: WorkerRate; amount: number; qty: number; items: PayItem[] }[] {
+  const out: { rule: WorkerRate; amount: number; qty: number; items: PayItem[] }[] = []
+  for (const r of mine) {
+    const key = r.option_key?.trim()
+    if (!key) continue
+    if (!PRODUCTION_KINDS.includes(r.kind)) continue
+    if ((r.applies_to ?? 'too') !== 'too') continue
+    if (!activeOn(r, isoDate)) continue
+    const covered = items.filter(i => optionDoerOf(i, key) === doer && rateCovers(r, i.too, types, { valikud: i.valikud }))
+    if (covered.length === 0) continue
+    const teeth = covered.reduce((s, i) => s + toothCount(i.hambad), 0)
+    let amount = 0
+    let qty = 1
+    switch (r.kind) {
+      case 'hammas':   amount = teeth * r.amount * rush; qty = teeth; break
+      case 'too':      amount = r.amount * covered.length * rush; qty = covered.length; break
+      case 'protsent': amount = price * r.amount / 100; break
+    }
+    if (amount <= 0) continue
+    out.push({ rule: r, amount: round2(amount), qty, items: covered })
+  }
+  return out
+}
+
 /** What an additive line is called. Falls back for rules written before labels. */
 const additiveLabel = (r: WorkerRate, lang: Lang): string =>
   r.label?.trim() || translate(lang, r.applies_to === 'disain' ? 'payLine.designBonus' : 'payLine.bonus')
@@ -476,7 +541,7 @@ const additiveLabel = (r: WorkerRate, lang: Lang): string =>
  */
 function payProduction(
   mine: WorkerRate[], items: PayItem[], isoDate: string, types: WorkType[],
-  scope: RateScope, price: number, rush = 1
+  scope: RateScope, price: number, rush = 1, payee?: string
 ): ProductionPay | null {
   const groups = new Map<string, { rate: WorkerRate; teeth: number }>()
   const unmatched: string[] = []
@@ -484,7 +549,8 @@ function payProduction(
   let matchedTeeth = 0
 
   for (const item of items) {
-    const rate = pickRateFor(mine, item.too, isoDate, types, scope, PRODUCTION_KINDS, item.valikud)
+    const rate = pickRateFor(mine, item.too, isoDate, types, scope, PRODUCTION_KINDS,
+      { valikud: item.valikud, tegijad: item.tegijad, payee })
     if (!rate) {
       unmatched.push(item.too?.trim() || t('earnings.unspecifiedWorkItem'))
       continue
@@ -665,7 +731,9 @@ export function calculateEarnings(ctx: EarningsContext): EarningLine[] {
       return (rp.tech.by === 'legacy' ? (r.assigned_to ?? job.assigned_to) === profileId : paysPerson(rp.tech, profileId))
         || (rp.design.by === 'legacy' ? revisionDesignItems(r, job, profileId).length > 0 : paysPerson(rp.design, profileId))
     })
-    if (!isTech && !isDesigner && !isModeller && !onARevision) continue
+    // Makes one of its options though not its technician (sql/130).
+    const isOptionDoer = !isTech && items.some(i => Object.values(i.tegijad ?? {}).includes(profileId))
+    if (!isTech && !isDesigner && !isModeller && !onARevision && !isOptionDoer) continue
 
     const earnedOn = jobEarnedOn(job)
     const jobDone = job.status === doneStageKey
@@ -682,7 +750,7 @@ export function calculateEarnings(ctx: EarningsContext): EarningLine[] {
 
     if (isTech && countable && !alreadyPaid.has(`job:${job.id}`)) {
       const price = Number(job.hind ?? 0) + Number(job.disain_hind ?? 0)
-      const pay = payProduction(mine, items, earnedOn, types, 'too', price, rush)
+      const pay = payProduction(mine, items, earnedOn, types, 'too', price, rush, profileId)
       if (pay && pay.amount > 0) {
         pushShare(payees.too, {
           key: `job:${job.id}`,
@@ -752,7 +820,7 @@ export function calculateEarnings(ctx: EarningsContext): EarningLine[] {
         const price = scope === 'disain'
           ? (Number(job.disain_hind ?? 0) || Number(job.hind ?? 0)) * designShare
           : Number(job.hind ?? 0) + Number(job.disain_hind ?? 0)
-        for (const extra of payAdditive(mine, scopeItems, earnedOn, types, scope, price, rush)) {
+        for (const extra of payAdditive(mine, scopeItems, earnedOn, types, scope, price, rush, scope === 'too' ? profileId : undefined)) {
           // Keyed by RULE, so two extras on one job stay two payable lines and
           // freezing one never suppresses the other.
           const key = `extra:${extra.rule.id}:${job.id}`
@@ -766,6 +834,25 @@ export function calculateEarnings(ctx: EarningsContext): EarningLine[] {
             earned_on: earnedOn,
           })
         }
+      }
+    }
+
+    // Options this person makes on someone else's job (sql/130): their own
+    // "Only with option" rules, on the items where they are the doer, each a
+    // line of its own. Additive or not: the option is all they did here.
+    if (isOptionDoer && countable) {
+      const price = Number(job.hind ?? 0) + Number(job.disain_hind ?? 0)
+      for (const extra of payOptionDoer(mine, items, earnedOn, types, profileId, price, rush)) {
+        const key = `option:${extra.rule.id}:${job.id}`
+        if (alreadyPaid.has(key)) continue
+        lines.push({
+          key,
+          job_id: job.id, revision_id: null, work_hours_id: null,
+          kind: extra.rule.kind,
+          description: `${additiveLabel(extra.rule, lang)}: ${itemsLabel(extra.items, lang)} · ${job.patsient}${rushNote}`,
+          qty: extra.qty, rate: extra.rule.amount, amount: extra.amount,
+          earned_on: earnedOn,
+        })
       }
     }
 

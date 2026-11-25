@@ -16,6 +16,7 @@ import { RevisionEditFullscreen } from './RevisionEditFullscreen'
 import { PatientPicker } from '../Patients/PatientPicker'
 import { JobReadView } from './JobReadView'
 import { JobTimeline } from './JobTimeline'
+import { OptionDoers } from './OptionDoers'
 import { StatusPill } from '../ui/StatusPill'
 import { useSettings, useWorkTypes, calcProduction, countSmallTeeth, countLargeTeeth, workTypePriceFor, priceBookOf } from '../../stores/useSettings'
 import { quoteJob } from '@shared/pricing/quote'
@@ -933,6 +934,8 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
                 isRevision={!!activeRev}
                 finishedAt={activeRev ? (activeRev.deadline ?? null) : undefined}
               />
+              {/* The chosen options and who makes each (sql/130). */}
+              {!activeRev && <OptionDoers job={job} className="mx-5 mt-3 px-5 py-3 bg-bg-card rounded-xl" />}
               <JobReadView
                 job={job}
                 isBottom={isBottom}

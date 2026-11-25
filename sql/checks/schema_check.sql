@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions.
--- Expected rows: 2164.
+-- Expected rows: 2172.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -168,7 +168,7 @@ with expected(kind, key, def) as (values
     ('constraint', 'public.mfa_attempt.mfa_attempt_pkey', 'PRIMARY KEY (id)'),
     ('constraint', 'public.mfa_attempt.mfa_attempt_user_id_fkey', 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE'),
     ('constraint', 'public.notification.notification_job_id_fkey', 'FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE'),
-    ('constraint', 'public.notification.notification_kind_valid', 'CHECK ((kind = ANY (ARRAY[''job_shared''::text, ''stage_handover''::text, ''question''::text, ''files_added''::text, ''stage_reached''::text, ''assigned''::text, ''mfa_removed''::text, ''mfa_reset''::text, ''update_installed''::text, ''update_failed''::text, ''update_stale''::text, ''stage_progress''::text, ''stage_assigned''::text, ''mail_quota''::text])))'),
+    ('constraint', 'public.notification.notification_kind_valid', 'CHECK ((kind = ANY (ARRAY[''job_shared''::text, ''stage_handover''::text, ''question''::text, ''files_added''::text, ''stage_reached''::text, ''assigned''::text, ''mfa_removed''::text, ''mfa_reset''::text, ''update_installed''::text, ''update_failed''::text, ''update_stale''::text, ''stage_progress''::text, ''stage_assigned''::text, ''mail_quota''::text, ''option_assigned''::text])))'),
     ('constraint', 'public.notification.notification_org_id_fkey', 'FOREIGN KEY (org_id) REFERENCES clinics(id) ON DELETE CASCADE'),
     ('constraint', 'public.notification.notification_pkey', 'PRIMARY KEY (id)'),
     ('constraint', 'public.notification.notification_user_id_fkey', 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE'),
@@ -634,6 +634,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.fresh_second_factor(p_max_age_seconds integer)', 'security invoker, stable, search_path=public, body md5 e4d4423fdb8dbd06ebb11fa6c862e4fa'),
     ('function', 'public.guard_channel_member_change()', 'security definer, volatile, search_path=public, body md5 75324f8dd725373a2c516244b230b7bd'),
     ('function', 'public.guard_code_prefix()', 'security invoker, volatile, search_path=public, body md5 7ccb08d496e41cd2ac274943891331f3'),
+    ('function', 'public.guard_job_option_doers()', 'security definer, volatile, search_path=public, body md5 44fe0e00197e68c1615dc9ade3584b47'),
     ('function', 'public.guard_job_order_doctor()', 'security definer, volatile, search_path=public, body md5 6f1c93644fc7961be82dfe87f1372f48'),
     ('function', 'public.guard_job_orderer()', 'security invoker, volatile, search_path=public, body md5 0dff489029d8b21c0e156ac85dd54fae'),
     ('function', 'public.guard_partner_visible_job_text()', 'security definer, volatile, search_path=public, body md5 ebb721059bfec14c1952650eedd19e8e'),
@@ -667,6 +668,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.job_identity_terms(p_job uuid)', 'security definer, stable, search_path=public, body md5 c050533edbdf2eae7229588928def4d5'),
     ('function', 'public.job_is_mine(assigned uuid, designer uuid, items jsonb)', 'security invoker, stable, search_path=public, body md5 f06f4a0d4b390d621bfa1774743253b4'),
     ('function', 'public.job_is_shared(p_job uuid)', 'security definer, stable, search_path=public, body md5 298aa65795c7bca23fb1af83c28c2dc0'),
+    ('function', 'public.job_option_doers(p_items jsonb)', 'security invoker, immutable, search_path=public, body md5 3b30f46d73b393e7210d13d81deb8a71'),
     ('function', 'public.job_stage_pay_role_from_template()', 'security definer, volatile, search_path=public, body md5 86f79d3260945ac2c53f49313d8c9d6a'),
     ('function', 'public.job_stage_people(p_job uuid, p_stage text)', 'security definer, stable, search_path=public, body md5 fa7d043db8303307b0dc4038288569c2'),
     ('function', 'public.job_stage_plan(p_org uuid, p_template uuid, p_impression text, p_implants integer, p_method text, p_printed boolean, p_switches jsonb, p_orderer uuid)', 'security definer, stable, search_path=public, body md5 2bfa9ec6a113d7ebfed4abe31ece9b53'),
@@ -697,6 +699,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.next_job_code(p_org uuid, p_at timestamp with time zone)', 'security definer, volatile, search_path=public, body md5 edd9a90e9dff9fd5e3aadec935ca99f8'),
     ('function', 'public.next_stage(p_org uuid, p_stage text)', 'security definer, stable, search_path=public, body md5 60afac2586fd4ae09b4a82dde1f17d13'),
     ('function', 'public.notify_job_moved(p_job uuid, p_from text, p_to text)', 'security definer, volatile, search_path=public, body md5 2006a9f9176e57f2ea88e70a74c43fe5'),
+    ('function', 'public.notify_job_option_doers()', 'security definer, volatile, search_path=public, body md5 c1358ca0b927ca7b582e2db0edcaae27'),
     ('function', 'public.notify_member(p_org uuid, p_user uuid, p_job uuid, p_kind text, p_detail jsonb)', 'security definer, volatile, search_path=public, body md5 9fbefc313931811e2e682f802beb4ccb'),
     ('function', 'public.notify_org(p_org uuid, p_job uuid, p_kind text, p_detail jsonb)', 'security definer, volatile, search_path=public, body md5 9185f58de6dd6b64777c3fb80115610a'),
     ('function', 'public.notify_stage_assigned(p_org uuid, p_job uuid, p_user uuid, p_stage text, p_new boolean)', 'security definer, volatile, search_path=public, body md5 51616e06749a925dbcf10b13c0eacc03'),
@@ -724,8 +727,8 @@ with expected(kind, key, def) as (values
     ('function', 'public.patient_export(p_patient uuid)', 'security definer, volatile, search_path=public, body md5 6379815bfd6cc5768198a9e8fc07712f'),
     ('function', 'public.pay_settings()', 'security definer, stable, search_path=public, body md5 c37dd7705689ddfb0560dadb249035bd'),
     ('function', 'public.pending_bug_reports(p_limit integer)', 'security definer, stable, search_path=public, body md5 0ffbd82011d46a08cdbc7bc18773ef63'),
-    ('function', 'public.pending_notification_emails(p_limit integer)', 'security definer, stable, search_path=public, body md5 c2f104b5db6d0030187c701b5a92c5b2'),
-    ('function', 'public.pending_pushes(p_limit integer)', 'security definer, stable, search_path=public, body md5 288f6f44b6b7d251e65f19138679a2cd'),
+    ('function', 'public.pending_notification_emails(p_limit integer)', 'security definer, stable, search_path=public, body md5 bf21287de2b6521bc565b87686652ffd'),
+    ('function', 'public.pending_pushes(p_limit integer)', 'security definer, stable, search_path=public, body md5 5ab133e18c3cfaae46e4bf978caac4f4'),
     ('function', 'public.personal_code_pattern()', 'security invoker, immutable, search_path=public, body md5 af5b58d1106153b02f61b20d2ca0e289'),
     ('function', 'public.platform_approve_partnership(p_id uuid)', 'security definer, volatile, search_path=public, body md5 39c2cae7dae0bd98ccb64a1beb06163a'),
     ('function', 'public.post_job_comment(p_job uuid, p_body text, p_is_question boolean, p_file uuid)', 'security definer, volatile, search_path=public, body md5 512016df9c12168a029cec9d6217bd73'),
@@ -985,6 +988,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.guard_code_prefix() to anon', 'EXECUTE'),
     ('grant', 'public.guard_code_prefix() to authenticated', 'EXECUTE'),
     ('grant', 'public.guard_code_prefix() to service_role', 'EXECUTE'),
+    ('grant', 'public.guard_job_option_doers() to service_role', 'EXECUTE'),
     ('grant', 'public.guard_job_order_doctor() to service_role', 'EXECUTE'),
     ('grant', 'public.guard_job_orderer() to service_role', 'EXECUTE'),
     ('grant', 'public.guard_partner_visible_job_text() to PUBLIC', 'EXECUTE'),
@@ -1080,6 +1084,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.job_is_mine(assigned uuid, designer uuid, items jsonb) to authenticated', 'EXECUTE'),
     ('grant', 'public.job_is_mine(assigned uuid, designer uuid, items jsonb) to service_role', 'EXECUTE'),
     ('grant', 'public.job_is_shared(p_job uuid) to service_role', 'EXECUTE'),
+    ('grant', 'public.job_option_doers(p_items jsonb) to service_role', 'EXECUTE'),
     ('grant', 'public.job_share to anon', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.job_share to authenticated', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.job_share to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
@@ -1152,6 +1157,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.notification to authenticated', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.notification to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.notify_job_moved(p_job uuid, p_from text, p_to text) to service_role', 'EXECUTE'),
+    ('grant', 'public.notify_job_option_doers() to service_role', 'EXECUTE'),
     ('grant', 'public.notify_member(p_org uuid, p_user uuid, p_job uuid, p_kind text, p_detail jsonb) to service_role', 'EXECUTE'),
     ('grant', 'public.notify_org(p_org uuid, p_job uuid, p_kind text, p_detail jsonb) to service_role', 'EXECUTE'),
     ('grant', 'public.notify_stage_assigned(p_org uuid, p_job uuid, p_user uuid, p_stage text, p_new boolean) to service_role', 'EXECUTE'),
@@ -2199,6 +2205,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.job_share.refuse_share_of_deleted_job', 'CREATE TRIGGER refuse_share_of_deleted_job BEFORE INSERT OR UPDATE ON public.job_share FOR EACH ROW EXECUTE FUNCTION refuse_share_of_deleted_job()'),
     ('trigger', 'public.job_stage.job_stage_pay_role', 'CREATE TRIGGER job_stage_pay_role BEFORE INSERT ON public.job_stage FOR EACH ROW EXECUTE FUNCTION job_stage_pay_role_from_template()'),
     ('trigger', 'public.jobs.audit_job_change', 'CREATE TRIGGER audit_job_change AFTER INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION audit_job_change()'),
+    ('trigger', 'public.jobs.guard_job_option_doers', 'CREATE TRIGGER guard_job_option_doers BEFORE INSERT OR UPDATE OF work_items, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_option_doers()'),
     ('trigger', 'public.jobs.guard_job_order_doctor', 'CREATE TRIGGER guard_job_order_doctor BEFORE INSERT OR UPDATE OF order_doctor, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_order_doctor()'),
     ('trigger', 'public.jobs.guard_job_orderer', 'CREATE TRIGGER guard_job_orderer BEFORE INSERT OR UPDATE OF ordered_by ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_orderer()'),
     ('trigger', 'public.jobs.guard_partner_visible_job_text', 'CREATE TRIGGER guard_partner_visible_job_text BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_job_text()'),
@@ -2208,6 +2215,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.jobs.job_stages_from_template', 'CREATE TRIGGER job_stages_from_template AFTER INSERT ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_created_stages()'),
     ('trigger', 'public.jobs.job_team_notify', 'CREATE TRIGGER job_team_notify AFTER INSERT OR UPDATE OF status, revisions, assigned_to, designed_by, work_items ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_team_notify()'),
     ('trigger', 'public.jobs.jobs_updated_at', 'CREATE TRIGGER jobs_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION set_updated_at()'),
+    ('trigger', 'public.jobs.notify_job_option_doers', 'CREATE TRIGGER notify_job_option_doers AFTER INSERT OR UPDATE OF work_items ON public.jobs FOR EACH ROW EXECUTE FUNCTION notify_job_option_doers()'),
     ('trigger', 'public.jobs.set_job_code', 'CREATE TRIGGER set_job_code BEFORE INSERT OR UPDATE OF job_code, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION set_job_code()'),
     ('trigger', 'public.jobs.soft_delete_job', 'CREATE TRIGGER soft_delete_job BEFORE DELETE ON public.jobs FOR EACH ROW EXECUTE FUNCTION soft_delete_job()'),
     ('trigger', 'public.messages.guard_partner_visible_message', 'CREATE TRIGGER guard_partner_visible_message BEFORE INSERT OR UPDATE OF body ON public.messages FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_message()'),

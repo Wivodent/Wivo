@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest'
 import type { Job, Revision, WorkItem } from '../types/job'
 import type { WorkType } from '../config/workTypes'
 import {
-  calculateEarnings, diagnoseEarnings, earningsTotal, unassignedFinishedJobs, backlogPeriods, owedAcrossPeriods, paidRevisionGroups, revaluationOf,
+  calculateEarnings, diagnoseEarnings, jobPaysPerson, earningsTotal, unassignedFinishedJobs, backlogPeriods, owedAcrossPeriods, paidRevisionGroups, revaluationOf,
   grossFromNet, grossOf, payslipFromGross,
   type WorkerRate, type RateKind, type RateScope, type PayrollTaxRates,
 } from './earnings'
@@ -1647,5 +1647,55 @@ describe('a rule that applies only with an option', () => {
     const old = rate({ kind: 'too', amount: 200, work_type: 'All-on-X' })
     delete (old as Partial<WorkerRate>).option_key
     expect(earningsTotal(run([old], [metalBar]))).toBe(200)
+  })
+})
+
+// ── Who makes the option (sql/130) ──────────────────────────────────────────
+describe('an option made by someone other than the technician', () => {
+  const B = 'tech-b'
+  const allOn4 = (tegijad?: Record<string, string | null>) => job({
+    assigned_to: TECH,
+    work_items: [{ ...item('All-on-X', '13,12,11,21,22,23'), valikud: { framework: ['metal-bar'] }, valikuTegijad: tegijad }],
+  })
+  // Each has their own rules: A the arch and the bar; B the bar.
+  const rules = [
+    rate({ kind: 'too', amount: 200, work_type: 'All-on-X' }),
+    rate({ kind: 'too', amount: 50, additive: true, label: 'Metal bar', option_key: 'metal-bar' }),
+    rate({ kind: 'too', amount: 50, additive: true, label: 'Metal bar', option_key: 'metal-bar', profile_id: B }),
+  ]
+
+  it('A makes the teeth, B the metal bar: B gets the metal bar rule, A does not', () => {
+    const jobB = allOn4({ 'metal-bar': B })
+    expect(earningsTotal(run(rules, [jobB]))).toBe(200)
+    const bLines = run(rules, [jobB], B)
+    expect(earningsTotal(bLines)).toBe(50)
+    expect(bLines[0].description.startsWith('Metal bar')).toBe(true)
+    expect(bLines[0].key).toMatch(/^option:/)
+  })
+
+  it('no doer: the technician, as before (and B nothing)', () => {
+    expect(earningsTotal(run(rules, [allOn4()]))).toBe(250)
+    expect(earningsTotal(run(rules, [allOn4({ 'metal-bar': null })]))).toBe(250)
+    expect(run(rules, [allOn4()], B)).toEqual([])
+  })
+
+  it('the technician named as the doer: paid as the technician, once', () => {
+    expect(earningsTotal(run(rules, [allOn4({ 'metal-bar': TECH })]))).toBe(250)
+  })
+
+  it('a non-additive option rule goes to the doer too; the technician falls back to the type rule', () => {
+    const flat = [
+      rate({ kind: 'too', amount: 200, work_type: 'All-on-X' }),
+      rate({ kind: 'too', amount: 260, work_type: 'All-on-X', option_key: 'metal-bar' }),
+      rate({ kind: 'hammas', amount: 5, option_key: 'metal-bar', profile_id: B }),
+    ]
+    const jobB = allOn4({ 'metal-bar': B })
+    expect(earningsTotal(run(flat, [jobB]))).toBe(200)
+    expect(earningsTotal(run(flat, [jobB], B))).toBe(30)
+  })
+
+  it('the job counts as paying the doer', () => {
+    expect(jobPaysPerson(allOn4({ 'metal-bar': B }), B)).toBe(true)
+    expect(jobPaysPerson(allOn4(), B)).toBe(false)
   })
 })

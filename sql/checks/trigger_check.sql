@@ -18,7 +18,7 @@
 -- No rows: this database matches the migrations in all of it.
 --
 -- Covered: trigger.
--- Expected rows: 54.
+-- Expected rows: 56.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -41,6 +41,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.job_share.refuse_share_of_deleted_job', 'CREATE TRIGGER refuse_share_of_deleted_job BEFORE INSERT OR UPDATE ON public.job_share FOR EACH ROW EXECUTE FUNCTION refuse_share_of_deleted_job()'),
     ('trigger', 'public.job_stage.job_stage_pay_role', 'CREATE TRIGGER job_stage_pay_role BEFORE INSERT ON public.job_stage FOR EACH ROW EXECUTE FUNCTION job_stage_pay_role_from_template()'),
     ('trigger', 'public.jobs.audit_job_change', 'CREATE TRIGGER audit_job_change AFTER INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION audit_job_change()'),
+    ('trigger', 'public.jobs.guard_job_option_doers', 'CREATE TRIGGER guard_job_option_doers BEFORE INSERT OR UPDATE OF work_items, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_option_doers()'),
     ('trigger', 'public.jobs.guard_job_order_doctor', 'CREATE TRIGGER guard_job_order_doctor BEFORE INSERT OR UPDATE OF order_doctor, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_order_doctor()'),
     ('trigger', 'public.jobs.guard_job_orderer', 'CREATE TRIGGER guard_job_orderer BEFORE INSERT OR UPDATE OF ordered_by ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_orderer()'),
     ('trigger', 'public.jobs.guard_partner_visible_job_text', 'CREATE TRIGGER guard_partner_visible_job_text BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_job_text()'),
@@ -50,6 +51,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.jobs.job_stages_from_template', 'CREATE TRIGGER job_stages_from_template AFTER INSERT ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_created_stages()'),
     ('trigger', 'public.jobs.job_team_notify', 'CREATE TRIGGER job_team_notify AFTER INSERT OR UPDATE OF status, revisions, assigned_to, designed_by, work_items ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_team_notify()'),
     ('trigger', 'public.jobs.jobs_updated_at', 'CREATE TRIGGER jobs_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION set_updated_at()'),
+    ('trigger', 'public.jobs.notify_job_option_doers', 'CREATE TRIGGER notify_job_option_doers AFTER INSERT OR UPDATE OF work_items ON public.jobs FOR EACH ROW EXECUTE FUNCTION notify_job_option_doers()'),
     ('trigger', 'public.jobs.set_job_code', 'CREATE TRIGGER set_job_code BEFORE INSERT OR UPDATE OF job_code, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION set_job_code()'),
     ('trigger', 'public.jobs.soft_delete_job', 'CREATE TRIGGER soft_delete_job BEFORE DELETE ON public.jobs FOR EACH ROW EXECUTE FUNCTION soft_delete_job()'),
     ('trigger', 'public.messages.guard_partner_visible_message', 'CREATE TRIGGER guard_partner_visible_message BEFORE INSERT OR UPDATE OF body ON public.messages FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_message()'),

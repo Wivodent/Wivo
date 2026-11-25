@@ -17,6 +17,7 @@ import { confirmSharedUpload } from '../lib/sharedUpload'
 import { StatusPill } from '../components/ui/StatusPill'
 import { JobFiles } from '../components/Files/JobFiles'
 import { JobStageBar } from '../components/JobDetail/JobStageBar'
+import { OptionDoers } from '../components/JobDetail/OptionDoers'
 import { JobThread } from '../components/Partners/JobThread'
 import { PartnerJobPanel } from '../components/Partners/PartnerJobsView'
 import { PhoneCamera } from './PhoneCamera'
@@ -90,6 +91,9 @@ function OwnJob({ job, onClose }: { job: Job; onClose: () => void }) {
       <section className="rounded-xl border border-ink-faint/20 bg-bg-card p-3">
         <JobStageBar job={job} size="lg" canAddStage={false} />
       </section>
+
+      {/* The chosen options and who makes each (sql/130), thumb-sized. */}
+      <OptionDoers job={job} size="lg" className="rounded-xl border border-ink-faint/20 bg-bg-card p-3" />
 
       {canEdit && (
         <button type="button"

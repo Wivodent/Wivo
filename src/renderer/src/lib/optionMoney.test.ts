@@ -176,3 +176,39 @@ describe("an option's price per work type (work_types[].valikuHinnad)", () => {
     expect(earningsTotal(lines)).toBe(410)
   })
 })
+
+describe("the job's cost table: an option's doer (sql/130)", () => {
+  const rule = (over: Partial<WorkerRate>): WorkerRate => ({
+    id: crypto.randomUUID(), clinic_id: 'c', profile_id: 'tech-a', kind: 'too', applies_to: 'too', amount: 0,
+    work_type: null, priority: 0, additive: false, label: null, pay_revisions: false, auto_hours: false,
+    hours_per_day: null, work_days: '12345', active_from: null, active_to: null, note: null,
+    created_at: '', updated_at: '', ...over,
+  })
+  const rates = [
+    rule({ amount: 200, work_type: 'All-on-4' }),
+    rule({ amount: 50, additive: true, label: 'Metal bar', option_key: 'metal-bar' }),
+    rule({ amount: 50, additive: true, label: 'Metal bar', option_key: 'metal-bar', profile_id: 'tech-b' }),
+  ]
+  const costsWith = (valikuTegijad?: Record<string, string>) => jobCosts({
+    job: {
+      work_items: [{ ...ITEM, valikuTegijad }], too: 'All-on-4', hambad: ITEM.hambad, materjal: '', masina: '',
+      kiirtoo: false, mudel: false, assigned_to: 'tech-a', designed_by: null, extra_costs: [], kulu_yle: {},
+      hind: 3490, disain_hind: null,
+    },
+    rates, workTypes: TYPES, materialCosts: {}, materialPrices: {}, on: '2026-11-25',
+    workers: [{ id: 'tech-a', full_name: 'Anna A' }, { id: 'tech-b', full_name: 'Bruno B' }],
+  } as unknown as JobCostsInput).categories.find(c => c.key === 'tehnik')!
+
+  it('B makes the metal bar: A 200, B 50, a line naming B', () => {
+    const tech = costsWith({ 'metal-bar': 'tech-b' })
+    expect(tech.computed).toBe(250)
+    expect(tech.lines.map(l => l.amount)).toEqual([200, 50])
+    expect(tech.lines[1].label).toContain('(Bruno)')
+  })
+
+  it('no doer: A makes both, as before', () => {
+    const tech = costsWith()
+    expect(tech.computed).toBe(250)
+    expect(tech.lines.some(l => l.label.includes('Bruno'))).toBe(false)
+  })
+})

@@ -43,6 +43,11 @@ export const text = (n: AppNotification, stageLabel: (key: string) => string): s
     const stage = stages[0] ?? ''
     return n.detail.new ? t('notifications.newJobOnStage', { code, stage }) : t('notifications.putOnStage', { code, stage })
   }
+  // sql/130: made the one who makes an option of the job ("Metal bar").
+  if (n.kind === 'option_assigned') {
+    const options = Array.isArray(n.detail.options) ? n.detail.options.filter((o): o is string => typeof o === 'string').join(', ') : ''
+    return t('notifications.optionAssigned', { code, options })
+  }
   if (n.kind === 'assigned') {
     return n.detail.role === 'designer' ? t('notifications.assignedDesigner', { code }) : t('notifications.assignedTechnician', { code })
   }

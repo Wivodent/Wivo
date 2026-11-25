@@ -11,6 +11,7 @@ import { jobPaymentState } from '../../lib/jobPayments'
 import { DeadlineChip } from '../ui/DeadlineChip'
 import { ShadeChip } from '../ui/ShadeChip'
 import { ToothBadges } from '../ui/ToothBadges'
+import { OptionDoers } from '../JobDetail/OptionDoers'
 import { useOpenQuestions } from '../../hooks/usePartners'
 import { t } from '@/lib/i18n'
 
@@ -129,6 +130,9 @@ export function JobCard({ job, onClick, onStageChange, isDragging }: JobCardProp
           ))}
         </div>
       )}
+
+      {/* The chosen options and who makes each (sql/130). */}
+      <OptionDoers job={job} compact className="mb-2" />
 
       {/* Tooth badges */}
       {job.hambad && (

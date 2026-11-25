@@ -19,6 +19,8 @@ export interface AppNotification {
     | 'stage_progress' | 'stage_assigned'
     // sql/125: Resend's sending limit was reached (owners; the bell and the phone, never e-mail).
     | 'mail_quota'
+    // sql/130: made the one who makes an option of a job (the bell only).
+    | 'option_assigned'
   detail: Record<string, unknown>
   created_at: string
   read_at: string | null
@@ -63,7 +65,7 @@ export function useNotifications() {
           qc.invalidateQueries({ queryKey: ['notifications', user.id] })
           // With the bell's badge — never instead of it.
           const kind = (payload.new as { kind?: string } | undefined)?.kind
-          playSound(kind === 'job_shared' || kind === 'files_added' || kind === 'assigned' || kind === 'stage_assigned' ? 'notify-new-work'
+          playSound(kind === 'job_shared' || kind === 'files_added' || kind === 'assigned' || kind === 'stage_assigned' || kind === 'option_assigned' ? 'notify-new-work'
             : kind === 'stage_handover' || kind === 'stage_reached' ? 'notify-handoff' : 'notify-message')
         })
       // sql/126: a later stage is added to a notification that is already

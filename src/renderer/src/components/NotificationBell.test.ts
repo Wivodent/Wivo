@@ -24,3 +24,10 @@ describe('stage_assigned', () => {
     expect(assignedStages({ stages: 'nonsense' })).toEqual([])
   })
 })
+
+describe('option_assigned (sql/130)', () => {
+  it('names the job and the options', () => {
+    const n = { ...note({ options: ['Metal bar', 'Pink gingiva'], new: false }), kind: 'option_assigned' as const }
+    expect(text(n, label)).toBe('Sina teed töö T-12 juures: Metal bar, Pink gingiva')
+  })
+})

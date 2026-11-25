@@ -21,7 +21,7 @@
 import type { Job } from '../types/job'
 import { jobWorkItems, workItemDesigner, implantCount, designTeeth, designIsPartial } from '../types/job'
 import type { WorkerRate } from './earnings'
-import { pickRateFor, calculateEarnings, rateHasOption } from './earnings'
+import { pickRateFor, calculateEarnings, rateHasOption, payOptionDoer } from './earnings'
 import { jobMaterialDetail } from './finance'
 import { workTypeConsumables, abutmentUnitPrice, type WorkType } from '../config/workTypes'
 import type { MaterialPricing } from '@shared/pricing/priceBook'
@@ -121,7 +121,8 @@ export function jobCosts(input: JobCostsInput): JobCosts {
 
   for (const item of tId ? items : []) {
     const tc = toothCount(item.hambad)
-    const rate = pickRateFor(tRates, item.too, on, workTypes, 'too', undefined, item.valikud)
+    const rate = pickRateFor(tRates, item.too, on, workTypes, 'too', undefined,
+      { valikud: item.valikud, tegijad: item.valikuTegijad, payee: tId ?? undefined })
     if (!rate) continue
     const amt = (rate.kind === 'hammas' ? tc * rate.amount : rate.kind === 'too' ? rate.amount : 0) * tRush
     if (amt > 0) techLines.push({ label: `${item.too}: ${tc} × ${rate.amount} €${rushTag(tRush)}`, amount: amt })
@@ -140,11 +141,24 @@ export function jobCosts(input: JobCostsInput): JobCosts {
 
   for (const r of tRates) {
     if (!r.additive || (r.applies_to ?? 'too') !== 'too') continue
-    const covered = coveredBy(r, items)
+    const covered = coveredBy(r, items, tId)
     if (covered.length === 0) continue
     const tc = covered.reduce((s, i) => s + toothCount(i.hambad), 0)
     const amt = (r.kind === 'hammas' ? tc * r.amount : r.kind === 'too' ? r.amount * covered.length : 0) * tRush
     if (amt > 0) techLines.push({ label: `${r.label || t('jobCosts.extraPay')}: ${tc} × ${r.amount} €${rushTag(tRush)}`, amount: amt })
+  }
+
+  // Options made by someone else than the technician (sql/130): that
+  // person's own option rules, the same lines their payslip gets.
+  const doerIds = [...new Set(items.flatMap(i => Object.values(i.valikuTegijad ?? {})).filter((x): x is string => !!x && x !== tId))]
+  for (const dId of doerIds) {
+    const dRush = rushOf(dId)
+    const name = workers.find(w => w.id === dId)?.full_name?.split(' ')[0] || '?'
+    const payItems = items.map(i => ({ too: i.too, hambad: i.hambad, valikud: i.valikud, tegijad: i.valikuTegijad }))
+    for (const x of payOptionDoer(rates.filter(r => r.profile_id === dId), payItems, on, workTypes, dId,
+      Number(job.hind ?? 0) + Number(job.disain_hind ?? 0), dRush)) {
+      techLines.push({ label: `${x.rule.label || t('jobCosts.extraPay')} (${name}): ${x.qty} × ${x.rule.amount} €${rushTag(dRush)}`, amount: x.amount })
+    }
   }
 
   // ── Designers ─────────────────────────────────────────────────────────────
@@ -168,7 +182,7 @@ export function jobCosts(input: JobCostsInput): JobCosts {
     // the technician can design part of an item himself, and this line used to
     // bill the designer for those teeth too.
     const tc = toothCount(designTeeth(item))
-    const rate = pickRateFor(dRates, item.too, on, workTypes, 'disain', undefined, item.valikud)
+    const rate = pickRateFor(dRates, item.too, on, workTypes, 'disain', undefined, { valikud: item.valikud })
     if (!rate) continue
     const amt = (rate.kind === 'hammas' ? tc * rate.amount : rate.kind === 'too' ? rate.amount : 0) * dRush
     if (amt > 0) {
@@ -299,8 +313,10 @@ export function jobCosts(input: JobCostsInput): JobCosts {
  * Items an additive rule covers. Empty `work_type` means every one of them;
  * a rule with an option, only those on which it was chosen.
  */
-function coveredBy<T extends { too: string; valikud?: ItemOptions | null }>(r: WorkerRate, items: T[]): T[] {
-  const withOption = items.filter(i => rateHasOption(r, i.valikud))
+function coveredBy<T extends { too: string; valikud?: ItemOptions | null; valikuTegijad?: Record<string, string | null> }>(
+  r: WorkerRate, items: T[], payee?: string | null,
+): T[] {
+  const withOption = items.filter(i => rateHasOption(r, i.valikud, { tegijad: i.valikuTegijad, payee: payee ?? undefined }))
   const rt = (r.work_type ?? '').toLowerCase()
   if (!rt) return withOption
   return withOption.filter(i => rt.split('|').some(wt => i.too.toLowerCase().includes(wt.trim())))

@@ -1901,8 +1901,9 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
         work_type: workTypes.length > 0 ? workTypes.join('|') : null,
         priority: workTypes.length > 0 ? 10 : 0,
         additive,
-        // An extra for an option is called after it unless named otherwise.
-        label: label.trim() || (additive && optionKey ? optionName(optionKey) : null),
+        // A rule for an option is called after it unless named otherwise: the
+        // line on the payslip of whoever makes it reads "Metal bar" (sql/130).
+        label: label.trim() || (optionKey ? optionName(optionKey) : null),
         // Only when set: a database before sql/129 has no such column, and
         // every rule without an option must still save there.
         ...(SCOPED_KINDS.includes(kind) && optionKey ? { option_key: optionKey } : {}),

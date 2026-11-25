@@ -165,6 +165,12 @@ export interface WorkItem {
    * made before 2.2.0.
    */
   valikud?: Record<string, string[]>
+  /**
+   * Who makes each chosen option, when it is not the job's technician
+   * (sql/130): option id → profile id. A pay rule "Only with option" pays
+   * this person. Absent: the technician, as on every job before 2.2.0.
+   */
+  valikuTegijad?: Record<string, string | null>
   kruvi?: string          // screw/abutment reference for every tooth of this item
   /**
    * Per-TOOTH screw / abutment reference, keyed by FDI number as a string.
