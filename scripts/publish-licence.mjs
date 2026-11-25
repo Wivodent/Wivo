@@ -34,7 +34,7 @@ async function loadShared(root) {
     entryPoints: [join(root, 'shared/license/published.ts')], bundle: true, write: false,
     format: 'esm', platform: 'neutral', target: 'node20', logLevel: 'silent',
   })
-  return import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}`)
+  return import(/* @vite-ignore */ `data:text/javascript;base64,${Buffer.from(r.outputFiles[0].text).toString('base64')}`)
 }
 
 /**

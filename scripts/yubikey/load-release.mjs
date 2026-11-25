@@ -10,5 +10,5 @@ import { transform } from 'esbuild'
 export async function loadRelease() {
   const source = readFileSync(new URL('../../shared/release/release.ts', import.meta.url), 'utf8')
   const { code } = await transform(source, { loader: 'ts', format: 'esm', target: 'node20' })
-  return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+  return import(/* @vite-ignore */ `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 }

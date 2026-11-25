@@ -23,7 +23,7 @@ export const SLOTS = { update: '9c', app: '82' }
 /** A TypeScript file with no imports, for plain Node (as scripts/yubikey/load-release.mjs). */
 export async function loadTs(path) {
   const { code } = await transform(readFileSync(path, 'utf8'), { loader: 'ts', format: 'esm', target: 'node20' })
-  return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
+  return import(/* @vite-ignore */ `data:text/javascript;base64,${Buffer.from(code).toString('base64')}`)
 }
 
 /** electron-updater's feed for one installer (what electron-builder writes as latest.yml). */
