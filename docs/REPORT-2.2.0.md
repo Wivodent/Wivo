@@ -5,7 +5,7 @@ Andmebaasiga ei ühendunud.
 
 **Kontrollid (viimane seis):**
 - Täis testikomplekt (`npx vitest run --mode unit`) jookseb ühe korraga: 209 faili,
-  2796 testi, kõik rohelised (pärast parandusi, allpool).
+  2806 testi, kõik rohelised (pärast parandusi ja täienduse, allpool).
 - `tsc`: web ja node rohelised.
 - Build õnnestus nii arvutile (`electron-vite build`) kui telefonile
   (`vite build --config vite.mobile.config.ts`).
@@ -25,6 +25,7 @@ Andmebaasiga ei ühendunud.
 | Parandus: pildid | `81f5cca` | Implantaadisild ja täidis, nimed kliiniku keeles |
 | Parandus: valikute hind | `a8e887c` | Hind ja kulu kaardil, reprice, arve, marginaal |
 | Parandus: palk valiku järgi | `9cc10e3` | „Only with option" + migratsioon 129 |
+| Täiendus: valiku hind töötüübi järgi | `07af740` | Kaardil oma hind, raamatukogus vaikimisi |
 
 ## Mis valmis
 
@@ -253,8 +254,11 @@ neutraalselt „not available yet".
    - Seaded → Hinnad → All-on-X kaart → „Add option group". Grupi lahter on
      tühi, siltiga „Group" ja „e.g. Framework". Sees on hall näidisrida ja
      „i" nupp.
-   - Lisa grupp „Framework" ja sinna „Metal bar": real on pilt, nimi, lisahind
-     ja kulu. Pane 400 ja 120.
+   - Option library (kaartide all): lisa „Metal bar", vaikimisi 350 ja 120.
+   - Lisa All-on-X kaardile grupp „Framework" ja sinna „Metal bar". Real on
+     hallilt 350 ja 120 ning silt „Default price".
+   - Kirjuta lisahinnaks 400: silt muutub „Price for this work type"-iks ja
+     ilmub „Use default". Teine töötüüp, millel on Metal bar, näitab ikka 350.
    - Ühik peab olema sama mis töötüübil (€/job või €/tooth).
    - Tee töö Metal bariga ja ava töö leht: kulude tabelis „Tarvikud" all peab
      olema „All-on-X · Metal bar 120 €" ja marginaal selle võrra väiksem.
@@ -280,9 +284,11 @@ neutraalselt „not available yet".
   mida nad küsivad (`WorkType.hambaviis`). Näiteks digitaalne skaneering,
   alainer ja spordikaitse ei küsi hambaid; hammustusvall ja igemmask küsivad
   lõualuud.
-- **Valiku hind on ühine.** Kaardil muudetud lisahind ja kulu kehtivad igas
-  töötüübis, mis seda valikut pakub, ja rida ütleb, kus veel („Same price in:
-  …"). Kaardil sisestatud summa saab selle töötüübi ühiku.
+- **Valiku hind:** raamatukogus on vaikimisi hind, kaardil töötüübi oma
+  (täiendus, allpool). Kaart ei muuda ühtegi teist töötüüpi.
+- **Vana versiooni aken puudutab ka töötüübi oma hindu:** 2.1.x salvestab
+  töötüübid ilma valikugruppide ja oma hindadeta. Minimaalne versioon 2.2.0
+  sulgeb ka selle.
 - **Valik arvel** on töö rea tekstis („All-on-4 (Metal bar)"), mitte eraldi
   real: arve rida võtab töö salvestatud hinna, milles valik juba on.
 
@@ -300,7 +306,9 @@ neutraalselt „not available yet".
     töötüübil);
   - eemalda.
 - **Tühjas grupis on hall näidisrida** („Metal bar +400.00, 120.00") ja „i",
-  mis seletab, mis grupp ja valik on ning et hind on ühine.
+  mis seletab, mis grupp ja valik on.
+- (Selles commitis muutis kaardil sisestatud hind raamatukogu, st kõiki
+  töötüüpe. Täiendus `07af740` muutis selle töötüübi omaks.)
 - **Leitud ja parandatud kolm auku:**
   - **Reprice** ja **töö leht** arvutasid hinda ilma valikuteta. Reprice oleks
     Metal bariga All-on-4 hinna 400 € võrra alla viinud.
@@ -352,3 +360,41 @@ neutraalselt „not available yet".
   proteez/protees, laminaat, nightguard, splint, retainer, капа, сплинт jne.
   Iga kirje leitakse ka oma nimega en/et/ru keeles.
 - Pildita jääb joonikoon nagu enne (IBT, tundmatu töö).
+
+### 4. Täiendus: valiku hind töötüübi järgi (`07af740`)
+- **Kaks hinda:**
+  - **Valikute raamatukogu hind on vaikimisi hind.** Plokk on Seaded → Hinnad
+    all, kaartide järel, ja kannab nüüd nime „Option library". Vaikimisi hinda
+    muudetakse ainult seal.
+  - **Töötüübi kaardil on hind ja kulu selle töötüübi omad.** Näiteks Metal bar
+    on All-on-4 juures 400 € ja All-on-6 juures 600 €.
+- **Kaardil:**
+  - Kui töötüübil oma hinda pole, näitab lahter vaikimisi summat hallilt ja
+    rea all on silt „Default price".
+  - Summa kirjutamine teeb oma hinna ainult sellele töötüübile, selle töötüübi
+    ühikus (töö või hamba kohta). Silt muutub siis „Price for this work type"
+    ja „Use default" nupp eemaldab oma hinna.
+  - Hind ja kulu langevad vaikimisi tagasi eraldi: võid anda töötüübile oma
+    hinna ja jätta kulu vaikimisi.
+- **Kaart ei muuda enam teisi töötüüpe.** „Same price in" rida on läinud.
+  Valiku nimi on kaardil ainult tekst ja seda muudetakse raamatukogus, sest
+  ka nimi on kõigi töötüüpide jaoks sama.
+- **Kus oma hinda kasutatakse:**
+  - töö hind ja uue töö vormi nupud („+400 €");
+  - töö leht ja reprice;
+  - töö kulude tabel ja marginaal;
+  - Finance.
+
+  Arve võtab töö salvestatud hinna, milles oma hind juba on.
+- **Palk:** valikuga palgareeglil (129) on oma summa, mis valiku hinnast ei
+  sõltu. Protsendireegel arvestab töö hinnast, milles töötüübi oma hind on;
+  testis annab 10% All-on-6 + Metal bar (3500 + 600) palgaks 410 €.
+- **Andmed:** `clinic_settings.work_types[].valikuHinnad`
+  (`{ [valiku id]: { lisahind?, kulu? } }`). See on jsonb, seega
+  **migratsiooni pole vaja** ja 130 jäi kasutamata.
+- **Testid:**
+  - `optionMoney.test.ts`: All-on-4 + Metal bar 400, All-on-6 + Metal bar 600,
+    ilma oma hinnata vaikimisi 350. Lisaks kulu ja marginaal, reprice, hamba
+    kohta ühik ja protsendipalk.
+  - `workOptions.test.ts`: salvestamine, tühjendamine ja „Use default".
+  - `finance.test.ts`: Finance'i kulu.
