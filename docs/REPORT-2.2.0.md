@@ -5,7 +5,7 @@ Andmebaasiga ei ühendunud.
 
 **Kontrollid (viimane seis):**
 - Täis testikomplekt (`npx vitest run --mode unit`) jookseb ühe korraga: 209 faili,
-  2806 testi, kõik rohelised (pärast parandusi ja täienduse, allpool).
+  2823 testi, kõik rohelised (pärast parandusi ja täiendusi, allpool).
 - `tsc`: web ja node rohelised.
 - Build õnnestus nii arvutile (`electron-vite build`) kui telefonile
   (`vite build --config vite.mobile.config.ts`).
@@ -26,6 +26,7 @@ Andmebaasiga ei ühendunud.
 | Parandus: valikute hind | `a8e887c` | Hind ja kulu kaardil, reprice, arve, marginaal |
 | Parandus: palk valiku järgi | `9cc10e3` | „Only with option" + migratsioon 129 |
 | Täiendus: valiku hind töötüübi järgi | `07af740` | Kaardil oma hind, raamatukogus vaikimisi |
+| Täiendus: valiku tegija | `78b4b0c` | Inimene valiku kõrval, palk tegijale + migratsioon 130 |
 
 ## Mis valmis
 
@@ -205,10 +206,11 @@ neutraalselt „not available yet".
 1. Kui `sql/127` pole veel tehtud, tee see enne.
 2. SQL Editoris käivita `sql/128_order_source.sql` tervikuna.
 3. Siis `sql/129_worker_rate_option.sql` tervikuna.
-4. Eraldi päringuna käivita `notify pgrst, 'reload schema';`.
-5. Read-only kontroll: `sql/checks/schema_check.sql` ja
+4. Siis `sql/130_option_doers.sql` tervikuna.
+5. Eraldi päringuna käivita `notify pgrst, 'reload schema';`.
+6. Read-only kontroll: `sql/checks/schema_check.sql` ja
    `sql/checks/trigger_check.sql` peavad mõlemad andma null rida. Need on
-   genereeritud 129 järgi, seega jooksuta neid pärast mõlemat migratsiooni.
+   genereeritud 130 järgi, seega jooksuta neid pärast kõiki kolme migratsiooni.
 
 ## Mida Kevin peab käsitsi kontrollima (`npm run dev:test`, testkoopia, omanikuna)
 
@@ -270,6 +272,17 @@ neutraalselt „not available yet".
    - Lisa veel reegel: 50 €/töö, „Additive", „Only for work types" All-on-X ja
      „Only with option" Metal bar. Reeglil peab olema silt „with Metal bar".
    - Valmis töö Metal bariga peab maksma 250 €, ilma Metal barita 200 €.
+9. **Valiku tegija** (pärast 130):
+   - Ava Metal bariga töö: töö lehel (ajajoone all), töö kaardil ja telefonis
+     on „Metal bar" ja selle kõrval katkendjoonega „+ inimene".
+   - Vali teine tehnik (B): nupule tulevad B initsiaalid ja B kellas on
+     teavitus („You make Metal bar on job …"). E-kirja ega pushi ei tule.
+   - Anna B-le palgareegel „Only with option" Metal bar 50 €. Kui töö on
+     valmis, saab B palgalehel 50 € rea „Metal bar". Töö tehnik A ei saa
+     Metal bari reeglit, ainult oma tüübireegli.
+   - Töö kulude tabelis on B rida tema nimega.
+   - Vali tagasi „The job's technician": nupp on jälle „+ inimene" ja A saab
+     Metal bari reegli nagu enne.
 
 ## Otsused ja riskid
 
@@ -398,3 +411,61 @@ neutraalselt „not available yet".
     kohta ühik ja protsendipalk.
   - `workOptions.test.ts`: salvestamine, tühjendamine ja „Use default".
   - `finance.test.ts`: Finance'i kulu.
+
+### 5. Täiendus: valiku tegija (`78b4b0c`, migratsioon 130)
+- **Töö valitud valikul võib olla oma tegija**, nt hambad teeb A ja metallraami
+  B. Valiku kõrval on etapiriba „+ inimese" nupp:
+  - kui tegijat pole valitud, on nupp katkendjoonega ja valikut teeb töö
+    tehnik (vaikimisi);
+  - kui tegija on valitud, näitab nupp tema initsiaale.
+- **Klõpsuga avaneb tiimi nimekiri**, mille esimene rida on „The job's
+  technician (nimi)". Valik salvestub kohe, nagu etapiribal. Muuta saab see,
+  kellel on õigus töid muuta.
+- **Nupp on kolmes kohas:**
+  - töö kaardil, töötüübi siltide all;
+  - töö lehel, ajajoone all;
+  - telefonis, etapiriba all, suurte nuppudega.
+
+  Valikud polnud enne nendes kohtades üldse näha. Nüüd on näha ka see, mis
+  valiti.
+- **Andmed:** töö enda tööüksusel, valiku kõrval
+  (`work_items[].valikuTegijad`, `{ valiku id: profiili id }`). Vanad tööd
+  jäävad tegijata, seega teeb valikut tehnik ja palk on sama mis enne.
+- **Palk:**
+  - **Kellele maksab valikuga reegel:** „Only with option" reegel maksab
+    valiku tegijale, kui see on valitud. Kui tegijat pole, maksab ta töö
+    tehnikule nagu enne.
+  - **Tehnik:** ei saa valiku reeglit valiku eest, mida teeb keegi teine.
+    Kui valiku reegel oli tal mitte-lisanduv, langeb ta tagasi oma
+    tüübireeglile.
+  - **Tegija:** saab oma valiku reeglid nende tööüksuste eest, kus ta on
+    tegija, iga reegel eraldi real. Kui reegli nimi on tühi, saab reegel
+    valiku nime, nii et palgarida ütleb „Metal bar".
+  - **Kus see kehtib:** sama loogika on palgalehel ja Finance'is
+    (`calculateEarnings`) ning töö kulude tabelis (`jobCosts`, B rida tema
+    nimega).
+- **Migratsioon `sql/130_option_doers.sql`:**
+  - tegija peab olema töö kliiniku liige. Kontrollitakse ainult reale uuena
+    lisatud tegijat, nii et lahkunud tegijaga vana töö salvestub edasi;
+  - uus tegija saab teavituse kellas (`option_assigned`, üks salvestuse ja
+    inimese kohta, valikute nimedega), nagu etappide puhul: e-kirja ega pushi
+    ei tule. Teavituses on töö kood ja valiku nimi, patsienti mitte;
+  - `pending_notification_emails` ja `pending_pushes` tehti uuesti, nii et
+    need jätavad `option_assigned` välja;
+  - uut tabelit pole, RLS jääb samaks; lõpus `ensure_mfa_policies` ja
+    `lock_anon_functions`.
+- **Enne migratsiooni:** tegija salvestub ja palk töötab, sest see kõik on
+  jsonb-s. Andmebaas lihtsalt ei kontrolli liikmesust ega saada teavitust.
+- **Testid:**
+  - `earnings.test.ts`: tehnik A teeb hambad, B teeb Metal bari, seega B saab
+    Metal bari reegli summa ja A mitte. Lisaks: ilma tegijata nagu enne;
+    tehnik ise tegijana saab tasu üks kord; mitte-lisanduv reegel.
+  - `optionMoney.test.ts`: töö kulude tabel.
+  - `optionDoers.test.ts`: tegija valimine ja eemaldamine.
+  - `NotificationBell.test.ts`: teavituse tekst.
+  - `sql/test/optionDoers.test.ts`: liikmesus, teavitus kord, kaks valikut
+    ühes teavituses, lahkunud tegija, mitte e-kirja ega pushi kaudu.
+- **Risk:** kui töö leht on parasjagu muutmise vormis lahti ja keegi teine
+  valib vahepeal tegija, kirjutab vormi salvestamine töö üksused üle vormi
+  koopiaga. See on sama mis iga teise töö välja puhul. Tegija nupp on ainult
+  töö vaates, mitte vormis.
