@@ -39,9 +39,11 @@ function usePayDone(enabled: boolean): boolean {
   return enabled && data.length > 0
 }
 
-export function SetupChecklist({ onOpenGroup, onOpenView, onHide }: {
+export function SetupChecklist({ onOpenGroup, onOpenView, onOpenCatalogue, onHide }: {
   onOpenGroup: (k: GroupKey) => void
   onOpenView: (v: ViewMode) => void
+  /** Prices with the work type catalogue open. */
+  onOpenCatalogue: () => void
   onHide: () => void
 }) {
   const { clinic, clinicId } = useAuth()
@@ -65,8 +67,9 @@ export function SetupChecklist({ onOpenGroup, onOpenView, onHide }: {
       done: people.length > 1, action: t('setup.addPeople'), go: () => onOpenView('workers'),
     },
     ...(jobs ? [
-      { key: 'types', label: t('setup.workTypes'), done: settings.tooTuubid.length > 0, action: t('setup.open'), go: () => onOpenGroup('valikud') },
-      { key: 'prices', label: t('setup.prices'), done: settings.tooTuubid.some(w => w.hind != null), action: t('setup.addPrices'), go: () => onOpenGroup('hinnad') },
+      // One step since 2.2.0: the catalogue adds the work types, their prices
+      // are set on the same page. Done once a type has a price.
+      { key: 'types', label: t('setup.workTypesPrices'), done: settings.tooTuubid.some(w => w.hind != null), action: t('setup.openCatalogue'), go: onOpenCatalogue },
       { key: 'machines', label: t('setup.machines'), done: settings.masinad.length > 0, action: t('setup.addMachines'), go: () => onOpenGroup('masinad') },
       { key: 'materials', label: t('setup.materials'), done: settings.materjalid.length > 0, action: t('setup.addMaterials'), go: () => onOpenGroup('valikud') },
       { key: 'stages', label: t('setup.stages'), done: stages.length > 1, action: t('setup.open'), go: () => onOpenGroup('etapid') },

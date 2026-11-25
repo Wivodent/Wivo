@@ -18,6 +18,7 @@ import { workTypeImage, slugifyWorkType } from '../lib/workTypeImages'
 import { workType3dImage } from '../lib/workType3d'
 import { WorkTypeArt } from './ui/WorkTypeArt'
 import { OptionLibrarySection, TypeOptionGroups } from './Settings/WorkOptionsEditor'
+import { WorkTypeCatalogue } from './Settings/WorkTypeCatalogue'
 import { RepriceJobsSection } from './Settings/RepriceJobsSection'
 import { supabase, updateProfile, displayIdentity } from '../lib/supabase'
 import type { PipelineStage } from '../config/pipeline'
@@ -1276,6 +1277,8 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
   // Prices page (docs/design prices.html): search, the add row, the folded rest.
   const [priceSearch, setPriceSearch] = useState('')
   const [addingType, setAddingType] = useState(false)
+  // Settings → Prices → Add from catalogue (and the setup list's "Work types & prices").
+  const [catalogueOpen, setCatalogueOpen] = useState(false)
   const [morePrices, setMorePrices] = useState(false)
   const [partnerMovesOpen, setPartnerMovesOpen] = useState(false)
 
@@ -1322,7 +1325,8 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
         {/* docs/design setup-and-settings.html: Settings opens on its home page
             of tiles; a group has a way back instead of a side menu. */}
         {activeGroup === 'home' ? (
-          <SettingsHome allowed={groupAllowed} onOpenGroup={setGroup} onOpenView={onOpenView} />
+          <SettingsHome allowed={groupAllowed} onOpenGroup={setGroup} onOpenView={onOpenView}
+            onOpenCatalogue={() => { setGroup('hinnad'); setCatalogueOpen(true) }} />
         ) : (
           <div className="flex items-center gap-3 flex-wrap">
             <button
@@ -2025,6 +2029,15 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
                   {canEditClinic && (
                     <button
                       type="button"
+                      onClick={() => setCatalogueOpen(true)}
+                      className="min-h-[48px] px-5 rounded-xl border-2 border-accent text-accent text-base font-bold flex items-center gap-1.5 hover:bg-accent/10"
+                    >
+                      <Plus size={18} /> {t('catalogue.open')}
+                    </button>
+                  )}
+                  {canEditClinic && (
+                    <button
+                      type="button"
                       onClick={() => setAddingType(v => !v)}
                       aria-expanded={addingType}
                       className="min-h-[48px] px-5 rounded-xl bg-accent text-white text-base font-bold flex items-center gap-1.5 hover:opacity-90"
@@ -2032,6 +2045,7 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
                       <Plus size={18} /> {t('settingsPage.newWorkType')}
                     </button>
                   )}
+                  {canEditClinic && catalogueOpen && <WorkTypeCatalogue onClose={() => setCatalogueOpen(false)} />}
                 </div>
               </div>
 

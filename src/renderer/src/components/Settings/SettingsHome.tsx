@@ -66,11 +66,13 @@ function TileGroup({ title, tiles, cols }: { title: string; tiles: Tile[]; cols:
   )
 }
 
-export function SettingsHome({ allowed, onOpenGroup, onOpenView }: {
+export function SettingsHome({ allowed, onOpenGroup, onOpenView, onOpenCatalogue }: {
   /** Whether a settings group may be opened here (licence, mode, permission). */
   allowed: (k: GroupKey) => boolean
   onOpenGroup: (k: GroupKey) => void
   onOpenView?: (v: ViewMode) => void
+  /** Prices, with the work type catalogue open (the setup list's "Work types & prices"). */
+  onOpenCatalogue?: () => void
 }) {
   const auth = useAuth()
   const { moduleOn, sees } = usePermissions()
@@ -126,6 +128,7 @@ export function SettingsHome({ allowed, onOpenGroup, onOpenView }: {
         <SetupChecklist
           onOpenGroup={onOpenGroup}
           onOpenView={view => onOpenView?.(view)}
+          onOpenCatalogue={() => (onOpenCatalogue ? onOpenCatalogue() : onOpenGroup('hinnad'))}
           onHide={() => setHidden(true)}
         />
       )}

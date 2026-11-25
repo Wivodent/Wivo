@@ -25,22 +25,21 @@ valgel ümaral alusel. Kui originaalil on juba läbipaistev taust, jääb see al
 
 ## Milline pilt millisele töötüübile
 
-Pilt ei leita töötüübi nime järgi (nimed on kliiniku keeles ja kliinik võib
-neid muuta). Kaardistus on failis `src/renderer/src/lib/workType3dMap.ts`:
-1. kitsam variant töötüübi nime või sünonüümide sõnade järgi (eesti, inglise,
-   vene keeles), nt All-on-6 → `all-on-6.webp`;
-2. muidu töö liigi järgi (sama liik, mille järgi valitakse joonikoon):
+Iga pilt on üks töötüüpide kataloogi kirje (`shared/pricing/workTypeCatalogue.ts`,
+Seaded → Hinnad → Lisa kataloogist): failinimi on kirje id. Valiku pilt
+(`options/`) on kataloogi valiku id. Test (`src/renderer/src/lib/workType3d.test.ts`)
+kukub, kui pildil pole kirjet või kirjel pole pilti.
 
-| Töö liik            | Pilt                   |
-|---------------------|------------------------|
-| Implantaadi kroon   | `crown-implant.webp`   |
-| Kroon               | `crown-zirconia.webp`  |
-| Sild                | `bridge.webp`          |
-| Viniir, laminaat    | `veneer.webp`          |
-| Inlay, onlay        | `inlay-onlay.webp`     |
-| Proteez             | `denture-full.webp`    |
-| All-on-X            | `all-on-4.webp`        |
-| Kaitse / splint     | `night-guard.webp`     |
-| Retainer            | `retainer-fixed.webp`  |
-| Kirurgiline juhik   | `surgical-guide.webp`  |
-| Implantaadisild, täidis, IBT | pilti pole (joonikoon) |
+Pilt ei leita töötüübi nime järgi (nimed on kliiniku keeles ja kliinik võib
+neid muuta). Järjekord (`src/renderer/src/lib/workType3d.ts`):
+1. kataloogist lisatud töötüüp: selle kirje pilt (`katalog`), mis nimega tahes;
+2. töötüüp, mille nimi või sünonüüm on täpselt kataloogi kirje nimi mõnes
+   keeles (nt „Metallkeraamiline kroon"): selle kirje pilt;
+3. kitsam variant sõnade järgi (`workType3dMap.ts`, nt All-on-6);
+4. töö liigi järgi (`workType3dMap.ts`): kroon → `crown-zirconia`, sild →
+   `bridge`, implantaadi kroon → `crown-implant`, proteez → `denture-full`,
+   All-on-X → `all-on-4`, kaitse → `night-guard`, retainer → `retainer-fixed`,
+   viniir ja laminaat → `veneer`, inlay ja onlay → `inlay-onlay`, kirurgiline
+   juhik → `surgical-guide`; implantaadisild, täidis ja IBT: joonikoon.
+
+Uue pildi jaoks lisa kataloogi kirje (või valik) sama id-ga.

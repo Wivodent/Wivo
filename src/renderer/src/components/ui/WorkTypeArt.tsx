@@ -21,7 +21,7 @@ export type WorkTypeArtProps = {
   /** Size of the line icon inside the box when there is no picture. Defaults to the box. */
   iconSize?: number
   className?: string
-} & ({ type: Pick<WorkType, 'nimi' | 'match'>; kind?: never } | { kind: WorkKind; type?: never })
+} & ({ type: Pick<WorkType, 'nimi' | 'match' | 'katalog'>; kind?: never } | { kind: WorkKind; type?: never })
 
 export function WorkTypeArt({ size, iconSize, className = '', ...which }: WorkTypeArtProps): JSX.Element {
   const kind = which.kind ?? workKindFor(workTypeTokens(which.type!))

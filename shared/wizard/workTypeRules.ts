@@ -14,6 +14,7 @@
  * The real fix is a `kategooria` field on WorkType in Seaded. Until then, this
  * is the only signal the data carries.
  */
+import { catalogueEntry } from '../pricing/workTypeCatalogue'
 import type { WorkType } from '../pricing/workTypes'
 import { resolveWorkType, UNKNOWN_WORK_TYPE } from '../pricing/workTypes'
 
@@ -154,7 +155,9 @@ export function workTypeRules(too: string, types: readonly WorkType[]): WorkType
   // Arch wins over appliance so "Proteez" asks for a jaw instead of asking
   // nothing — it is a full-arch piece of work, not a nightguard.
   const isAppliance = !isArch && hits(tokens, APPLIANCE_WORDS)
-  const toothMode: ToothMode = isArch ? 'arch' : isAppliance ? 'none' : 'tooth'
+  // A type that says which teeth it wants (one added from the catalogue whose
+  // words cannot tell, such as a digital scan) is taken at its word.
+  const toothMode: ToothMode = resolved.hambaviis ?? (isArch ? 'arch' : isAppliance ? 'none' : 'tooth')
 
   const isBridge = toothMode === 'tooth' && hits(tokens, BRIDGE_WORDS)
   const noShade = hits(tokens, NO_SHADE_WORDS)
@@ -176,7 +179,8 @@ export function workTypeRules(too: string, types: readonly WorkType[]): WorkType
     supportsGlaze: toothMode === 'tooth' && !noShade,
     supportsTexture: toothMode === 'tooth' && !noShade,
     supportsAbutment: toothMode === 'tooth' && hits(tokens, IMPLANT_WORDS),
-    implantBased: toothMode !== 'none' && hits(tokens, IMPLANT_BASED_WORDS),
+    implantBased: toothMode !== 'none'
+      && (catalogueEntry(resolved.katalog)?.implantBased ?? hits(tokens, IMPLANT_BASED_WORDS)),
   }
 }
 

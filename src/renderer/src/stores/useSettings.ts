@@ -839,6 +839,24 @@ export function useSettings() {
     setSettings(prev => ({ ...prev, tooValikud: items }), ['pricing'])
   }, [setSettings])
 
+  /**
+   * A work type from the catalogue (shared/pricing/workTypeCatalogue), with
+   * the options its groups need that the library does not have yet. Appended;
+   * no existing type or option is touched. A name already on the list is
+   * refused here too (the catalogue numbers it before it gets this far).
+   */
+  const addCatalogueType = useCallback((type: WorkType, newOptions: WorkOption[]) => {
+    setSettings(prev => {
+      if (prev.tooTuubid.some(x => x.nimi.toLowerCase() === type.nimi.toLowerCase())) return prev
+      const have = new Set(prev.tooValikud.map(o => o.id))
+      return {
+        ...prev,
+        tooTuubid: [...prev.tooTuubid, type],
+        tooValikud: [...prev.tooValikud, ...newOptions.filter(o => !have.has(o.id))],
+      }
+    }, ['work_types', 'pricing'])
+  }, [setSettings])
+
   const setLisateenused = useCallback((items: ExtraService[]) => {
     setSettings(prev => ({ ...prev, lisateenused: items }), ['pricing'])
   }, [setSettings])
@@ -1091,7 +1109,7 @@ export function useSettings() {
 
   return {
     settings, save, setMaterialPrice, setMaterialCost, setDesignFee, setDefaultMachine, setKasutajaNimi,
-    setTeema, setOmaTeema, setOmaTeemaToken, toggleRiba, setNumber, setFlag, setTekstiSuurus, setFixedCosts, setLisateenused, setYldkulud, setKapslimasinad, setTooValikud, setPaneeliSuund,
+    setTeema, setOmaTeema, setOmaTeemaToken, toggleRiba, setNumber, setFlag, setTekstiSuurus, setFixedCosts, setLisateenused, setYldkulud, setKapslimasinad, setTooValikud, addCatalogueType, setPaneeliSuund,
     addOption, removeOption, renameOption, resetOptions,
     setEpost,
     addWorkType, removeWorkType, updateWorkType, moveWorkType, resetWorkTypes,

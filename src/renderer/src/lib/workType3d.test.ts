@@ -10,6 +10,7 @@ import { defaultWorkTypesFor } from '@shared/pricing/workTypes'
 import { WORK_KINDS } from '../components/NewJobWizard/jobtype/workKindShapes'
 import { KIND_3D_FILES, VARIANT_3D_FILES } from './workType3dMap'
 import { kind3dFileIn, workType3dFileIn } from './workType3d'
+import { CATALOGUE, OPTIONS } from '@shared/pricing/workTypeCatalogue'
 
 const all = (): boolean => true
 const none = (): boolean => false
@@ -46,6 +47,15 @@ describe('which picture for which type', () => {
     expect(workType3dFileIn({ nimi: 'Titaanvõrk' }, only('crown-zirconia.webp'))).toBeNull()
   })
 
+  it("a type from the catalogue: its entry's picture, whatever it is called", () => {
+    expect(workType3dFileIn({ nimi: 'Kroon', katalog: 'crown-metal-ceramic' }, all)).toBe('crown-metal-ceramic.webp')
+  })
+
+  it('a type named exactly as a catalogue entry, in any language: that picture', () => {
+    expect(workType3dFileIn({ nimi: 'Metallkeraamiline kroon' }, all)).toBe('crown-metal-ceramic.webp')
+    expect(workType3dFileIn({ nimi: 'Labor', match: ['телескопическая коронка'] }, all)).toBe('telescopic-crown.webp')
+  })
+
   it('no file, or a type nothing recognises: no picture (the line icon shows)', () => {
     expect(workType3dFileIn({ nimi: 'Kroon' }, none)).toBeNull()
     expect(workType3dFileIn({ nimi: 'Disain' }, all)).toBeNull()
@@ -65,5 +75,17 @@ describe('the folder', () => {
   it('has every file the mapping names', () => {
     const named = [...Object.values(KIND_3D_FILES), ...VARIANT_3D_FILES.map(v => v.file)].filter((f): f is string => !!f)
     expect(named.filter(f => !pictures.includes(f))).toEqual([])
+  })
+})
+
+describe('the folder and the catalogue (shared/pricing/workTypeCatalogue)', () => {
+  const pictures = (dir: string) => readdirSync(resolve(__dirname, dir)).filter(f => f.endsWith('.webp')).map(f => f.replace(/\.webp$/, '')).sort()
+
+  it('one picture per catalogue entry, and no picture without one', () => {
+    expect(pictures('../assets/worktypes/3d')).toEqual(CATALOGUE.map(e => e.id).sort())
+  })
+
+  it('one picture per catalogue option, and no option picture without one', () => {
+    expect(pictures('../assets/worktypes/3d/options')).toEqual(OPTIONS.map(o => o.id).sort())
   })
 })

@@ -91,6 +91,16 @@ export interface WorkType {
    * pointing at the clinic's option library by id (shared/pricing/workOptions).
    */
   valikuGrupid?: import('./workOptions').WorkOptionGroup[]
+  /**
+   * The catalogue entry this type was added from (shared/pricing/workTypeCatalogue):
+   * its picture, and whether it is built on implants, whatever it is renamed to.
+   */
+  katalog?: string
+  /**
+   * Which teeth the new-job form asks for, where the type's words cannot tell
+   * (a digital scan asks for none). Absent: read from the words, as always.
+   */
+  hambaviis?: 'tooth' | 'arch' | 'none'
 }
 
 // Order matters: the first match wins, so the more specific terms sit above the
