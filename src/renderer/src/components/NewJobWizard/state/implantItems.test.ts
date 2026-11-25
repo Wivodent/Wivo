@@ -51,16 +51,36 @@ describe('wizardWorkItems — implants', () => {
     expect(i.implantaadid).toBe('14')
   })
 
-  // A plain bridge has no implants to mark, and a stale draft must not smuggle
-  // one through on a type that cannot carry it.
-  it('ignores marks on a work type that sits on no implant', () => {
+  // 2.2.0: every picked tooth has a "+ Implant", so a bridge the lab calls
+  // just "Sild" can sit on implants too. Only work with no teeth cannot.
+  it('carries marks on any tooth-level work, a plain bridge included', () => {
     const i = item(state({
       jobTypes: ['Sild'],
       selectedTeeth: { Sild: [14, 15, 16] },
-      implantsByType: { Sild: [14] },
+      implantsByType: { Sild: [14, 16] },
     }))
     expect(i.too).toBe('Sild')
+    expect(i.implantaadid).toBe('16,14')
+  })
+
+  it('ignores marks on work that owns no teeth (an appliance)', () => {
+    const i = item(state({
+      jobTypes: ['Retainer'],
+      selectedTeeth: { Retainer: [14] },
+      implantsByType: { Retainer: [14] },
+    }))
     expect(i.implantaadid).toBeUndefined()
+  })
+
+  it('a jaw (All-on-X) keeps the implants marked on its own teeth', () => {
+    const items = wizardWorkItems(state({
+      jobTypes: ['All-on-X'],
+      selectedTeeth: {},
+      selectedArch: 'upper',
+      implantsByType: { 'All-on-X': [12, 22, 15, 25, 36] },
+    }), T)
+    expect(items).toHaveLength(1)
+    expect(items[0].implantaadid!.split(',').sort()).toEqual(['12', '15', '22', '25'])
   })
 
   it('still marks the item as a bridge', () => {
@@ -100,5 +120,23 @@ describe('wizardWorkItems — design split', () => {
       designByType: { Implantaadisild: [14, 18] },
     }))
     expect(i.disain_hambad).toBe('14')
+  })
+})
+
+describe('wizardWorkItems — screw / abutment only with an implant', () => {
+  it('no implant marked: no abutment stored, even if one was typed', () => {
+    const i = item(state({ abutmentByType: { Implantaadisild: 'MIS C1' } }))
+    expect(i.kruvi).toBeUndefined()
+    expect(i.kruvid).toBeUndefined()
+  })
+
+  it('the type-wide code, and per tooth only the implants that differ', () => {
+    const i = item(state({
+      implantsByType: { Implantaadisild: [14, 18] },
+      abutmentByType: { Implantaadisild: 'MIS C1' },
+      abutmentByTooth: { '18': 'Nobel', '15': 'ignored: not an implant' },
+    }))
+    expect(i.kruvi).toBe('MIS C1')
+    expect(i.kruvid).toEqual({ '18': 'Nobel' })
   })
 })

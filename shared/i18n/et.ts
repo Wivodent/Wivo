@@ -4161,4 +4161,13 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'settingsPage.country': "Riik",
   'settingsPage.countryHelp': "Määrab palgamaksud ja nende lahtrite näidisteksti.",
   'settingsHome.changeCountry': "Muuda",
+  'teeth.addImplant': "+ Implantaat",
+  'teeth.addImplantTooth': "Märgi hammas {tooth} implantaadiks",
+  'teeth.removeImplantTooth': "Hammas {tooth} on implantaat. Klõpsa, et märk eemaldada",
+  'teeth.implantOnTooth': "Implantaat: {tooth}",
+  'wizard.summaryImplant1': "1 implantaat ({teeth})",
+  'wizard.summaryImplants': "{n} implantaati ({teeth})",
+  'wizard.summaryPontic1': "1 vahelüli ({teeth})",
+  'wizard.summaryPontics': "{n} vahelüli ({teeth})",
+  'wizard.implantsHelp': "Klõpsa hamba kohal + nuppu, et märkida see implantaadiks. Implantaatidel põhineva töö puhul märgitakse hambad ise; silla puhul võta märk vahelülidelt maha.",
 }

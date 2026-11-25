@@ -15,9 +15,11 @@
  * The step holds exactly one piece of local state: which work type the next
  * click belongs to. Everything else lives in NewJobState so Back never loses it.
  */
-import { useEffect, useMemo, useState } from 'react'
-import { Info } from 'lucide-react'
-import type { ArchSelection, ValidationError } from '@shared/wizard'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Info, Bolt, FlipHorizontal2 } from 'lucide-react'
+import type { ArchSelection, NewJobState, ValidationError } from '@shared/wizard'
+import type { MarkMode } from '@/components/teeth/toothInteraction'
+import { useOdontogramMirrorToggle } from '@/components/JobDetail/MultiOdontogramPicker'
 import { hambadToTeeth, sortTeeth, baseTypeName, makeTypeKey, archTeeth } from '@shared/wizard'
 import { useWorkTypes } from '@/stores/useSettings'
 import type { WizardStepComponent } from '../types'
@@ -26,7 +28,7 @@ import { WizardErrors } from '../ui/WizardErrors'
 import { ArchSelector } from '../teeth/ArchSelector'
 import { ToothControls, type ToothLegendEntry } from '../teeth/ToothControls'
 import { WizardOdontogram } from '../teeth/WizardOdontogram'
-import { WorkTypeTabs, type WorkTypeTab } from '../teeth/WorkTypeTabs'
+import { WorkTypeTabs, teethCountLabel, type WorkTypeTab } from '../teeth/WorkTypeTabs'
 import { AbutmentPicker } from '../teeth/AbutmentPicker'
 import { WIZARD_FALLBACK_HEX } from '../wizardTheme'
 import { t } from '@/lib/i18n'
@@ -159,9 +161,23 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
     setTouched(prev => (prev.has(nimi) ? prev : new Set([...prev, nimi])))
   }
 
+  const rulesOf = (key: string) => rulesByName.get(key) ?? rulesByName.get(baseTypeName(key))
+
   function setTeethFor(nimi: string, teeth: number[]) {
     markTouched(nimi)
-    patch({ selectedTeeth: { ...state.selectedTeeth, [nimi]: sortTeeth(teeth) } })
+    const sorted = sortTeeth(teeth)
+    const next: Partial<NewJobState> = { selectedTeeth: { ...state.selectedTeeth, [nimi]: sorted } }
+    // Work built on implants (an implant crown or bridge, an abutment): a
+    // tooth picked for it IS an implant until someone says otherwise, e.g. a
+    // bridge's pontic. Only newly picked teeth are marked, so a mark taken off
+    // stays off while other teeth are added.
+    if (rulesOf(nimi)?.implantBased) {
+      const before = new Set(state.selectedTeeth[nimi] ?? [])
+      const kept = (state.implantsByType[nimi] ?? []).filter(tooth => sorted.includes(tooth))
+      const added = sorted.filter(tooth => !before.has(tooth))
+      next.implantsByType = { ...state.implantsByType, [nimi]: sortTeeth([...kept, ...added]) }
+    }
+    patch(next)
   }
 
   function toggleTooth(fdi: number) {
@@ -177,13 +193,97 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
    * making is not a fact about the job, and marking one would put a screw on
    * the invoice for a unit that does not exist.
    */
+  function toggleImplantFor(key: string, fdi: number, teeth: readonly number[]) {
+    if (!teeth.includes(fdi)) return
+    const cur = state.implantsByType[key] ?? []
+    const next = cur.includes(fdi) ? cur.filter(tooth => tooth !== fdi) : [...cur, fdi]
+    patch({ implantsByType: { ...state.implantsByType, [key]: sortTeeth(next) } })
+  }
+
   function toggleImplant(fdi: number) {
     if (!activeType) return
-    const picked = state.selectedTeeth[activeType] ?? []
-    if (!picked.includes(fdi)) return
-    const cur = state.implantsByType[activeType] ?? []
-    const next = cur.includes(fdi) ? cur.filter(tooth => tooth !== fdi) : [...cur, fdi]
-    patch({ implantsByType: { ...state.implantsByType, [activeType]: sortTeeth(next) } })
+    toggleImplantFor(activeType, fdi, state.selectedTeeth[activeType] ?? [])
+  }
+
+  /** The teeth a work type has on this job: its picks, or for a jaw its arch. */
+  const teethOf = (key: string): number[] =>
+    rulesOf(key)?.toothMode === 'arch'
+      ? hambadToTeeth(items.filter(i => i.id === `wiz:${key}` || i.id.startsWith(`wiz:${key}:`)).map(i => i.hambad).join(','))
+      : (state.selectedTeeth[key] ?? [])
+
+  /** The marked implants among a work type's teeth, in the teeth's order. */
+  const implantsOf = (key: string): number[] => {
+    const marked = new Set(state.implantsByType[key] ?? [])
+    return sortTeeth(teethOf(key).filter(tooth => marked.has(tooth)))
+  }
+
+  // ── The toolbar beside 2D/3D, and the line under the chart ──────────────────
+  const [markMode, setMarkMode] = useState<MarkMode | null>(null)
+  const [mirror, toggleMirror] = useOdontogramMirrorToggle()
+  const toolbar = (
+    <>
+      <ToolbarButton
+        active={markMode === 'implant'}
+        onClick={() => setMarkMode(m => (m === 'implant' ? null : 'implant'))}
+        icon={<Bolt className="h-4 w-4" aria-hidden="true" />}
+      >
+        {t('jobDetail.implants')}
+      </ToolbarButton>
+      <ToolbarButton active={mirror} onClick={toggleMirror} icon={<FlipHorizontal2 className="h-4 w-4" aria-hidden="true" />}>
+        {mirror ? t('jobDetail.patientView') : t('jobDetail.dentistView')}
+      </ToolbarButton>
+    </>
+  )
+
+  /** "4 teeth · 2 implants (14, 11) · 2 pontics (13, 12)" for one work type. */
+  function summaryOf(key: string | null): ReactNode {
+    if (!key) return null
+    const teeth = sortTeeth(teethOf(key))
+    if (teeth.length === 0) return null
+    const implants = implantsOf(key)
+    const r = rulesOf(key)
+    const pontics = r?.isBridge && r.implantBased ? teeth.filter(tooth => !implants.includes(tooth)) : []
+    const list = (xs: number[]) => xs.join(', ')
+    const parts = [teethCountLabel(teeth.length)]
+    if (implants.length > 0) {
+      parts.push(implants.length === 1
+        ? t('wizard.summaryImplant1', { teeth: list(implants) })
+        : t('wizard.summaryImplants', { n: implants.length, teeth: list(implants) }))
+    }
+    if (pontics.length > 0) {
+      parts.push(pontics.length === 1
+        ? t('wizard.summaryPontic1', { teeth: list(pontics) })
+        : t('wizard.summaryPontics', { n: pontics.length, teeth: list(pontics) }))
+    }
+    return (
+      <div className="space-y-1">
+        <p className="text-base font-semibold text-ink" aria-live="polite">{parts.join(' · ')}</p>
+        <p className="text-sm text-ink-muted">{t('wizard.implantsHelp')}</p>
+      </div>
+    )
+  }
+
+  /** Screw / abutment, asked only for work with an implant marked. */
+  function abutmentPickerFor(keys: readonly string[]): ReactNode {
+    const withImplants = keys.filter(key => implantsOf(key).length > 0)
+    if (withImplants.length === 0) return null
+    return (
+      <AbutmentPicker
+        types={withImplants.map(too => ({
+          too,
+          hex: colorMap[baseTypeName(too)] ?? WIZARD_FALLBACK_HEX,
+          teeth: implantsOf(too),
+        }))}
+        byType={state.abutmentByType}
+        byTooth={state.abutmentByTooth}
+        onChangeType={(too, code) => patch({
+          abutmentByType: { ...state.abutmentByType, [too]: code },
+        })}
+        onChangeTooth={(tooth, code) => patch({
+          abutmentByTooth: { ...state.abutmentByTooth, [tooth]: code },
+        })}
+      />
+    )
   }
 
   function clearAll() {
@@ -336,7 +436,18 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
               activeType={activeArchType ?? rules.archTypes[0]}
               colorMap={colorMap}
               onToggleTooth={tooth => toggleArchTooth(activeArchType ?? rules.archTypes[0], tooth)}
+              // Where an All-on-4's implants are: marked by hand, never all of
+              // the jaw at once (four implants carry twelve teeth).
+              onToggleImplant={tooth => {
+                const key = activeArchType ?? rules.archTypes[0]
+                toggleImplantFor(key, tooth, teethOf(key))
+              }}
+              implantButtons
+              toolbar={toolbar}
+              markMode={markMode}
             />
+            {summaryOf(activeArchType ?? rules.archTypes[0])}
+            {abutmentPickerFor(rules.archTypes)}
           </div>
         )}
 
@@ -394,24 +505,8 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
 
           {/* Which abutment each implant sits on. Here rather than on a later
               step because the answer belongs to the teeth that were just
-              picked, and the wizard could not record it at all before. */}
-          {rules.abutmentTypes.length > 0 && (
-            <AbutmentPicker
-              types={rules.abutmentTypes.map(too => ({
-                too,
-                hex: colorMap[baseTypeName(too)] ?? WIZARD_FALLBACK_HEX,
-                teeth: state.selectedTeeth[too] ?? [],
-              }))}
-              byType={state.abutmentByType}
-              byTooth={state.abutmentByTooth}
-              onChangeType={(too, code) => patch({
-                abutmentByType: { ...state.abutmentByType, [too]: code },
-              })}
-              onChangeTooth={(tooth, code) => patch({
-                abutmentByTooth: { ...state.abutmentByTooth, [tooth]: code },
-              })}
-            />
-          )}
+              picked; asked only once at least one implant is marked. */}
+          {abutmentPickerFor(toothTypeKeys)}
 
           {/* Arch selector if needed */}
           {rules.archTypes.length > 0 && (
@@ -433,17 +528,40 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
             activeType={activeType}
             colorMap={colorMap}
             onToggleTooth={toggleTooth}
-            // Only for work that CAN sit on an implant — the same rule that
-            // decides whether an abutment code is asked for on this step.
-            onToggleImplant={
-              activeType && rulesByName.get(activeType)?.supportsAbutment
-                ? toggleImplant
-                : undefined
-            }
+            // Any picked tooth can sit on an implant (2.2.0).
+            onToggleImplant={activeType ? toggleImplant : undefined}
+            implantButtons
+            toolbar={toolbar}
+            markMode={markMode}
             reservedByArch={archOwners}
           />
+          {summaryOf(activeType)}
         </div>
       </div>
     </div>
+  )
+}
+
+/** A button of the chart's toolbar, beside 2D/3D. `data-chrome`: the chart's own, not repainted white. */
+function ToolbarButton({ active, onClick, icon, children }: {
+  active: boolean
+  onClick: () => void
+  icon: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      data-chrome="chart"
+      className={[
+        'inline-flex items-center gap-1.5 border font-semibold',
+        active ? 'border-slate-900 bg-slate-900 text-white' : 'border-ink-faint/30 bg-bg-card text-ink-soft hover:text-ink',
+      ].join(' ')}
+    >
+      {icon}
+      {children}
+    </button>
   )
 }

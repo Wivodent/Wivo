@@ -4175,6 +4175,15 @@ export const en = {
   'settingsPage.country': "Country",
   'settingsPage.countryHelp': "Decides the payroll taxes and the sample text in these fields.",
   'settingsHome.changeCountry': "Change",
+  'teeth.addImplant': "+ Implant",
+  'teeth.addImplantTooth': "Mark tooth {tooth} as an implant",
+  'teeth.removeImplantTooth': "Tooth {tooth} is an implant. Click to take the mark off",
+  'teeth.implantOnTooth': "Implant on {tooth}",
+  'wizard.summaryImplant1': "1 implant ({teeth})",
+  'wizard.summaryImplants': "{n} implants ({teeth})",
+  'wizard.summaryPontic1': "1 pontic ({teeth})",
+  'wizard.summaryPontics': "{n} pontics ({teeth})",
+  'wizard.implantsHelp': "Click + over a tooth to mark it as an implant. Work built on implants marks the teeth by itself; on a bridge, take the mark off the pontics.",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

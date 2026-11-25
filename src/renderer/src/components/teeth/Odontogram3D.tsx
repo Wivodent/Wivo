@@ -156,7 +156,9 @@ export interface Odontogram3DProps extends ToothPickerProps {
 
 export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
   const hostRef = useRef<HTMLDivElement>(null)
-  const [markMode, setMarkMode] = useState<MarkMode | null>(null)
+  const [ownMarkMode, setMarkMode] = useState<MarkMode | null>(null)
+  // The caller's toolbar owns the mode when it draws the buttons (toothPickerProps).
+  const markMode = props.externalControls ? (props.markMode ?? null) : ownMarkMode
   // Split deliberately. The POSITION changes on every mouse move; the TOOTH
   // only when the cursor crosses onto a different one. Held as one object,
   // every pixel of movement produced a new value and repainted all 32 teeth.
@@ -520,7 +522,7 @@ export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
         ))}
 
         {/* Only the modes the caller enabled — see toothPickerProps. */}
-        <div className="ml-auto flex gap-1.5">
+        {!props.externalControls && <div className="ml-auto flex gap-1.5">
           {props.onToggleImplant && (
             <ModeButton
               active={markMode === 'implant'}
@@ -537,7 +539,7 @@ export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
               {t('teeth.designer2')}
             </ModeButton>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Always something here, because none of these gestures is guessable

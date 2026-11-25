@@ -38,6 +38,8 @@ import { Component, lazy, Suspense, useCallback, useState, type ErrorInfo, type 
 import { MultiOdontogramPicker } from '../JobDetail/MultiOdontogramPicker'
 import { useOdontogramView, setOdontogramView } from '../../stores/useUiPrefs'
 import { webglAvailable } from './odontogram3dCore'
+import { Bolt, Plus } from 'lucide-react'
+import { implantTeeth } from '../../types/job'
 import type { ToothPickerProps } from './toothPickerProps'
 import { t } from '@/lib/i18n'
 
@@ -67,9 +69,15 @@ export interface ToothPickerWrapperProps extends ToothPickerProps {
    * own way to opt out.
    */
   allow3d?: boolean
+  /**
+   * The caller's own buttons, drawn on the left of the row that holds 2D/3D
+   * (the new-job form: "Implants" and "Dentist view"). Pair it with
+   * `externalControls`, so the chart does not draw them a second time.
+   */
+  toolbar?: ReactNode
 }
 
-export function ToothPicker({ allow3d = true, ...props }: ToothPickerWrapperProps) {
+export function ToothPicker({ allow3d = true, toolbar, ...props }: ToothPickerWrapperProps) {
   const stored = useOdontogramView()
   const [unavailable, setUnavailable] = useState(false)
 
@@ -81,10 +89,15 @@ export function ToothPicker({ allow3d = true, ...props }: ToothPickerWrapperProp
 
   return (
     <div className="space-y-2">
-      {offer3d && (
-        <div className="flex justify-end gap-1">
-          <ViewButton active={!show3d} onClick={() => setOdontogramView('flat')}>2D</ViewButton>
-          <ViewButton active={show3d} onClick={() => setOdontogramView('3d')}>3D</ViewButton>
+      {(offer3d || toolbar) && (
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          {toolbar && <div className="mr-auto flex flex-wrap items-center gap-1">{toolbar}</div>}
+          {offer3d && (
+            <>
+              <ViewButton active={!show3d} onClick={() => setOdontogramView('flat')}>2D</ViewButton>
+              <ViewButton active={show3d} onClick={() => setOdontogramView('3d')}>3D</ViewButton>
+            </>
+          )}
         </div>
       )}
 
@@ -99,6 +112,11 @@ export function ToothPicker({ allow3d = true, ...props }: ToothPickerWrapperProp
           >
             <Odontogram3D {...props} onUnavailable={giveUp} />
           </Suspense>
+          {/* The 3D jaw has no room over each tooth, so the implant buttons
+              of the active item's teeth are a row under it. */}
+          {props.implantButtons && props.onToggleImplant && !props.disabled && (
+            <ImplantRow {...props} />
+          )}
         </Fallback3d>
       ) : (
         <MultiOdontogramPicker {...props} />
@@ -128,6 +146,36 @@ class Fallback3d extends Component<{ onError: () => void; children: ReactNode },
   render(): ReactNode {
     return this.state.failed ? null : this.props.children
   }
+}
+
+function ImplantRow({ items, activeItemId, onToggleImplant }: ToothPickerProps) {
+  const item = items.find(i => i.id === activeItemId)
+  const teeth = (item?.hambad ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  if (!item || teeth.length === 0) return null
+  const implants = new Set(implantTeeth(item))
+  return (
+    <div className="flex flex-wrap gap-1.5 pt-1">
+      {teeth.map(tooth => {
+        const on = implants.has(tooth)
+        return (
+          <button
+            key={tooth}
+            type="button"
+            data-chrome="chart"
+            aria-pressed={on}
+            onClick={() => onToggleImplant?.(Number(tooth))}
+            className={[
+              'inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold',
+              on ? 'border-slate-900 bg-slate-900 text-white' : 'border-ink-faint/30 bg-bg-card text-ink-soft',
+            ].join(' ')}
+          >
+            {on ? <Bolt size={12} aria-hidden="true" /> : <Plus size={12} aria-hidden="true" />}
+            {on ? t('teeth.implantOnTooth', { tooth }) : `${tooth} ${t('teeth.addImplant')}`}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 function ViewButton({ active, onClick, children }: {

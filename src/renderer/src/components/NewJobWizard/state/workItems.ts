@@ -52,13 +52,21 @@ export function wizardWorkItems(state: NewJobState, types: readonly WorkType[]):
       // All-on-4 that stops short of the last molar had no way to say so while
       // the arch buttons were the only control on the step.
       const custom = state.selectedTeeth[key]
-      return arches.map(arch => ({
-        id: arches.length > 1 ? `wiz:${key}:${arch}` : `wiz:${key}`,
-        too: nimi,
-        hambad: teethToHambad(teethForArch(arch, custom)),
-        ...mat,
-        ...mach,
-      }))
+      return arches.map(arch => {
+        const teeth = teethForArch(arch, custom)
+        // Where the implants of an All-on-4 are: marked tooth by tooth, like
+        // any other work (2.2.0). Each jaw keeps the marks on its own teeth.
+        const implants = implantsAmong(state, key, teeth)
+        return {
+          id: arches.length > 1 ? `wiz:${key}:${arch}` : `wiz:${key}`,
+          too: nimi,
+          hambad: teethToHambad(teeth),
+          ...mat,
+          ...mach,
+          ...abutmentsFor(state, key, implants),
+          ...(implants.length > 0 ? { implantaadid: teethToHambad(implants) } : {}),
+        }
+      })
     }
 
     // An appliance owns no teeth at all. Only tooth-mode work reads the
@@ -66,19 +74,19 @@ export function wizardWorkItems(state: NewJobState, types: readonly WorkType[]):
     const hambad =
       rules.toothMode === 'none' ? '' : teethToHambad(state.selectedTeeth[key] ?? [])
 
-    // Which abutment each implant sits on. The type-wide code is the item's
-    // `kruvi`; only teeth that were given something DIFFERENT are written into
-    // `kruvid`, so the common "all four are MIS C1" case stores one string and
-    // the mixed case stores exactly the exceptions.
-    const abut = abutmentsFor(state, key, hambad, rules.supportsAbutment)
-
-    // Which of those teeth sit on an implant. Filtered against `hambad` rather
-    // than trusted: deselecting a tooth must not leave an implant behind it,
+    // Which of those teeth sit on an implant. Any tooth of any tooth-level
+    // work can (2.2.0: a "+ Implant" on every picked tooth), not only a type
+    // named for implants. Filtered against the picked teeth rather than
+    // trusted: deselecting a tooth must not leave an implant behind it,
     // priced into the screws and invisible on the chart.
     const picked = new Set(rules.toothMode === 'none' ? [] : (state.selectedTeeth[key] ?? []))
-    const implants = rules.supportsAbutment
-      ? (state.implantsByType[key] ?? []).filter(t => picked.has(t))
-      : []
+    const implants = implantsAmong(state, key, [...picked])
+
+    // Which abutment each implant sits on, asked only once there is one. The
+    // type-wide code is the item's `kruvi`; only implants that were given
+    // something DIFFERENT are written into `kruvid`, so the common "all four
+    // are MIS C1" case stores one string and the mixed case the exceptions.
+    const abut = abutmentsFor(state, key, implants)
 
     // Which teeth the DESIGNER did. Stored only when it is a real subset:
     // "all of them" has to stay unsaid, or a tooth added later would arrive
@@ -118,14 +126,13 @@ export function wizardWorkItems(state: NewJobState, types: readonly WorkType[]):
  * into four rows that have to be edited four times when the system changes.
  */
 function abutmentsFor(
-  state: NewJobState, key: string, hambad: string, supported: boolean
+  state: NewJobState, key: string, implants: readonly number[]
 ): { kruvi?: string; kruvid?: Record<string, string> } {
-  if (!supported) return {}
+  if (implants.length === 0) return {}
   const all = (state.abutmentByType[key] ?? '').trim()
   const perTooth: Record<string, string> = {}
-  for (const raw of hambad.split(',')) {
-    const tooth = raw.trim()
-    if (!tooth) continue
+  for (const n of implants) {
+    const tooth = String(n)
     const own = (state.abutmentByTooth[tooth] ?? '').trim()
     if (own && own !== all) perTooth[tooth] = own
   }
@@ -133,6 +140,12 @@ function abutmentsFor(
     ...(all ? { kruvi: all } : {}),
     ...(Object.keys(perTooth).length > 0 ? { kruvid: perTooth } : {}),
   }
+}
+
+/** The teeth of `teeth` marked as implants for this work type, in the teeth's order. */
+function implantsAmong(state: NewJobState, key: string, teeth: readonly number[]): number[] {
+  const marked = new Set(state.implantsByType[key] ?? [])
+  return teeth.filter(t => marked.has(t))
 }
 
 export function wizardQuoteInput(state: NewJobState, types: readonly WorkType[]): QuoteInput {

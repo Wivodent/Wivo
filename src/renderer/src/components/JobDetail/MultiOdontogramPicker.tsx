@@ -9,7 +9,7 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { FlipHorizontal2, Trash2, Bolt, PenTool } from 'lucide-react'
+import { FlipHorizontal2, Trash2, Bolt, PenTool, Plus } from 'lucide-react'
 import type { WorkItem } from '../../types/job'
 import type { ToothPickerProps } from '../teeth/toothPickerProps'
 import { useOdontogramMirror, setOdontogramMirror } from '../../stores/useUiPrefs'
@@ -18,6 +18,17 @@ import { t } from '@/lib/i18n'
 /** The pre-1.94 machine-global choice. Read once, never written. */
 function legacyMirror(): boolean {
   try { return localStorage.getItem('wivo_odonto_mirror') === '1' } catch { return false }
+}
+
+/**
+ * "Dentist view" (the chart mirrored) and its toggle: the person's choice,
+ * else the old machine-wide one. For a caller that draws the button itself
+ * (`externalControls`), so its button and the chart can never disagree.
+ */
+export function useOdontogramMirrorToggle(): [boolean, () => void] {
+  const stored = useOdontogramMirror()
+  const mirror = stored ?? legacyMirror()
+  return [mirror, () => setOdontogramMirror(!mirror)]
 }
 import { deriveOdontogramState, pairKey } from '../teeth/odontogramState'
 import {
@@ -44,20 +55,19 @@ const ROTATIONS = [-18, -14, -10, -6, -3, -1, 0, 0, 0, 0, 1, 3, 6, 10, 14, 18]
 
 export function MultiOdontogramPicker({
   items, activeItemId, colorMap, onToggleTooth, onToggleImplant, onToggleDesign, disabled,
+  externalControls = false, markMode: outerMarkMode = null, implantButtons = false,
 }: ToothPickerProps) {
   // A marking mode retargets the SAME click. A second chart, or a modifier key,
   // would both be worse: one doubles the drawing, the other is invisible.
-  const [markMode, setMarkMode] = useState<MarkMode | null>(null)
+  // With `externalControls` the caller's toolbar owns the mode.
+  const [ownMarkMode, setMarkMode] = useState<MarkMode | null>(null)
+  const markMode = externalControls ? outerMarkMode : ownMarkMode
+  const showImplantButtons = implantButtons && !!onToggleImplant && !disabled
   // Per USER now, not per machine. `wivo_odonto_mirror` was machine-global,
   // which is wrong the moment two people share a PC — or one person uses two.
   // The legacy key is still READ once, so nobody's existing choice flips on
   // the upgrade; it is never written again.
-  const storedMirror = useOdontogramMirror()
-  const mirror = storedMirror ?? legacyMirror()
-
-  const toggleMirror = useCallback(() => {
-    setOdontogramMirror(!mirror)
-  }, [mirror])
+  const [mirror, toggleMirror] = useOdontogramMirrorToggle()
 
   // ONE derivation, shared with whatever else draws this chart — see
   // teeth/odontogramState.ts for why it does not live here any more.
@@ -132,7 +142,42 @@ export function MultiOdontogramPicker({
     const isImplant = implantSet.has(s)
     const isDesigned = designSet.has(s)
 
+    // Over the tooth (on the arch's outer side), for a tooth of the active
+    // item: one click makes it an implant, another takes that back.
+    const implantButton = showImplantButtons && isActive && (
+      <button
+        type="button"
+        onMouseDown={e => e.stopPropagation()}
+        onClick={() => onToggleImplant?.(num)}
+        data-chrome="chart"
+        data-tiny
+        aria-pressed={isImplant}
+        aria-label={isImplant ? t('teeth.removeImplantTooth', { tooth: num }) : t('teeth.addImplantTooth', { tooth: num })}
+        title={isImplant ? t('teeth.removeImplantTooth', { tooth: num }) : t('teeth.addImplant')}
+        className={[
+          'absolute left-1/2 -translate-x-1/2 z-10 flex items-center justify-center rounded-full',
+          'w-5 h-5 border transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent',
+          isImplant
+            ? 'bg-slate-900 border-slate-900 text-white'
+            : 'bg-white border-slate-300 text-slate-600 hover:border-slate-500',
+        ].join(' ')}
+        style={isUpper ? { top: -24 } : { bottom: -24 }}
+      >
+        {isImplant ? <Bolt size={11} /> : <Plus size={12} strokeWidth={2.5} />}
+      </button>
+    )
+
     return (
+      <div
+        className="relative"
+        style={{
+          marginTop: isUpper ? yOffset : undefined,
+          marginBottom: !isUpper ? yOffset : undefined,
+          marginLeft: xNudge > 0 ? xNudge : undefined,
+          marginRight: xNudge > 0 ? xNudge : undefined,
+        }}
+      >
+      {implantButton}
       <motion.button
         type="button"
         onMouseDown={e => { e.preventDefault(); handlePointerDown(num) }}
@@ -151,10 +196,6 @@ export function MultiOdontogramPicker({
         style={{
           width: 34,
           height: 40,
-          marginTop: isUpper ? yOffset : undefined,
-          marginBottom: !isUpper ? yOffset : undefined,
-          marginLeft: xNudge > 0 ? xNudge : undefined,
-          marginRight: xNudge > 0 ? xNudge : undefined,
           transform: `rotate(${rotation}deg)`,
           ...(isOwned ? { backgroundColor: owner!.color } : {}),
         }}
@@ -214,6 +255,7 @@ export function MultiOdontogramPicker({
           />
         )}
       </motion.button>
+      </div>
     )
   }
 
@@ -236,7 +278,7 @@ export function MultiOdontogramPicker({
       {/* ── Arch card ────────────────────────────────────────────────────── */}
       <div className="rounded-2xl bg-gradient-to-b from-rose-50/50 to-pink-50/30 border border-pink-100/60 px-6 py-5">
         {/* Mirror toggle */}
-        <div className="flex justify-end items-center gap-1 mb-2">
+        {!externalControls && <div className="flex justify-end items-center gap-1 mb-2">
           {/* Only the modes the caller enabled. A chart with nothing to mark
               must not grow buttons about marking. */}
           {onToggleImplant && (
@@ -273,7 +315,9 @@ export function MultiOdontogramPicker({
             <FlipHorizontal2 size={12} />
             {mirror ? t('jobDetail.patientView') : t('jobDetail.dentistView')}
           </button>
-        </div>
+        </div>}
+        {/* Room for the implant buttons over the upper teeth. */}
+        {showImplantButtons && <div className="h-5" aria-hidden="true" />}
 
         {markMode === 'implant' && (
           <p className="text-[11px] text-slate-500 text-center mb-2">
@@ -346,6 +390,8 @@ export function MultiOdontogramPicker({
             })}
           </div>
         </div>
+        {/* Room for the implant buttons under the lower teeth. */}
+        {showImplantButtons && <div className="h-5" aria-hidden="true" />}
       </div>
 
       {/* ── Bottom toolbar ───────────────────────────────────────────────── */}
@@ -363,12 +409,14 @@ export function MultiOdontogramPicker({
           )}
         </div>
         <div className="flex items-center gap-1">
-          <button type="button" onClick={toggleMirror}
-            className="p-1.5 rounded-lg text-ink-faint hover:text-ink-muted hover:bg-bg-sidebar transition-colors"
-            title={t('jobDetail.mirror')}
-          >
-            <FlipHorizontal2 size={14} />
-          </button>
+          {!externalControls && (
+            <button type="button" onClick={toggleMirror}
+              className="p-1.5 rounded-lg text-ink-faint hover:text-ink-muted hover:bg-bg-sidebar transition-colors"
+              title={t('jobDetail.mirror')}
+            >
+              <FlipHorizontal2 size={14} />
+            </button>
+          )}
           {totalTeeth > 0 && (
             <button type="button"
               className="p-1.5 rounded-lg text-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"

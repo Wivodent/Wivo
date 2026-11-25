@@ -35,8 +35,9 @@
  *   · in mirrored view each tooth's rotation is computed from the UNmirrored
  *     index, so the teeth lean the wrong way while bridge connectors do not.
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Check, ChevronDown, ChevronUp, Keyboard } from 'lucide-react'
+import type { MarkMode } from '@/components/teeth/toothInteraction'
 import { FDI_LOWER, FDI_UPPER, hambadToTeeth } from '@shared/wizard'
 import type { WorkItem } from '@/types/job'
 import { ToothPicker } from '@/components/teeth/ToothPicker'
@@ -65,11 +66,17 @@ export interface WizardOdontogramProps {
    *  refusal has to name the arch rather than a tooth nobody can see. */
   reservedByArch?: Map<number, string>
   disabled?: boolean
+  /** The step's own buttons beside 2D/3D ("Implants", "Dentist view"). */
+  toolbar?: ReactNode
+  /** The marking mode those buttons set. */
+  markMode?: MarkMode | null
+  /** A "+ Implant" over every tooth of the active work type. */
+  implantButtons?: boolean
 }
 
 export function WizardOdontogram({
   items, activeType, colorMap, onToggleTooth, onToggleImplant, onToggleDesign,
-  legend = [], reservedByArch, disabled,
+  legend = [], reservedByArch, disabled, toolbar, markMode = null, implantButtons = false,
 }: WizardOdontogramProps) {
   // Why refused, in Estonian, for the aria-live region. Cleared on any accepted
   // click so it never lingers as a stale accusation.
@@ -148,8 +155,10 @@ export function WizardOdontogram({
         <div
           className={
             'mx-auto w-full ' +
-            '[&_button]:min-h-[44px] [&_button]:px-3 [&_button]:text-base ' +
-            '[&_button]:rounded-xl ' +
+            // `data-tiny`: the implant button over a tooth, which is 20px by
+            // design (it sits over a 34px tooth) and must not be sized up.
+            '[&_button:not([data-tiny])]:min-h-[44px] [&_button:not([data-tiny])]:px-3 ' +
+            '[&_button:not([data-tiny])]:text-base [&_button:not([data-tiny])]:rounded-xl ' +
             // SIZING applies to everything — 44px is right for every control in
             // this wizard. The two COLOUR rules skip the chart's own chrome.
             // They compile to `.wrapper button`, which outranks a single class,
@@ -174,6 +183,10 @@ export function WizardOdontogram({
             onToggleImplant={onToggleImplant}
             onToggleDesign={onToggleDesign}
             disabled={disabled}
+            toolbar={toolbar}
+            externalControls={toolbar != null}
+            markMode={markMode}
+            implantButtons={implantButtons}
           />
         </div>
       </div>

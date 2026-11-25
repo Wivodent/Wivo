@@ -11,6 +11,7 @@
  * mode disappears rather than being shown and refused.
  */
 import type { WorkItem } from '../../types/job'
+import type { MarkMode } from './toothInteraction'
 
 export interface ToothPickerProps {
   items: WorkItem[]
@@ -25,4 +26,17 @@ export interface ToothPickerProps {
   /** Omit entirely when nobody is named as the designer. */
   onToggleDesign?: (tooth: number) => void
   disabled?: boolean
+  /**
+   * The caller draws the marking and view buttons itself (the new-job form
+   * puts "Implants" and "Dentist view" in its toolbar beside 2D/3D), so the
+   * chart draws none of its own, and `markMode` says which mode is on.
+   */
+  externalControls?: boolean
+  /** The marking mode, when `externalControls`. */
+  markMode?: MarkMode | null
+  /**
+   * A small implant button over each tooth of the active item (2D), or a row
+   * of them under the chart (3D). Needs `onToggleImplant`.
+   */
+  implantButtons?: boolean
 }

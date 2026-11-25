@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { WorkType } from '../pricing/workTypes'
-import { DEFAULT_WORK_TYPES } from '../pricing/workTypes'
+import { DEFAULT_WORK_TYPES, defaultWorkTypesFor } from '../pricing/workTypes'
 import { jobRules, workTypeRules } from './workTypeRules'
 
 const TYPES = DEFAULT_WORK_TYPES
@@ -193,5 +193,29 @@ describe('supportsAbutment — work that sits on an implant', () => {
 
   it('stays quiet for an unrecognised type', () => {
     expect(workTypeRules('Miski uus asi', LAB).supportsAbutment).toBe(false)
+  })
+})
+
+describe('implantBased — work built on implants (new-job form marks the teeth at once)', () => {
+  const en = defaultWorkTypesFor('en')
+  const ru = defaultWorkTypesFor('ru')
+  it.each([
+    ['Implantkroon', TYPES], ['Implantaadisild', TYPES], ['All-on-X', TYPES],
+    ['Implant crown', en], ['Implant bridge', en],
+    ['Коронка на импланте', ru], ['Мост на имплантах', ru],
+  ] as const)('%s is', (name, list) => {
+    expect(workTypeRules(name, list).implantBased).toBe(true)
+  })
+
+  it('by its words, not its name: a renamed type keeps it through its synonyms', () => {
+    const lab: WorkType[] = [{ nimi: 'Meie Allon', hex: '#000', match: ['all-on-4'] }, { nimi: 'Overdenture', hex: '#111' }]
+    expect(workTypeRules('Meie Allon', lab).implantBased).toBe(true)
+    expect(workTypeRules('Overdenture', lab).implantBased).toBe(true)
+  })
+
+  it('an ordinary crown, bridge or denture, an appliance, or an unknown type is not', () => {
+    for (const name of ['Kroon', 'Sild', 'Proteez', 'Retainer', 'Kaitse / splint', 'Miski uus asi']) {
+      expect(workTypeRules(name, TYPES).implantBased).toBe(false)
+    }
   })
 })

@@ -65,6 +65,14 @@ export interface WorkTypeRules {
    * case that genuinely needs codes is named per implant on the job itself.
    */
   supportsAbutment: boolean
+  /**
+   * Work that is built on implants: an implant crown or bridge, an abutment,
+   * All-on-4/5/6, a hybrid denture, an overdenture. On the new-job form a
+   * tooth picked for it is marked as an implant at once (a bridge's pontics
+   * can then be unmarked). Read from the type's words in all three
+   * languages, like every rule here, never from one name.
+   */
+  implantBased: boolean
 }
 
 // ── Keyword families ─────────────────────────────────────────────────────────
@@ -78,6 +86,12 @@ const APPLIANCE_WORDS = [
 const BRIDGE_WORDS = ['sild', 'bridge']
 /** Work that sits on an implant, and therefore on a specific abutment. */
 const IMPLANT_WORDS = ['implant', 'abutment', 'abutmendile']
+/** Work built on implants (implantBased): the above plus the full-arch kinds that are. */
+const IMPLANT_BASED_WORDS = [
+  ...IMPLANT_WORDS, 'имплант', 'абатмент',
+  'all-on', 'allon', 'all on', 'hübriid', 'hybrid', 'гибрид',
+  'overdenture', 'katteprotees', 'покрывн',
+]
 const SINGLE_WORDS = ['kroon', 'crown']
 /** A shade is meaningless on a clear appliance, a surgical guide or a model. */
 const NO_SHADE_WORDS = [...APPLIANCE_WORDS, 'kirurg', 'surgic', 'mudel', 'model', 'ibt']
@@ -131,6 +145,7 @@ export function workTypeRules(too: string, types: readonly WorkType[]): WorkType
       // Same reasoning as the rest of the unknown branch: demand nothing and
       // offer nothing that was not asked for.
       supportsAbutment: false,
+      implantBased: false,
     }
   }
 
@@ -161,6 +176,7 @@ export function workTypeRules(too: string, types: readonly WorkType[]): WorkType
     supportsGlaze: toothMode === 'tooth' && !noShade,
     supportsTexture: toothMode === 'tooth' && !noShade,
     supportsAbutment: toothMode === 'tooth' && hits(tokens, IMPLANT_WORDS),
+    implantBased: toothMode !== 'none' && hits(tokens, IMPLANT_BASED_WORDS),
   }
 }
 
