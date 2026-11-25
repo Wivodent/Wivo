@@ -68,3 +68,31 @@ describe('Tulu = Σ byWorkType.income', () => {
     expect(income([j])).toBe(0)
   })
 })
+
+describe('work type options in the cost (2.2.0)', () => {
+  const options = [
+    { id: 'metal-bar', nimi: 'Metal bar', lisahind: 400, kulu: 120, yhik: 'too' as const },
+    { id: 'pink-gingiva', nimi: 'Pink gingiva', lisahind: 15, kulu: 4, yhik: 'hammas' as const },
+  ]
+  const withOptions = (jobs: Job[], opts = options) => calculateFinance({
+    jobs, allJobs: jobs, invoices: [], payments: [], payouts: [], rates: [], hours: [],
+    workers: [], types: [{ nimi: 'Kroon', hex: '#111' }] as never, options: opts,
+    materialCosts: {}, fixedCosts: [], overheads: [],
+    doneStageKey: 'valmis', periodStart: '2026-08-01', periodEnd: '2026-08-31',
+  })
+  const job = base({
+    hambad: '11,12,13',
+    work_items: [{ id: 'a', too: 'Kroon', hambad: '11,12,13', valikud: { framework: ['metal-bar'], extras: ['pink-gingiva'] } }],
+  })
+
+  it("a finished job's chosen options add their cost: per job once, per tooth times its teeth", () => {
+    // 120 + 3 × 4
+    expect(withOptions([job]).consumableCost).toBe(132)
+    expect(withOptions([job]).byWorkType.find(b => b.name === 'Kroon')?.costs).toBe(132)
+  })
+
+  it('no options chosen, or no library: the cost is what it was', () => {
+    expect(withOptions([base({ hambad: '11' })]).consumableCost).toBe(0)
+    expect(withOptions([job], []).consumableCost).toBe(0)
+  })
+})

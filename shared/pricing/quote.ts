@@ -26,6 +26,7 @@
 import type { PriceBook } from './priceBook'
 import { calcProduction, workTypePriceFor } from './priceBook'
 import { toothCount } from './teeth'
+import { optionLines, type ItemOptions } from './workOptions'
 import { t } from '../i18n'
 
 /** One piece of work: a type, the teeth it covers, and what it is made of. */
@@ -44,6 +45,8 @@ export interface QuoteItem {
    * simply left behind.
    */
   materjal?: string | null
+  /** The options chosen for this piece of work (group key → option ids). */
+  valikud?: ItemOptions | null
 }
 
 export interface QuoteInput {
@@ -72,7 +75,7 @@ export interface QuoteInput {
   extras?: { nimi: string; hind: number }[]
 }
 
-export type QuoteSource = 'tüüp' | 'materjal' | 'hambad' | 'kiirtöö' | 'mudel' | 'disain' | 'lisateenus'
+export type QuoteSource = 'tüüp' | 'materjal' | 'hambad' | 'valik' | 'kiirtöö' | 'mudel' | 'disain' | 'lisateenus'
 
 export interface QuoteLine {
   source: QuoteSource
@@ -159,6 +162,14 @@ export function quoteJob(input: QuoteInput, book: PriceBook): Quote {
     base += result.amount
     priced++
     lines.push({ source: result.source, label, amount: round2(result.amount) })
+    // The options chosen for this work: each its own line, so the price says
+    // "All-on-4" and "Metal bar" apart. Part of production, so a rush job
+    // multiplies them like the work they belong to.
+    for (const o of optionLines(item, book.options)) {
+      if (o.price === 0) continue
+      base += o.price
+      lines.push({ source: 'valik', label: `${label} · ${o.nimi}`, amount: o.price })
+    }
   }
 
   // Nothing at all could be priced — say so rather than reporting a zero total

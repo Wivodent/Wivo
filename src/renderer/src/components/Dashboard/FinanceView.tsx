@@ -109,6 +109,7 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
       kogumispension_protsent: w.kogumispension_protsent,
       maksuvaba_tulu: w.maksuvaba_tulu,
     })),
+    options: settings.tooValikud,
     taxRates: {
       tooandjaMaksudProtsent: baseEmployerPct,
       tulumaksProtsent: settings.tulumaksProtsent,
@@ -128,7 +129,7 @@ export function FinanceView({ jobs, period, custom }: FinanceViewProps) {
     // Rent does not accrue for days that have not happened. Counts use the
     // whole period; overheads use only the elapsed part of it.
     overheadEnd: elapsedEndOf(range),
-  }), [jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers, wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob, settings.yldkulud, settings.toopaevadNadalas, baseEmployerPct, settings.tulumaksProtsent, settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent, settings.kogumispensionProtsent, doneStageKey, range, estonianTax])
+  }), [jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers, wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob, settings.yldkulud, settings.toopaevadNadalas, settings.tooValikud, baseEmployerPct, settings.tulumaksProtsent, settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent, settings.kogumispensionProtsent, doneStageKey, range, estonianTax])
 
   // Margin against the FULL cost of employment, not gross pay: the taxes are
   // real money leaving the account.

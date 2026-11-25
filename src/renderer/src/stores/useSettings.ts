@@ -25,6 +25,7 @@ export {
 } from '@shared/pricing/priceBook'
 import { workTypeImageFile } from '../lib/workTypeImages'
 import { workTypePriceFor } from '@shared/pricing/priceBook'
+import { normaliseGroups, normaliseOptions, type WorkOption } from '@shared/pricing/workOptions'
 import type { MailPolicy } from '@shared/billing/sendGuard'
 import { DEFAULT_MAIL_TEMPLATE, type MailTemplate } from '@shared/billing/mailTemplate'
 import type { MaterialPricing, FixedCost, ExtraService, Overhead, PriceBook } from '@shared/pricing/priceBook'
@@ -161,6 +162,12 @@ export interface WivoSettings {
   // asks how many were used, and insists on an answer at "Valmis". Empty by
   // default — a lab with no capsule printers is never asked and never blocked.
   kapslimasinad: string[]
+  /**
+   * The option library (shared/pricing/workOptions): every option defined
+   * once, with its extra price and cost; work types offer them through their
+   * groups. In `pricing`, with the other prices.
+   */
+  tooValikud: WorkOption[]
   materjalid: string[]    // Materjalid — material buttons + the price table rows
   // Töö tüübid — suggestions on the job form's Töö field AND the colour key for
   // every calendar fill, dashboard swatch and legend row.
@@ -300,6 +307,7 @@ function defaultSettings(): WivoSettings {
     tekstiSuurus: 1,
     masinad: [...MACHINE_OPTIONS],
     kapslimasinad: [],
+    tooValikud: [],
     materjalid: [...MATERIAL_OPTIONS],
     // Every permission off. A clinic that connects a mailbox and walks away
     // has connected a mailbox and nothing else.
@@ -420,6 +428,7 @@ function workTypeList(v: unknown, fallback: WorkType[], repairColours: boolean):
               .filter(a => a.alates > 0 && a.hind > 0)
           : undefined,
         ...(Array.isArray(type.match) ? { match: type.match } : {}),
+        valikuGrupid: normaliseGroups(type.valikuGrupid),
       }]
     }
     return []
@@ -496,6 +505,7 @@ function loadSettings(): WivoSettings {
       tekstiSuurus: clampTextScale(stored.tekstiSuurus),
       masinad: strList(stored.masinad, def.masinad),
       kapslimasinad: strList(stored.kapslimasinad, def.kapslimasinad),
+      tooValikud: normaliseOptions(stored.tooValikud),
       materjalid: strList(stored.materjalid, def.materjalid),
       tooTuubid: (() => {
         const base = mergeLegacyPrices(
@@ -672,6 +682,12 @@ export function applyClinicRow(row: Partial<ClinicSettingsRow>): void {
     ...(row.material_costs ? { materialCosts: row.material_costs } : {}),
     ...(row.machines ? { masinad: strList(row.machines, prev.masinad) } : {}),
     ...(row.pricing ?? {}),
+    // Cleaned like the local copy. A row written by a version before 2.2.0
+    // has no library: what is here is kept, and written back on the next
+    // price change, rather than wiped.
+    ...(row.pricing && Array.isArray((row.pricing as { tooValikud?: unknown }).tooValikud)
+      ? { tooValikud: normaliseOptions((row.pricing as { tooValikud?: unknown }).tooValikud) }
+      : { tooValikud: prev.tooValikud }),
     ...(row.payroll ?? {}),
     // `laboratory` is absent on every row written before 1.33 — those are all
     // labs, so undefined must read as TRUE, not as false.
@@ -816,6 +832,11 @@ export function useSettings() {
 
   const setKapslimasinad = useCallback((items: string[]) => {
     setSettings(prev => ({ ...prev, kapslimasinad: items }), ['pricing'])
+  }, [setSettings])
+
+  /** The option library, whole (Settings → Prices → Options). */
+  const setTooValikud = useCallback((items: WorkOption[]) => {
+    setSettings(prev => ({ ...prev, tooValikud: items }), ['pricing'])
   }, [setSettings])
 
   const setLisateenused = useCallback((items: ExtraService[]) => {
@@ -1070,7 +1091,7 @@ export function useSettings() {
 
   return {
     settings, save, setMaterialPrice, setMaterialCost, setDesignFee, setDefaultMachine, setKasutajaNimi,
-    setTeema, setOmaTeema, setOmaTeemaToken, toggleRiba, setNumber, setFlag, setTekstiSuurus, setFixedCosts, setLisateenused, setYldkulud, setKapslimasinad, setPaneeliSuund,
+    setTeema, setOmaTeema, setOmaTeemaToken, toggleRiba, setNumber, setFlag, setTekstiSuurus, setFixedCosts, setLisateenused, setYldkulud, setKapslimasinad, setTooValikud, setPaneeliSuund,
     addOption, removeOption, renameOption, resetOptions,
     setEpost,
     addWorkType, removeWorkType, updateWorkType, moveWorkType, resetWorkTypes,
@@ -1122,6 +1143,7 @@ export function priceBookOf(s: WivoSettings = snapshot): PriceBook {
     kiirtooKordaja: s.kiirtooKordaja,
     designFee: s.designFee,
     mudeliHind: s.mudeliHind,
+    options: s.tooValikud,
   }
 }
 

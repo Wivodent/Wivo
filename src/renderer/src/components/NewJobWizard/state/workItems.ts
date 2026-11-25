@@ -15,6 +15,7 @@ import {
   archesOf, teethForArch, teethToHambad, workTypeRules, baseTypeName,
   materialFor, materialsOf, machineFor,
 } from '@shared/wizard'
+import { cleanChoice } from '@shared/pricing/workOptions'
 
 /**
  * ONE work item per selected type, in selection order.
@@ -41,12 +42,16 @@ export function wizardWorkItems(state: NewJobState, types: readonly WorkType[]):
     const masina = machineFor(state, key)
     const mach = masina ? { masina } : {}
 
+    // The options chosen for this work, kept to what its type offers now.
+    const valikud = cleanChoice(types.find(type => type.nimi === nimi)?.valikuGrupid, state.optionsByType?.[key])
+    const opts = valikud ? { valikud } : {}
+
     // An arch type on BOTH jaws is two pieces of work, so it is two items — see
     // archesOf() for why that is a pricing rule and not a display one. As one
     // item it was a single row carrying 32 teeth, and a per-job-priced All-on-X
     // came out at the single-arch price whichever answer the user gave.
     if (rules.toothMode === 'arch') {
-      if (!state.selectedArch) return [{ id: `wiz:${key}`, too: nimi, hambad: '', ...mat, ...mach }]
+      if (!state.selectedArch) return [{ id: `wiz:${key}`, too: nimi, hambad: '', ...mat, ...mach, ...opts }]
       const arches = archesOf(state.selectedArch)
       // The arch answer fills the jaw; an explicit selection narrows it. An
       // All-on-4 that stops short of the last molar had no way to say so while
@@ -63,6 +68,7 @@ export function wizardWorkItems(state: NewJobState, types: readonly WorkType[]):
           hambad: teethToHambad(teeth),
           ...mat,
           ...mach,
+          ...opts,
           ...abutmentsFor(state, key, implants),
           ...(implants.length > 0 ? { implantaadid: teethToHambad(implants) } : {}),
         }
@@ -100,6 +106,7 @@ export function wizardWorkItems(state: NewJobState, types: readonly WorkType[]):
       hambad,
       ...mat,
       ...mach,
+      ...opts,
       ...abut,
       ...(implants.length > 0 ? { implantaadid: teethToHambad(implants) } : {}),
       ...(partialDesign ? { disain_hambad: teethToHambad(designed) } : {}),
@@ -153,7 +160,7 @@ export function wizardQuoteInput(state: NewJobState, types: readonly WorkType[])
     // materjal travels with the item: quoteJob prices each one by what it is
     // actually made of, and only falls back to the job-level material below.
     items: wizardWorkItems(state, types).map(i => ({
-      too: i.too, hambad: i.hambad, materjal: i.materjal ?? null,
+      too: i.too, hambad: i.hambad, materjal: i.materjal ?? null, valikud: i.valikud ?? null,
     })),
     materjal: materialsOf(state)[0] ?? null,
     kiirtoo: state.rush,

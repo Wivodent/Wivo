@@ -159,6 +159,12 @@ export interface WorkItem {
    * we cannot know from a tooth number whether there is titanium under it.
    */
   implantaadid?: string
+  /**
+   * The options chosen for this work (shared/pricing/workOptions): group key →
+   * option ids from the clinic's library. Absent: none chosen, as on every job
+   * made before 2.2.0.
+   */
+  valikud?: Record<string, string[]>
   kruvi?: string          // screw/abutment reference for every tooth of this item
   /**
    * Per-TOOTH screw / abutment reference, keyed by FDI number as a string.

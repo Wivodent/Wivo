@@ -17,6 +17,7 @@ import { WORK_TYPE_PALETTE, sortedTiers, type WorkType, type PriceMode, type Wor
 import { workTypeImage, slugifyWorkType } from '../lib/workTypeImages'
 import { workType3dImage } from '../lib/workType3d'
 import { WorkTypeArt } from './ui/WorkTypeArt'
+import { OptionLibrarySection, TypeOptionGroups } from './Settings/WorkOptionsEditor'
 import { RepriceJobsSection } from './Settings/RepriceJobsSection'
 import { supabase, updateProfile, displayIdentity } from '../lib/supabase'
 import type { PipelineStage } from '../config/pipeline'
@@ -961,6 +962,10 @@ function WorkTypePriceCard({ type, onPatch }: {
           {t('settingsPage.addCost')}
         </button>
       </div>
+
+      {/* The choices this work comes with (Framework: Metal bar · Titanium
+          mesh), from the option library below the cards. */}
+      <TypeOptionGroups type={type} onPatch={onPatch} />
     </div>
   )
 }
@@ -2063,6 +2068,9 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
                     </div>
                   )
               })()}
+
+              {/* Work type options, each defined once (shared/pricing/workOptions). */}
+              <OptionLibrarySection />
 
               <div className="card px-5 py-4 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-base text-ink-soft">{t('settingsPage.pricesSaveOnLeave')}</span>

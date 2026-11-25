@@ -13,6 +13,7 @@ import { DesignSplit } from '../production/DesignSplit'
 import { PartnerShare } from '../production/PartnerShare'
 import { WorkflowSection } from '../production/WorkflowSection'
 import { WIZARD_INPUT, FOCUS_RING } from '../wizardTheme'
+import { OptionGroupButtons } from '../production/OptionGroupButtons'
 import { SectionCard } from '../../ui/SectionCard'
 import { t } from '@/lib/i18n'
 
@@ -90,6 +91,9 @@ function WorkItemCard({ typeKey, state, patch, first }: {
           {t('wizard.sameMachineAsFirst')}
         </button>
       )}
+      {/* The type's options (Framework: Metal bar · Titanium mesh · None),
+          set up under Settings → Prices. */}
+      {typeKey && <OptionGroupButtons typeKey={typeKey} state={state} patch={patch} />}
     </div>
   )
 }

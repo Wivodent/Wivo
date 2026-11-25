@@ -18,6 +18,7 @@
  */
 import type { Job } from '../types/job'
 import { revisionReasons, revisionReasonText, jobWorkItems, implantCount, jobHardwareUnits } from '../types/job'
+import { optionTotals, type WorkOption } from '@shared/pricing/workOptions'
 import type { InvoiceFull } from '../types/invoice'
 import type { MaterialPricing, FixedCost, Overhead } from '../stores/useSettings'
 import type { WorkType } from '../config/workTypes'
@@ -311,6 +312,12 @@ export interface FinanceInput {
    */
   taxRates?: PayrollTaxRates
   types: WorkType[]
+  /**
+   * The option library (shared/pricing/workOptions): a finished job's chosen
+   * options add their cost to its consumables. Absent: options cost nothing,
+   * as before 2.2.0.
+   */
+  options?: WorkOption[]
   materialCosts: Record<string, MaterialPricing>
   /** Selling prices — used as fallback when materialCosts has no entry. */
   materialPrices?: Record<string, MaterialPricing>
@@ -337,7 +344,7 @@ export function calculateFinance(input: FinanceInput): FinanceStats {
   const {
     jobs, invoices, payments, payouts, rates, hours, workers, types,
     materialCosts, materialPrices, fixedCosts, overheads, doneStageKey, periodStart, periodEnd, allJobs,
-    overheadEnd, taxRates,
+    overheadEnd, taxRates, options,
   } = input
 
   const inPeriod = (d: string | null) => !!d && d >= periodStart && d <= periodEnd
@@ -425,6 +432,8 @@ export function calculateFinance(input: FinanceInput): FinanceStats {
     if (c != null) { materialCost += c; costedJobs++ }
     // Hardware, so implants where they are marked — see jobHardwareUnits.
     consumableCost += workTypeConsumables(j.too, types, jobHardwareUnits(j)).total
+    // And what the chosen options cost (a metal bar, a titanium mesh).
+    for (const item of jobWorkItems(j)) consumableCost += optionTotals(item, options).cost
   }
   materialCost = round2(materialCost)
   consumableCost = round2(consumableCost)
@@ -481,7 +490,7 @@ export function calculateFinance(input: FinanceInput): FinanceStats {
       b.income += jobIncome
       b.revenue += jobRev
       b.material += jobMatCost
-      b.costs += jobCons + perJobFixed
+      b.costs += jobCons + perJobFixed + (items[0] ? optionTotals(items[0], options).cost : 0)
       typeBuckets.set(name, b)
     } else {
       // Multi-type — each work item gets its share.
@@ -517,6 +526,7 @@ export function calculateFinance(input: FinanceInput): FinanceStats {
         b.material += round2(jobMatCost * share)
         b.costs += round2(
           workTypeConsumables(item.too, types, implantCount(item) ?? itemTeeth).total + fixedShare
+          + optionTotals(item, options).cost
         )
         typeBuckets.set(name, b)
       }

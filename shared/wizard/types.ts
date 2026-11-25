@@ -179,6 +179,12 @@ export interface NewJobState {
   orderSource: OrderSource | null
   /** Our doctor who ordered it, when `orderSource` is 'own' (jobs.order_doctor). */
   orderDoctor: string | null
+  /**
+   * The options chosen per work type key (shared/pricing/workOptions): group
+   * key → option ids. Becomes each work item's `valikud`. Absent on drafts
+   * saved before 2.2.0, which read as nothing chosen.
+   */
+  optionsByType: Record<string, Record<string, string[]>>
   /** customers.id → job.customer_id. */
   customer: string | null
   customerReference: string
@@ -299,6 +305,7 @@ export function createEmptyNewJobState(init: NewJobStateInit = {}): NewJobState 
     patient: null,
     orderSource: null,
     orderDoctor: null,
+    optionsByType: {},
     customer: null,
     customerReference: '',
     description: '',

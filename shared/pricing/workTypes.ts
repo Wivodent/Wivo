@@ -86,6 +86,11 @@ export interface WorkType {
   // Extra lowercase substrings that also mean this type. The name itself always
   // matches, so this is only for synonyms and English spellings.
   match?: string[]
+  /**
+   * The choices this work comes with ("Framework: Metal bar, Titanium mesh"),
+   * pointing at the clinic's option library by id (shared/pricing/workOptions).
+   */
+  valikuGrupid?: import('./workOptions').WorkOptionGroup[]
 }
 
 // Order matters: the first match wins, so the more specific terms sit above the

@@ -47,6 +47,8 @@ export interface ClinicSettingsRow {
     yldkulud: import('../stores/useSettings').Overhead[]
     toopaevadNadalas: number
     kapslimasinad: string[]
+    /** The option library (shared/pricing/workOptions). Absent on rows before 2.2.0. */
+    tooValikud?: import('@shared/pricing/workOptions').WorkOption[]
   }
   payroll: {
     tooandjaMaksudProtsent: number
@@ -135,6 +137,7 @@ export function toRow(s: WivoSettings, stages: PipelineStage[]): Omit<ClinicSett
       // worked out, and `machines` is a plain string[] that other code reads
       // as "the buttons on the job form".
       kapslimasinad: s.kapslimasinad,
+      tooValikud: s.tooValikud,
     },
     payroll: {
       tooandjaMaksudProtsent: s.tooandjaMaksudProtsent,
@@ -191,6 +194,7 @@ export const COLUMN_OF: Record<string, ClinicColumn> = {
   yldkulud: 'pricing',
   toopaevadNadalas: 'pricing',
   kapslimasinad: 'pricing',
+  tooValikud: 'pricing',
   ajajoonAlgus: 'calendar',
   ajajoonLopp: 'calendar',
   nadalAlgus: 'calendar',

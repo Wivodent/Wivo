@@ -192,6 +192,11 @@ export interface PriceBook {
    * Treated like the design fee: added on top, never multiplied by the rush.
    */
   mudeliHind: number
+  /**
+   * The clinic's option library (shared/pricing/workOptions): an item's chosen
+   * options add their extra price. Absent: options add nothing.
+   */
+  options?: import('./workOptions').WorkOption[]
 }
 
 export interface WorkTypePriceResult {

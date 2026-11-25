@@ -6,6 +6,7 @@ import type {
 } from '@shared/wizard'
 import { baseTypeName, typeKeyIndex, materialsOf, machinesOf } from '@shared/wizard'
 import { quoteJob } from '@shared/pricing/quote'
+import { chosenOptionNames } from '@shared/pricing/workOptions'
 import type { WizardStepComponent } from '../types'
 import { WizardSummaryRow } from '../ui/WizardSummaryRow'
 import { ReviewSection } from '../review/ReviewSection'
@@ -248,6 +249,11 @@ export const StepReview: WizardStepComponent = ({ state, patch, rules, errors, s
                           {t('wizard.toothTeeth', { toothCount })}
                           {item.bridge ? t('wizard.bridge') : ''}
                         </span>
+                        {chosenOptionNames(item.valikud, settings.tooValikud).length > 0 && (
+                          <span className="text-base text-ink">
+                            {chosenOptionNames(item.valikud, settings.tooValikud).join(' · ')}
+                          </span>
+                        )}
                       </span>
                     ) : (
                       t('wizard.noTeethChosen')

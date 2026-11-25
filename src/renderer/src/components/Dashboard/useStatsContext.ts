@@ -191,6 +191,7 @@ export function useStatsContext(
         kogumispension_protsent: w.kogumispension_protsent,
         maksuvaba_tulu: w.maksuvaba_tulu,
       })),
+      options: settings.tooValikud,
       taxRates: {
         tooandjaMaksudProtsent: baseEmployerPct,
         tulumaksProtsent: settings.tulumaksProtsent,
@@ -214,7 +215,7 @@ export function useStatsContext(
   }, [
     wantsFinance, jobsInPeriod, jobs, invoices, payments, payouts, rates, hours, workers,
     wt.types, settings.materialCosts, settings.materialPrices, settings.fixedCostsPerJob,
-    settings.yldkulud, settings.toopaevadNadalas, baseEmployerPct, settings.tulumaksProtsent,
+    settings.yldkulud, settings.toopaevadNadalas, settings.tooValikud, baseEmployerPct, settings.tulumaksProtsent,
     settings.maksuvabaTuluKuus, settings.tootajaTootuskindlustusProtsent,
     settings.kogumispensionProtsent, doneStageKey, range, estonianTax,
   ])
