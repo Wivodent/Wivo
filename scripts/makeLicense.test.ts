@@ -20,9 +20,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createPrivateKey, createPublicKey, sign as nodeSign, verify as nodeVerify } from 'node:crypto'
 import {
-  MODULE_KEYS, b64urlDecode, licenceAllowsApi, licenceApiOrigins, licenceModules,
+  GRACE_DAYS, MODULE_KEYS, b64urlDecode, licenceAllowsApi, licenceApiOrigins, licenceModules, licenceStatus,
   parseToken, signingInput,
 } from '../shared/license/token'
+import { judgePublishedLicence, licenceFileText } from '../shared/license/published'
+import { spawnSync } from 'node:child_process'
 
 const SCRIPT = 'scripts/make-license.mjs'
 const ORG = '8f14e45f-ceea-467a-9b71-1c4a9c0e8b2d'
@@ -213,6 +215,97 @@ describe('renew keeps what renewing must not quietly change', () => {
     // And it still means everything, as it always did.
     expect([...licenceModules(after)].sort()).toEqual([...MODULE_KEYS].sort())
     expect(verifies(out, 1)).toBe(true)
+  })
+})
+
+/** YYYY-MM-DD, `days` from today (UTC), as the tool counts. */
+const fromToday = (days: number): string => {
+  const t = new Date()
+  return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate() + days)).toISOString().slice(0, 10)
+}
+const payloadOf = (token: string) => parseToken(token)!.payload
+
+describe('the end on a date: --until', () => {
+  it('sign and renew end on the date given', () => {
+    expect(payloadOf(sign('--modules', 'jobs', '--until', '2099-12-31')).exp).toBe('2099-12-31')
+    const renewed = run('renew', sign('--modules', 'jobs'), '--key', KEY, '--until', '2098-06-30', '--quiet').trim()
+    expect(payloadOf(renewed).exp).toBe('2098-06-30')
+  })
+
+  it('refuses --until with --months, a date that is not one, and a date in the past', () => {
+    expect(refusal('sign', '--org', ORG, '--name', 'X', '--api', API, '--modules', 'jobs', '--key', KEY, '--until', '2099-12-31', '--months', '3'))
+      .toMatch(/choose one end/)
+    expect(refusal('sign', '--org', ORG, '--name', 'X', '--api', API, '--modules', 'jobs', '--key', KEY, '--until', '2099-02-30'))
+      .toMatch(/not a calendar date/)
+    expect(refusal('sign', '--org', ORG, '--name', 'X', '--api', API, '--modules', 'jobs', '--key', KEY, '--until', '31.12.2099'))
+      .toMatch(/YYYY-MM-DD/)
+    expect(refusal('sign', '--org', ORG, '--name', 'X', '--api', API, '--modules', 'jobs', '--key', KEY, '--until', '2020-01-01'))
+      .toMatch(/in the past/)
+  })
+})
+
+describe('terminate: the end of a contract', () => {
+  /** A licence issued long ago, ending far ahead: what a clinic has before its contract ends. */
+  const longRunning = () => {
+    const b64 = Buffer.from(JSON.stringify({
+      v: 2, name: 'Riia kliinik', plan: 'labor_plus', seats: 7, iat: '2026-01-01', exp: '2099-01-01', org: ORG, api: [API], modules: ['jobs', 'stock'],
+    })).toString('base64url')
+    const sig = nodeSign(null, Buffer.from(signingInput(b64, 2)), createPrivateKey(readFileSync(KEY)))
+    return `WIVO1.${b64}.${Buffer.from(sig).toString('base64url')}`
+  }
+  const terminate = (old: string, ...extra: string[]) => run('terminate', old, '--key', KEY, '--quiet', ...extra).trim().split('\n').pop()!
+
+  it('the same licence, issued today, ending in 14 days unless --until says otherwise', () => {
+    const old = longRunning()
+    const ended = terminate(old)
+    expect(verifies(ended, 2)).toBe(true)
+    const before = payloadOf(old), after = payloadOf(ended)
+    expect(after).toEqual({ ...before, iat: fromToday(0), exp: fromToday(14) })
+    expect(payloadOf(terminate(old, '--until', fromToday(3))).exp).toBe(fromToday(3))
+  })
+
+  it('the app takes it over the old one, though it ends sooner: it was issued later', () => {
+    const old = longRunning()
+    const ended = terminate(old)
+    const verify = (t: string) => (verifies(t, 2) ? payloadOf(t) : null)
+    const judged = judgePublishedLicence({
+      file: licenceFileText('dentiks', ended), build: 'dentiks', org: ORG, api: API,
+      current: { token: old, payload: payloadOf(old) }, verify,
+    })
+    expect(judged).toMatchObject({ ok: true, payload: { exp: fromToday(14) } })
+    // Saves go on through the end and the grace; then the app only reads.
+    const day = (n: number) => new Date(`${fromToday(n)}T12:00:00Z`)
+    expect(licenceStatus(payloadOf(ended), day(14)).state).toBe('active')
+    expect(licenceStatus(payloadOf(ended), day(14 + GRACE_DAYS)).state).toBe('grace')
+    expect(licenceStatus(payloadOf(ended), day(15 + GRACE_DAYS)).state).toBe('expired')
+  })
+
+  it('says what ends when, and that there is no offline lock', () => {
+    const r = spawnSync('node', [SCRIPT, 'terminate', longRunning(), '--key', KEY], { encoding: 'utf8' })
+    expect(r.status).toBe(0)
+    expect(r.stderr).toMatch(new RegExp(`Uus litsents: +välja antud ${fromToday(0)}, kehtib kuni ${fromToday(14)}`))
+    expect(r.stderr).toMatch(new RegExp(`alates ${fromToday(15 + GRACE_DAYS)} saab Wivo ainult lugeda`))
+    expect(r.stderr).toMatch(/võrguühenduseta lukustust pole/)
+  })
+
+  it('refuses a later end than the licence has, --months, a change of terms, and a licence already ended', () => {
+    const old = longRunning()
+    expect(refusal('terminate', old, '--key', KEY, '--until', '2099-06-01')).toMatch(/that is a renewal/)
+    expect(refusal('terminate', old, '--key', KEY, '--months', '1')).toMatch(/ends on a date/)
+    expect(refusal('terminate', old, '--key', KEY, '--modules', 'jobs')).toMatch(/keeps the licence as it is: --modules/)
+    const gone = 'WIVO1.' + Buffer.from(JSON.stringify({ v: 2, name: 'X', plan: 'labor', seats: 5, iat: '2020-01-01', exp: '2020-06-01', org: ORG, api: [API], modules: ['jobs'] })).toString('base64url') + '.AAAA'
+    expect(refusal('terminate', gone, '--key', KEY)).toMatch(/already ended on 2020-06-01/)
+    expect(refusal('terminate', '--key', KEY)).toMatch(/terminate needs the old token/)
+  })
+
+  it('a licence ending within 14 days anyway: by default it keeps its own end', () => {
+    const b64 = Buffer.from(JSON.stringify({ v: 2, name: 'X', plan: 'labor', seats: 5, iat: '2020-01-01', exp: fromToday(5), org: ORG, api: [API], modules: ['jobs'] })).toString('base64url')
+    const sig = nodeSign(null, Buffer.from(signingInput(b64, 2)), createPrivateKey(readFileSync(KEY)))
+    expect(payloadOf(terminate(`WIVO1.${b64}.${Buffer.from(sig).toString('base64url')}`)).exp).toBe(fromToday(5))
+  })
+
+  it('its grace days are the app\'s', () => {
+    expect(readFileSync(SCRIPT, 'utf8')).toContain(`const GRACE_DAYS = ${GRACE_DAYS}`)
   })
 })
 
@@ -464,6 +557,16 @@ describe('publishing a licence to a clinic', () => {
     const later = crafted({ v: 2, name: 'Dentiks', plan: 'labor', seats: 5, iat: '2099-01-01', exp: '2100-01-01', org: ORG, api: [DENTIKS_API], modules: ['jobs'] })
     writeFileSync(join(FEED, 'licence.json'), JSON.stringify({ v: 1, clinic: 'dentiks', token: later }))
     expect(refused(() => publish()).said).toMatch(/issued 2099-01-01/)
+  })
+
+  it('terminate --publish: the end of the contract reaches the clinic\'s desktops', () => {
+    reset({ orgId: ORG })
+    const old = crafted({ v: 2, name: 'Dentiks', plan: 'labor', seats: 5, iat: '2020-01-01', exp: '2099-01-01', org: ORG, api: [DENTIKS_API], modules: ['jobs'] })
+    writeFileSync(join(FEED, 'licence.json'), JSON.stringify({ v: 1, clinic: 'dentiks', token: old }))
+    const said = execFileSync('node', [SCRIPT, 'terminate', old, '--publish', '--clinic', 'dentiks'], { encoding: 'utf8', env: env(), stdio: ['ignore', 'pipe', 'pipe'] })
+    const token = said.trim().split('\n').filter(l => l.startsWith('WIVO1.')).pop()!
+    expect(published().token).toBe(token)
+    expect(payloadOf(token)).toMatchObject({ iat: fromToday(0), exp: fromToday(14), org: ORG, api: [DENTIKS_API], modules: ['jobs'] })
   })
 
   it('no stable release in the repository yet: not uploaded, and the token is still printed', () => {

@@ -7,6 +7,8 @@
  *   node scripts/make-license.mjs sign --org <uuid> --name "Riia kliinik" \
  *        --api https://abc.supabase.co --modules jobs,payroll,stock --months 12
  *   node scripts/make-license.mjs renew <old token> --months 12
+ *   node scripts/make-license.mjs renew <old token> --until 2027-12-31
+ *   node scripts/make-license.mjs terminate <old token> [--until 2026-12-09] --publish --clinic dentiks
  *   node scripts/make-license.mjs verify <token> --public <hex or file>
  *
  * KEYGEN writes `license-private.pem` (gitignored, KEEP IT) and prints the
@@ -16,6 +18,14 @@
  * licences.
  *
  * SIGN prints a token to paste into the customer's app, or to put on a stick.
+ * Its end is `--months N` from today (12 by default) or `--until YYYY-MM-DD`.
+ *
+ * TERMINATE ends a contract (docs/RELEASE.md §7a): the same licence as the old
+ * token, issued today, ending on `--until` (today + 14 days by default). With
+ * `--publish --clinic <id>` the desktops take it like a renewal: a licence
+ * issued on a later day replaces the installed one even when it ends sooner.
+ * After its end come the 14 days of grace, then the app only reads. A machine
+ * that never goes online keeps the licence it has: there is no offline lock.
  *
  * `--publish --clinic <id>` (with sign or renew) also puts it in the clinic's
  * own releases as licence.json, where its desktops take it at their next
@@ -278,6 +288,59 @@ function signerFrom(args) {
   return { yubikey: letter }
 }
 
+/** Today plus `days`, as YYYY-MM-DD (UTC). */
+const daysFrom = (today, days) => iso(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() + days)))
+
+/** `--until YYYY-MM-DD`: a real calendar date, or the tool stops. */
+function untilDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value ?? '')) die(`--until must be a date, YYYY-MM-DD (such as 2026-12-31); got: ${value ?? 'nothing'}`)
+  const d = new Date(`${value}T00:00:00Z`)
+  if (Number.isNaN(d.getTime()) || iso(d) !== value) die(`--until is not a calendar date: ${value}`)
+  return value
+}
+
+/** The licence's end: --until, else --months from today (12 by default). Never both, never in the past. */
+function expiry(args, today) {
+  const until = flag(args, '--until')
+  const monthsArg = flag(args, '--months')
+  if (args.includes('--until') && until === undefined) die('--until needs a date: --until YYYY-MM-DD')
+  if (until !== undefined && monthsArg !== undefined) die('--until and --months together: choose one end.')
+  if (until !== undefined) {
+    const exp = untilDate(until)
+    if (exp < iso(today)) die(`--until ${exp} is in the past: a licence ending before it is issued is no licence.`)
+    return exp
+  }
+  const months = Number(monthsArg ?? '12')
+  if (!Number.isInteger(months) || months <= 0) die('--months must be a whole number of months')
+  return iso(new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + months, today.getUTCDate())))
+}
+
+/** The old token's payload, from `renew` or `terminate`. Not checked here: it is only what to copy. */
+function oldPayload(args, cmd) {
+  const token = args.find(a => a.startsWith('WIVO1.'))
+  if (!token) die(`${cmd} needs the old token: make-license.mjs ${cmd} WIVO1.…`)
+  const parts = token.trim().split('.')
+  if (parts.length !== 3 || parts[0] !== 'WIVO1') die('That does not look like a Wivo token.')
+  try {
+    return JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'))
+  } catch {
+    die('Could not read the old token.')
+  }
+}
+
+/** The same licence as `old`, issued today, ending on `exp`. A v1 key stays v1. */
+function carriedOver(old, base) {
+  return old.v === 2
+    ? {
+        v: 2, name: base.name, plan: base.plan, seats: base.seats,
+        iat: base.iat, exp: base.exp,
+        org: old.org, api: old.api, modules: old.modules,
+      }
+    // A v1 key renewed stays v1 and keeps meaning "everything": turning it
+    // into a v2 key here would have to invent an org and an address.
+    : { v: 1, name: base.name, plan: base.plan, seats: base.seats, iat: base.iat, exp: base.exp }
+}
+
 function basePayload(args, old) {
   const name = flag(args, '--name') ?? old?.name
   if (!name) die('--name "Riia kliinik" is required')
@@ -293,14 +356,8 @@ function basePayload(args, old) {
     die('--seats must be a whole number of seats, or unlimited')
   }
 
-  const months = Number(flag(args, '--months') ?? '12')
-  if (!Number.isInteger(months) || months <= 0) die('--months must be a whole number of months')
-
   const today = new Date()
-  const exp = new Date(Date.UTC(
-    today.getUTCFullYear(), today.getUTCMonth() + months, today.getUTCDate()
-  ))
-  return { name, plan, seats, iat: iso(today), exp: iso(exp), months }
+  return { name, plan, seats, iat: iso(today), exp: expiry(args, today) }
 }
 
 async function sign(args) {
@@ -353,26 +410,44 @@ async function sign(args) {
  * the module list again every year is how a clinic loses Stock in January.
  */
 async function renew(args) {
-  const token = args.find(a => a.startsWith('WIVO1.'))
-  if (!token) die('renew needs the old token: make-license.mjs renew WIVO1.… --months 12')
-  const parts = token.trim().split('.')
-  if (parts.length !== 3 || parts[0] !== 'WIVO1') die('That does not look like a Wivo token.')
-  let old
-  try {
-    old = JSON.parse(Buffer.from(parts[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'))
-  } catch {
-    die('Could not read the old token.')
+  const old = oldPayload(args, 'renew')
+  await issueAndPublish(carriedOver(old, basePayload(args, old)), args)
+}
+
+/** Days a licence keeps saving after its end (GRACE_DAYS in shared/license/token.ts; the test checks). */
+const GRACE_DAYS = 14
+
+/**
+ * Terminate: the end of a contract (docs/RELEASE.md §7a). Everything as in
+ * the old token (name, plan, seats, organisation, address, modules); only
+ * the dates move: issued today, ending on --until, today + 14 days unless
+ * given. Never later than the old end: that would be a renewal.
+ */
+async function terminate(args) {
+  const old = oldPayload(args, 'terminate')
+  if (args.includes('--months')) die('terminate ends on a date: --until YYYY-MM-DD (today + 14 days if not given). For a longer licence, use renew.')
+  for (const f of ['--name', '--plan', '--seats', '--modules', '--org', '--api']) {
+    if (args.includes(f)) die(`terminate keeps the licence as it is: ${f} is not changed here. Use renew or sign for that.`)
   }
-  const base = basePayload(args, old)
-  const payload = old.v === 2
-    ? {
-        v: 2, name: base.name, plan: base.plan, seats: base.seats,
-        iat: base.iat, exp: base.exp,
-        org: old.org, api: old.api, modules: old.modules,
-      }
-    // A v1 key renewed stays v1 and keeps meaning "everything": turning it
-    // into a v2 key here would have to invent an org and an address.
-    : { v: 1, name: base.name, plan: base.plan, seats: base.seats, iat: base.iat, exp: base.exp }
+  const today = new Date()
+  if (old.exp && old.exp < iso(today)) die(`The old licence already ended on ${old.exp}: there is nothing to end.`)
+  // By default 14 days from today, or the licence's own end if that comes sooner.
+  const fortnight = daysFrom(today, 14)
+  const exp = args.includes('--until') ? expiry(args, today) : (old.exp && old.exp < fortnight ? old.exp : fortnight)
+  if (old.exp && exp > old.exp) die(`--until ${exp} is after the licence's own end, ${old.exp}: that is a renewal, not an end. Use renew.`)
+  const iat = iso(today)
+  if (old.iat && !(iat > old.iat)) {
+    console.error(`NOTE: the old licence was issued ${old.iat}, not before today. Desktops take a delivered licence only when it was issued on a later day,`)
+    console.error('so with --publish this one is refused; paste it in Settings → Licence on each machine, or terminate tomorrow.')
+  }
+  const payload = carriedOver(old, { name: old.name, plan: old.plan ?? 'labor', seats: old.seats ?? null, iat, exp })
+  if (!payload.name) die('The old token names no clinic.')
+  const readOnly = daysFrom(new Date(`${exp}T00:00:00Z`), GRACE_DAYS + 1)
+  console.error(`\nLepingu lõpetamine: ${payload.name}`)
+  console.error(`  Praegune litsents: välja antud ${old.iat ?? '—'}, kehtib kuni ${old.exp ?? '—'}`)
+  console.error(`  Uus litsents:      välja antud ${iat}, kehtib kuni ${exp}`)
+  console.error(`  Pärast ${exp} on 14 päeva armuaega; alates ${readOnly} saab Wivo ainult lugeda.`)
+  console.error('  Võrguühenduseta masin hoiab oma praegust litsentsi (võrguühenduseta lukustust pole).\n')
   await issueAndPublish(payload, args)
 }
 
@@ -403,18 +478,21 @@ const [cmd, ...rest] = process.argv.slice(2)
 if (cmd === 'keygen') keygen(rest)
 else if (cmd === 'sign') await sign(rest)
 else if (cmd === 'renew') await renew(rest)
+else if (cmd === 'terminate') await terminate(rest)
 else if (cmd === 'verify') verify(rest)
 else {
   console.log('Usage:')
   console.log('  node scripts/make-license.mjs keygen [--out license-test-private.pem]')
   console.log('  node scripts/make-license.mjs sign --org <uuid> --name "Lab OÜ" --api https://…')
   console.log('        [--modules jobs,payroll,stock|all] [--plan labor|labor_plus]')
-  console.log('        [--months 12] [--seats 5|unlimited] [--quiet]')
+  console.log('        [--months 12 | --until YYYY-MM-DD] [--seats 5|unlimited] [--quiet]')
   console.log('        signed by YubiKey C (PIN, touch); [--yubikey D] for the spare,')
   console.log('        or [--key <pem>] for a FILE key (development and testing only)')
   console.log('        [--publish --clinic <id>]: also into the clinic releases (licence.json),')
   console.log('        where its desktops take it within 30 minutes')
-  console.log('  node scripts/make-license.mjs renew WIVO1.… [--months 12] [--yubikey D|--key <pem>] [--publish --clinic <id>]')
+  console.log('  node scripts/make-license.mjs renew WIVO1.… [--months 12 | --until YYYY-MM-DD] [--yubikey D|--key <pem>] [--publish --clinic <id>]')
+  console.log('  node scripts/make-license.mjs terminate WIVO1.… [--until YYYY-MM-DD, today + 14 days if not given] --publish --clinic <id>')
+  console.log('        the end of a contract: the same licence, issued today, ending then (docs/RELEASE.md §7a)')
   console.log('  node scripts/make-license.mjs verify WIVO1.… --public <hex|file>')
   console.log('')
   console.log(`  modules: ${MODULES.join(', ')}`)

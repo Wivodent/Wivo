@@ -244,6 +244,7 @@ releases. Nobody pastes it. YubiKey C signs it, the same tool publishes it:
 ```
 node scripts/make-license.mjs renew WIVO1.… --months 12 --publish --clinic dentiks
 node scripts/make-license.mjs sign --org <uuid> --name "Dentiks" --api https://<ref>.supabase.co --modules … --months 12 --publish --clinic dentiks
+node scripts/make-license.mjs terminate WIVO1.… --publish --clinic dentiks        # the end of a contract, §7a
 ```
 
 The tool checks before the key is asked to sign:
@@ -274,6 +275,71 @@ users, expiry, plan. A licence fixed on the same day goes by pasting in Settings
 
 The licence is a public signed statement, like the release list. Nothing secret
 is in `licence.json`.
+
+A licence's end is `--months N` from today (12 by default) or a date:
+`--until YYYY-MM-DD`, with `sign` and with `renew`. Not both.
+
+## 7a. Lepingu lõpetamine (ending a contract)
+
+When a clinic's contract ends, its licence is re-issued with an earlier end. It
+reaches the desktops the same way as a renewal. Nobody at the clinic has to do
+anything.
+
+```
+node scripts/make-license.mjs terminate WIVO1.… --publish --clinic dentiks
+node scripts/make-license.mjs terminate WIVO1.… --until 2026-12-31 --publish --clinic dentiks
+```
+
+`WIVO1.…` is the clinic's current licence: the last one published
+(`releases/<id>/licence/licence.json`) or the one shown in Settings → Licence.
+
+**What the tool makes:**
+- the same licence: name, plan, seats, organisation, database address,
+  modules;
+- issued today;
+- ending on `--until`. Without it: **today + 14 days**, or the licence's own
+  end if that comes sooner.
+
+**What the tool refuses:**
+- an end after the licence's own end (that is a renewal: use `renew`);
+- `--months`;
+- a change of terms (`--name`, `--plan`, `--seats`, `--modules`, `--org`,
+  `--api`);
+- a licence that has already ended.
+
+Before the key signs, it shows the old and the new dates, and the day Wivo
+starts only reading.
+
+**Why the desktops take it, though it ends sooner:** a delivered licence
+replaces the installed one when it was **issued on a later day**. Its end
+doesn't count (§7). So the shorter licence wins, and an older token
+re-published by mistake can't bring the longer one back. Tests:
+`src/main/licenceFeed.test.ts` and `scripts/makeLicense.test.ts`.
+
+**What the clinic sees:**
+1. within 30 minutes, at each desktop's next check: "Licence updated", with the
+   new end;
+2. until the end date: everything works;
+3. after it: **14 days of grace**. Saves still work, and the app reminds them;
+4. then **Wivo only reads**. Everything can still be seen and exported, but
+   nothing can be saved.
+
+So with the default (today + 14 days), saves stop after about four weeks. To
+stop them on a given day D, use `--until` with D minus 15 days.
+
+**What this does not do:**
+- **There is no offline lock.** A machine that never goes online again keeps
+  the licence it has until that licence's own end.
+- **The same day as the last licence:** a desktop takes only a licence issued
+  on a later day. Terminating on the day the current licence was issued is
+  refused at `--publish` ("not_newer"). Terminate the next day, or paste the
+  new key in Settings → Licence on each machine.
+- **The clinic's data stays theirs.** Ending the licence deletes nothing, and
+  the clinic's database is the clinic's. The handover of data follows the
+  contract (export: `scripts/export-clinic.mjs`).
+- **The phone app checks no licence.** It keeps working for as long as the
+  clinic's database and its phone address do. The licence stops only the
+  desktops.
 
 ## 8. Files
 

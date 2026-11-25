@@ -70,6 +70,17 @@ describe('the licence published with the updates', () => {
     }
   })
 
+  it('the end of a contract (make-license.mjs terminate): issued later, it replaces the old one though it ends sooner', async () => {
+    const ended: LicencePayload = { ...old, iat: '2026-11-24', exp: '2026-12-08' }
+    expect(ended.exp < old.exp).toBe(true)
+    const m = machine(licenceFileText('dentiks', tokenOf(ended)))
+    expect(await checkPublishedLicence(m.deps)).toEqual({ installed: { at: '2026-11-24T12:00:00.000Z', from: old, to: ended } })
+    expect(m.installed()?.payload).toEqual(ended)
+    // An older token re-published by mistake cannot bring the longer licence back.
+    const again = machine(licenceFileText('dentiks', tokenOf(old)), { installed: () => ({ token: tokenOf(ended), payload: ended }) })
+    expect(await checkPublishedLicence(again.deps)).toEqual({ refused: 'not_newer' })
+  })
+
   it('no licence.json: nothing changes', async () => {
     const m = machine(null)
     expect(await checkPublishedLicence(m.deps)).toEqual({ refused: 'missing' })
