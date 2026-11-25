@@ -56,6 +56,9 @@ export interface WizardPricing {
  *  - glaze/texture/notes/materials[1..] have no column and compose into
  *    kirjeldus via composeKirjeldus()
  */
+/** Who ordered a job: our clinic, another clinic, or a dentist / technician (sql/128). */
+export type OrderSource = 'own' | 'clinic' | 'person'
+
 export interface NewJobState {
   /** WorkType.nimi VERBATIM from useWorkTypes().types. Selection order is
    *  render order. Never free text — colorMap is exact-name keyed. */
@@ -168,6 +171,14 @@ export interface NewJobState {
   /** §2.5 switches ticked or unticked here, by stage key. Absent: the stage's own default. */
   switches: Record<string, boolean>
   patient: WizardPatient | null
+  /**
+   * Who ordered the work (jobs.order_source, sql/128): our own clinic,
+   * another clinic, or a dentist / technician. Null: not answered yet (and
+   * every draft saved before 2.2.0), which the form reads as its default.
+   */
+  orderSource: OrderSource | null
+  /** Our doctor who ordered it, when `orderSource` is 'own' (jobs.order_doctor). */
+  orderDoctor: string | null
   /** customers.id → job.customer_id. */
   customer: string | null
   customerReference: string
@@ -286,6 +297,8 @@ export function createEmptyNewJobState(init: NewJobStateInit = {}): NewJobState 
     productionMethod: null,
     switches: {},
     patient: null,
+    orderSource: null,
+    orderDoctor: null,
     customer: null,
     customerReference: '',
     description: '',

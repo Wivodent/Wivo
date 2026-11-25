@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions.
--- Expected rows: 2153.
+-- Expected rows: 2163.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -63,6 +63,7 @@ with expected(kind, key, def) as (values
     ('constraint', 'public.clinics.clinics_pkey', 'PRIMARY KEY (id)'),
     ('constraint', 'public.customers.customers_billing_mode_check', 'CHECK ((billing_mode = ANY (ARRAY[''per_job''::text, ''monthly''::text])))'),
     ('constraint', 'public.customers.customers_clinic_id_fkey', 'FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE'),
+    ('constraint', 'public.customers.customers_kind_valid', 'CHECK ((kind = ANY (ARRAY[''clinic''::text, ''person''::text])))'),
     ('constraint', 'public.customers.customers_pkey', 'PRIMARY KEY (id)'),
     ('constraint', 'public.file_download_grant.file_download_grant_org_id_fkey', 'FOREIGN KEY (org_id) REFERENCES clinics(id) ON DELETE CASCADE'),
     ('constraint', 'public.file_download_grant.file_download_grant_pkey', 'PRIMARY KEY (id)'),
@@ -142,6 +143,8 @@ with expected(kind, key, def) as (values
     ('constraint', 'public.jobs.jobs_implant_count_valid', 'CHECK (((implant_count IS NULL) OR ((implant_count >= 0) AND (implant_count <= 64))))'),
     ('constraint', 'public.jobs.jobs_impression_type_valid', 'CHECK (((impression_type IS NULL) OR (impression_type = ANY (ARRAY[''digital''::text, ''conventional''::text]))))'),
     ('constraint', 'public.jobs.jobs_materjali_yhikud_valid', 'CHECK (((materjali_yhikud IS NULL) OR ((materjali_yhikud >= 0) AND (materjali_yhikud <= 500))))'),
+    ('constraint', 'public.jobs.jobs_order_doctor_fkey', 'FOREIGN KEY (order_doctor) REFERENCES profiles(id) ON DELETE SET NULL'),
+    ('constraint', 'public.jobs.jobs_order_source_valid', 'CHECK (((order_source IS NULL) OR (order_source = ANY (ARRAY[''own''::text, ''clinic''::text, ''person''::text]))))'),
     ('constraint', 'public.jobs.jobs_patient_id_fkey', 'FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL'),
     ('constraint', 'public.jobs.jobs_pkey', 'PRIMARY KEY (id)'),
     ('constraint', 'public.jobs.jobs_production_method_valid', 'CHECK (((production_method IS NULL) OR (production_method = ANY (ARRAY[''print''::text, ''mill''::text]))))'),
@@ -393,6 +396,7 @@ with expected(kind, key, def) as (values
     ('default', 'public.customers.cc_emails', '''{}''::text[]'),
     ('default', 'public.customers.created_at', 'now()'),
     ('default', 'public.customers.id', 'gen_random_uuid()'),
+    ('default', 'public.customers.kind', '''clinic''::text'),
     ('default', 'public.customers.payment_terms_days', '14'),
     ('default', 'public.customers.price_overrides', '''{}''::jsonb'),
     ('default', 'public.customers.updated_at', 'now()'),
@@ -577,7 +581,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.audit_entries(p_limit integer, p_action text, p_before timestamp with time zone)', 'security definer, stable, search_path=public, body md5 4e585f2714581ddf3e63746e5472c581'),
     ('function', 'public.audit_export(p_kind text, p_rows integer, p_filters jsonb)', 'security definer, volatile, search_path=public, body md5 98f6236f24151662068153ce477689b6'),
     ('function', 'public.audit_field_change(p_rule text, p_old jsonb, p_new jsonb, p_has_old boolean, p_has_new boolean)', 'security invoker, immutable, search_path=public, body md5 e56043e87914c80da4f19fce7909e55b'),
-    ('function', 'public.audit_field_rules()', 'security invoker, immutable, search_path=public, body md5 c7872294786011ed594cd7e66ca6d44c'),
+    ('function', 'public.audit_field_rules()', 'security invoker, immutable, search_path=public, body md5 0ed7ba7b58dbfd41a016721a884af1a7'),
     ('function', 'public.audit_job_change()', 'security definer, volatile, search_path=public, body md5 262207a3428e66e082245e8a384fa988'),
     ('function', 'public.audit_job_diff(p_old jsonb, p_new jsonb)', 'security invoker, immutable, search_path=public, body md5 996c56cea1c76f4add9aebd89b030b51'),
     ('function', 'public.audit_list_changes(p_kind text, p_old jsonb, p_new jsonb)', 'security invoker, immutable, search_path=public, body md5 51554f3980b99befd7afe51d1ab79d96'),
@@ -629,6 +633,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.fresh_second_factor(p_max_age_seconds integer)', 'security invoker, stable, search_path=public, body md5 e4d4423fdb8dbd06ebb11fa6c862e4fa'),
     ('function', 'public.guard_channel_member_change()', 'security definer, volatile, search_path=public, body md5 75324f8dd725373a2c516244b230b7bd'),
     ('function', 'public.guard_code_prefix()', 'security invoker, volatile, search_path=public, body md5 7ccb08d496e41cd2ac274943891331f3'),
+    ('function', 'public.guard_job_order_doctor()', 'security definer, volatile, search_path=public, body md5 6f1c93644fc7961be82dfe87f1372f48'),
     ('function', 'public.guard_job_orderer()', 'security invoker, volatile, search_path=public, body md5 0dff489029d8b21c0e156ac85dd54fae'),
     ('function', 'public.guard_partner_visible_job_text()', 'security definer, volatile, search_path=public, body md5 ebb721059bfec14c1952650eedd19e8e'),
     ('function', 'public.guard_partner_visible_message()', 'security definer, volatile, search_path=public, body md5 80a3eb810123d68bab0ec2c3f165c43d'),
@@ -947,6 +952,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.customers.archived_at to authenticated', 'SELECT'),
     ('grant', 'public.customers.clinic_id to authenticated', 'SELECT'),
     ('grant', 'public.customers.id to authenticated', 'SELECT'),
+    ('grant', 'public.customers.kind to authenticated', 'SELECT'),
     ('grant', 'public.customers.name to authenticated', 'SELECT'),
     ('grant', 'public.customers_full() to authenticated', 'EXECUTE'),
     ('grant', 'public.customers_full() to service_role', 'EXECUTE'),
@@ -978,6 +984,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.guard_code_prefix() to anon', 'EXECUTE'),
     ('grant', 'public.guard_code_prefix() to authenticated', 'EXECUTE'),
     ('grant', 'public.guard_code_prefix() to service_role', 'EXECUTE'),
+    ('grant', 'public.guard_job_order_doctor() to service_role', 'EXECUTE'),
     ('grant', 'public.guard_job_orderer() to service_role', 'EXECUTE'),
     ('grant', 'public.guard_partner_visible_job_text() to PUBLIC', 'EXECUTE'),
     ('grant', 'public.guard_partner_visible_job_text() to anon', 'EXECUTE'),
@@ -1496,6 +1503,7 @@ with expected(kind, key, def) as (values
     ('index', 'public.jobs_designed_by_idx', 'CREATE INDEX jobs_designed_by_idx ON public.jobs USING btree (designed_by)'),
     ('index', 'public.jobs_job_code_key', 'CREATE UNIQUE INDEX jobs_job_code_key ON public.jobs USING btree (job_code)'),
     ('index', 'public.jobs_kuupaev_idx', 'CREATE INDEX jobs_kuupaev_idx ON public.jobs USING btree (kuupaev DESC)'),
+    ('index', 'public.jobs_order_doctor_idx', 'CREATE INDEX jobs_order_doctor_idx ON public.jobs USING btree (order_doctor)'),
     ('index', 'public.jobs_patient_id_idx', 'CREATE INDEX jobs_patient_id_idx ON public.jobs USING btree (patient_id)'),
     ('index', 'public.jobs_status_idx', 'CREATE INDEX jobs_status_idx ON public.jobs USING btree (status)'),
     ('index', 'public.jobs_valmis_kuupaev_idx', 'CREATE INDEX jobs_valmis_kuupaev_idx ON public.jobs USING btree (valmis_kuupaev)'),
@@ -1587,6 +1595,7 @@ with expected(kind, key, def) as (values
     ('not null', 'public.customers.clinic_id', 'not null'),
     ('not null', 'public.customers.created_at', 'not null'),
     ('not null', 'public.customers.id', 'not null'),
+    ('not null', 'public.customers.kind', 'not null'),
     ('not null', 'public.customers.name', 'not null'),
     ('not null', 'public.customers.payment_terms_days', 'not null'),
     ('not null', 'public.customers.price_overrides', 'not null'),
@@ -2189,6 +2198,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.job_share.refuse_share_of_deleted_job', 'CREATE TRIGGER refuse_share_of_deleted_job BEFORE INSERT OR UPDATE ON public.job_share FOR EACH ROW EXECUTE FUNCTION refuse_share_of_deleted_job()'),
     ('trigger', 'public.job_stage.job_stage_pay_role', 'CREATE TRIGGER job_stage_pay_role BEFORE INSERT ON public.job_stage FOR EACH ROW EXECUTE FUNCTION job_stage_pay_role_from_template()'),
     ('trigger', 'public.jobs.audit_job_change', 'CREATE TRIGGER audit_job_change AFTER INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION audit_job_change()'),
+    ('trigger', 'public.jobs.guard_job_order_doctor', 'CREATE TRIGGER guard_job_order_doctor BEFORE INSERT OR UPDATE OF order_doctor, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_order_doctor()'),
     ('trigger', 'public.jobs.guard_job_orderer', 'CREATE TRIGGER guard_job_orderer BEFORE INSERT OR UPDATE OF ordered_by ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_orderer()'),
     ('trigger', 'public.jobs.guard_partner_visible_job_text', 'CREATE TRIGGER guard_partner_visible_job_text BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_job_text()'),
     ('trigger', 'public.jobs.guard_stage_change', 'CREATE TRIGGER guard_stage_change BEFORE UPDATE OF status ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_stage_change()'),

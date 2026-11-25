@@ -42,14 +42,26 @@ export function useCustomers() {
   })
 }
 
+/**
+ * A database without sql/128 has no `kind`: the save is repeated without it,
+ * so a client can still be added and changed there (as a clinic).
+ */
+const lacksKind = (error: { code?: string; message?: string } | null): boolean =>
+  !!error && (error.code === 'PGRST204' || error.code === '42703') && (error.message ?? '').includes('kind')
+
+function withoutKind<T extends object>(row: T): T {
+  const { kind: _kind, ...rest } = row as T & { kind?: unknown }
+  return rest as T
+}
+
 export function useCreateCustomer() {
   const qc = useQueryClient()
   return useMutation({
     // Nothing read back: the details are not readable from the table (sql/118).
     mutationFn: async (input: CustomerInput) => {
-      const { error } = await supabase
-        .from('customers')
-        .insert({ ...input, clinic_id: getActiveClinicId() })
+      const row = { ...input, clinic_id: getActiveClinicId() }
+      let { error } = await supabase.from('customers').insert(row)
+      if (lacksKind(error)) ({ error } = await supabase.from('customers').insert(withoutKind(row)))
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY })
@@ -60,10 +72,9 @@ export function useUpdateCustomer() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<CustomerInput> }) => {
-      const { error } = await supabase
-        .from('customers')
-        .update({ ...patch, updated_at: new Date().toISOString() })
-        .eq('id', id)
+      const row = { ...patch, updated_at: new Date().toISOString() }
+      let { error } = await supabase.from('customers').update(row).eq('id', id)
+      if (lacksKind(error)) ({ error } = await supabase.from('customers').update(withoutKind(row)).eq('id', id))
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY })

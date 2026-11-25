@@ -11,6 +11,8 @@ export interface WizardWorkerSelectProps {
   /** profiles.id, or null when nobody is assigned. */
   value: string | null
   onChange: (value: string | null) => void
+  /** What an empty choice says. Default: "Unassigned". */
+  placeholder?: string
 }
 
 /**
@@ -25,7 +27,7 @@ export interface WizardWorkerSelectProps {
  * who is not in the system, and forcing a name puts fictional people on the
  * payroll report.
  */
-export function WizardWorkerSelect({ id, label, help, value, onChange }: WizardWorkerSelectProps) {
+export function WizardWorkerSelect({ id, label, help, value, onChange, placeholder }: WizardWorkerSelectProps) {
   const { data: workers = [] } = useClinicProfiles()
 
   return (
@@ -34,7 +36,7 @@ export function WizardWorkerSelect({ id, label, help, value, onChange }: WizardW
         id={id}
         value={value}
         onChange={onChange}
-        placeholder={t('wizard.unassigned')}
+        placeholder={placeholder ?? t('wizard.unassigned')}
         options={workers.map(w => ({ value: w.id, label: w.full_name || t('wizard.unnamed') }))}
       />
     </WizardField>

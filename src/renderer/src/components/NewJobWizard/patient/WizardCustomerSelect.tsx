@@ -7,6 +7,8 @@ export interface WizardCustomerSelectProps {
   value: string | null
   onChange: (value: string | null) => void
   invalid?: boolean
+  /** Only clients of this kind (sql/128); a client without one is a clinic. */
+  kind?: 'clinic' | 'person'
 }
 
 /**
@@ -22,11 +24,12 @@ export interface WizardCustomerSelectProps {
  * is short, and a native listbox is the one control every keyboard and screen
  * reader already knows. That matters more here than search.
  */
-export function WizardCustomerSelect({ id, value, onChange, invalid }: WizardCustomerSelectProps) {
+export function WizardCustomerSelect({ id, value, onChange, invalid, kind }: WizardCustomerSelectProps) {
   const { data: customers = [], isLoading } = useCustomers()
 
   const options = customers
     .filter(c => !c.archived_at || c.id === value)
+    .filter(c => !kind || (c.kind ?? 'clinic') === kind || c.id === value)
     .map(c => ({
       value: c.id,
       label: c.archived_at ? t('wizard.archived', { name: c.name }) : c.name,

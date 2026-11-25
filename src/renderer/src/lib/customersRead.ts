@@ -10,6 +10,8 @@ import type { Customer } from '../types/customer'
 
 /** The columns every member may read. */
 export const CUSTOMER_BASIC_COLUMNS = 'id, clinic_id, name, archived_at' as const
+/** The same and the client's kind (sql/128), which every member reads too. */
+export const CUSTOMER_BASIC_WITH_KIND = `${CUSTOMER_BASIC_COLUMNS}, kind` as const
 
 /** `full` for View jobs or View payments. Without it, the rows carry only the basic columns. */
 export async function fetchCustomers(full: boolean): Promise<Customer[]> {
@@ -22,6 +24,10 @@ export async function fetchCustomers(full: boolean): Promise<Customer[]> {
     if (old.error) throw old.error
     return (old.data ?? []) as Customer[]
   }
+  const withKind = await supabase.from('customers').select(CUSTOMER_BASIC_WITH_KIND).order('name', { ascending: true })
+  if (!withKind.error) return (withKind.data ?? []) as unknown as Customer[]
+  // A database without sql/128 has no kind: every client reads as a clinic.
+  if (withKind.error.code !== '42703' && withKind.error.code !== 'PGRST204') throw withKind.error
   const { data, error } = await supabase.from('customers').select(CUSTOMER_BASIC_COLUMNS).order('name', { ascending: true })
   if (error) throw error
   return (data ?? []) as unknown as Customer[]

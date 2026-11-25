@@ -40,6 +40,8 @@ export interface Customer {
   /** Archived customers stay readable and stop being offered. */
   archived_at: string | null
   note: string | null
+  /** A clinic, or a dentist / technician on their own (sql/128). Absent before it: a clinic. */
+  kind?: 'clinic' | 'person'
   created_at: string
   updated_at: string
 }

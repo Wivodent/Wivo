@@ -245,6 +245,27 @@ function CustomerForm({ customer, history, onClose }: {
             />
           </div>
 
+          {/* A clinic, or a dentist / technician on their own (sql/128): the
+              new-job form lists them under different answers. */}
+          <div>
+            <label className="label">{t('customers.kind')}</label>
+            <div className="flex items-center gap-1 bg-bg-sidebar rounded-lg p-0.5 w-fit">
+              {(['clinic', 'person'] as const).map(k => (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={(form.kind ?? 'clinic') === k}
+                  onClick={() => set('kind', k)}
+                  className={`text-xs font-medium px-3 py-1 rounded-md transition-colors ${
+                    (form.kind ?? 'clinic') === k ? 'chip-active' : 'text-ink-muted hover:text-ink'
+                  }`}
+                >
+                  {k === 'clinic' ? t('customers.kindClinic') : t('customers.kindPerson')}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">{t('customers.registryCode')}</label>

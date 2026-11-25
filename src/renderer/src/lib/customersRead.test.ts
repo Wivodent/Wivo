@@ -13,18 +13,26 @@ const select = vi.fn()
 vi.mock('./supabase', () => ({
   supabase: { rpc: (...a: unknown[]) => rpc(...a), from: () => ({ select: (...a: unknown[]) => select(...a) }) },
 }))
-const { fetchCustomers, CUSTOMER_BASIC_COLUMNS } = await import('./customersRead')
+const { fetchCustomers, CUSTOMER_BASIC_COLUMNS, CUSTOMER_BASIC_WITH_KIND } = await import('./customersRead')
 
 const ordered = (data: unknown) => ({ order: async () => ({ data, error: null }) })
 
 describe('which clients, and how much of them', () => {
   beforeEach(() => { rpc.mockReset(); select.mockReset() })
 
-  it('without View jobs or View payments: id, name and archived from the table', async () => {
-    select.mockReturnValue(ordered([{ id: 'c1', name: 'Hambakliinik OÜ', archived_at: null }]))
-    expect(await fetchCustomers(false)).toEqual([{ id: 'c1', name: 'Hambakliinik OÜ', archived_at: null }])
-    expect(select).toHaveBeenCalledWith(CUSTOMER_BASIC_COLUMNS)
+  it('without View jobs or View payments: id, name, archived and kind from the table', async () => {
+    select.mockReturnValue(ordered([{ id: 'c1', name: 'Hambakliinik OÜ', archived_at: null, kind: 'clinic' }]))
+    expect(await fetchCustomers(false)).toEqual([{ id: 'c1', name: 'Hambakliinik OÜ', archived_at: null, kind: 'clinic' }])
+    expect(select).toHaveBeenCalledWith(CUSTOMER_BASIC_WITH_KIND)
     expect(rpc).not.toHaveBeenCalled()
+  })
+
+  it('a database without sql/128 (no kind): id, name and archived, as before', async () => {
+    select
+      .mockReturnValueOnce({ order: async () => ({ data: null, error: { code: '42703', message: 'column customers.kind does not exist' } }) })
+      .mockReturnValueOnce(ordered([{ id: 'c1', name: 'Hambakliinik OÜ', archived_at: null }]))
+    expect(await fetchCustomers(false)).toEqual([{ id: 'c1', name: 'Hambakliinik OÜ', archived_at: null }])
+    expect(select).toHaveBeenLastCalledWith(CUSTOMER_BASIC_COLUMNS)
   })
 
   it('with them: the whole client, from customers_full()', async () => {

@@ -4184,6 +4184,20 @@ export const en = {
   'wizard.summaryPontic1': "1 pontic ({teeth})",
   'wizard.summaryPontics': "{n} pontics ({teeth})",
   'wizard.implantsHelp': "Click + over a tooth to mark it as an implant. Work built on implants marks the teeth by itself; on a bridge, take the mark off the pontics.",
+  'wizard.orderOwn': "Our clinic",
+  'wizard.orderClinic': "Another clinic",
+  'wizard.orderPerson': "Dentist / technician",
+  'wizard.orderSourceLabel': "Who ordered it",
+  'wizard.orderDoctor': "Doctor",
+  'wizard.orderDoctorNone': "Not chosen",
+  'wizard.orderClinicField': "Clinic",
+  'wizard.orderPersonField': "Dentist or technician",
+  'wizard.orderHint': "For another clinic or a dentist, pick who it is and add their own order number if they have one.",
+  'wizard.noPersonCustomers': "No dentists or technicians yet. Add them under Clients and mark them as a dentist or technician.",
+  'wizard.ourClinicWithDoctor': "Our clinic · {doctor}",
+  'customers.kind': "Type",
+  'customers.kindClinic': "Clinic",
+  'customers.kindPerson': "Dentist or technician",
 } satisfies Record<string, Message>
 
 /** Every message key there is. Translations may cover fewer. */

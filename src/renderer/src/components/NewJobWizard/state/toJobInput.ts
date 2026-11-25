@@ -85,8 +85,13 @@ export function toJobInput(state: NewJobState, ctx: ToJobInputContext): JobInput
     kuupaev: state.date ?? todayISO(),
     patsient: state.patient?.name.trim() ?? '',
     patient_id: state.patient?.patientId ?? null,
-    customer_id: state.customer,
-    customer_ref: orNull(state.customerReference),
+    // Who ordered it (sql/128). Our own clinic names a doctor and no client;
+    // another clinic or a dentist names the client and their order number.
+    // Not answered (an old draft): the client as before, the source unsaid.
+    order_source: state.orderSource ?? null,
+    order_doctor: state.orderSource === 'own' ? state.orderDoctor ?? null : null,
+    customer_id: state.orderSource === 'own' ? null : state.customer,
+    customer_ref: state.orderSource === 'own' ? null : orNull(state.customerReference),
     too: workItems[0]?.too ?? null,
     // orNull, not `?? null`: a free-text material entered as whitespace would
     // otherwise be stored as '' and quote against nothing.

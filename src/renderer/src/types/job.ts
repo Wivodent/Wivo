@@ -491,6 +491,10 @@ export interface Job {
   template_id?: string | null
   /** The doctor who created the job (set by the database, never edited). */
   ordered_by?: string | null
+  /** Who ordered it (sql/128): our clinic, another clinic, a dentist / technician. Null: not said. */
+  order_source?: 'own' | 'clinic' | 'person' | null
+  /** Our doctor who ordered it, when order_source is 'own' (sql/128). */
+  order_doctor?: string | null
   impression_type?: 'digital' | 'conventional' | null
   implant_count?: number | null
   production_method?: 'print' | 'mill' | null

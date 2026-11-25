@@ -1,4 +1,8 @@
-import { useId } from 'react'
+import { useEffect, useId } from 'react'
+import type { OrderSource } from '@shared/wizard'
+import { useSettings } from '@/stores/useSettings'
+import { WizardWorkerSelect } from '../production/WizardWorkerSelect'
+import { FOCUS_RING } from '../wizardTheme'
 import { AlertCircle, UserRound, Building2 } from 'lucide-react'
 import { SectionCard } from '../../ui/SectionCard'
 import type { WizardStepComponent } from '../types'
@@ -8,20 +12,49 @@ import { WizardCustomerSelect } from '../patient/WizardCustomerSelect'
 import { WIZARD_INPUT, WIZARD_LABEL, WIZARD_HELP, WIZARD_ERROR } from '../wizardTheme'
 import { t } from '@/lib/i18n'
 import { PatientPicker } from '@/components/Patients/PatientPicker'
+import { useCustomers } from '@/hooks/useCustomers'
 
 /**
  * Step 5 — "Patsient ja tellimus" (docs/design patient-order.html).
  *
- * Two boxes side by side: Patient (who the work is for) and Ordered by (the
- * client and their own order number), each with an "i" saying who the
- * information is for and where it is shown. The description and the notes are
- * their own section below. What is required has not changed.
+ * Two boxes side by side: Patient (who the work is for) and Ordered by, each
+ * with an "i" saying who the information is for and where it is shown. The
+ * description and the notes are their own section below. What is required has
+ * not changed.
+ *
+ * Ordered by is one of three (sql/128): Our clinic (one of our doctors),
+ * Another clinic or a Dentist / technician (a client of that kind, and their
+ * own order number).
  */
+const ORDER_SOURCES: { key: OrderSource; label: () => string }[] = [
+  { key: 'own', label: () => t('wizard.orderOwn') },
+  { key: 'clinic', label: () => t('wizard.orderClinic') },
+  { key: 'person', label: () => t('wizard.orderPerson') },
+]
+
 export const StepOrder: WizardStepComponent = ({ state, patch, errors, showErrors }) => {
   const customerId = useId()
   const refId = useId()
   const descriptionId = useId()
   const notesId = useId()
+  const doctorId = useId()
+  const { settings } = useSettings()
+
+  // A clinic with its own patients starts at "Our clinic"; a lab, at "Another
+  // clinic". Set once, so the answer is on the job even if nobody touches it.
+  // A draft from before 2.2.0 that already names a client is another clinic.
+  const fallbackSource: OrderSource = state.customer ? 'clinic' : settings.kliinilineRezhiim ? 'own' : 'clinic'
+  const source: OrderSource = state.orderSource ?? fallbackSource
+  useEffect(() => {
+    if (state.orderSource == null) patch({ orderSource: fallbackSource })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.orderSource])
+
+  function chooseSource(next: OrderSource) {
+    if (next === source) return
+    // A client chosen under another answer is not this answer's client.
+    patch({ orderSource: next, customer: null, customerReference: '', orderDoctor: next === 'own' ? state.orderDoctor : null })
+  }
 
   const patientError = showErrors ? fieldErrors(errors, 'patient')[0]?.message ?? null : null
   const customerError = showErrors ? fieldErrors(errors, 'customer')[0]?.message ?? null : null
@@ -98,34 +131,69 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
         icon={Building2}
         info={`${t('wizard.theClinicOrDentistWhoOrdered')} ${t('wizard.theClientSOwnOrderNumber')}`}
       >
-        <WizardField
-          label={t('wizard.client')}
-          htmlFor={customerId}
-          error={customerError}
-        >
-          <WizardCustomerSelect
-            id={customerId}
-            value={state.customer}
-            onChange={value => patch({ customer: value })}
-            invalid={!!customerError}
-          />
-        </WizardField>
+        <div role="radiogroup" aria-label={t('wizard.orderSourceLabel')} className="grid grid-cols-3 gap-2">
+          {ORDER_SOURCES.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              role="radio"
+              aria-checked={source === key}
+              onClick={() => chooseSource(key)}
+              className={[
+                'min-h-[48px] rounded-xl px-2 text-base transition-colors', FOCUS_RING,
+                source === key
+                  ? 'border-2 border-accent bg-accent/10 font-bold text-ink'
+                  : 'border border-ink-faint/40 bg-bg-card text-ink-soft hover:text-ink',
+              ].join(' ')}
+            >
+              {label()}
+            </button>
+          ))}
+        </div>
 
-        <WizardField
-          label={t('wizard.clientReference')}
-          htmlFor={refId}
-          error={refError}
-        >
-          <input
-            id={refId}
-            type="text"
-            value={state.customerReference}
-            onChange={e => patch({ customerReference: e.target.value })}
-            placeholder={t('wizard.eG2024118')}
-            autoComplete="off"
-            className={WIZARD_INPUT}
+        {source === 'own' ? (
+          <WizardWorkerSelect
+            id={doctorId}
+            label={t('wizard.orderDoctor')}
+            value={state.orderDoctor ?? null}
+            onChange={value => patch({ orderDoctor: value })}
+            placeholder={t('wizard.orderDoctorNone')}
           />
-        </WizardField>
+        ) : (
+          <>
+            <WizardField
+              label={source === 'person' ? t('wizard.orderPersonField') : t('wizard.orderClinicField')}
+              htmlFor={customerId}
+              error={customerError}
+            >
+              <WizardCustomerSelect
+                id={customerId}
+                value={state.customer}
+                onChange={value => patch({ customer: value })}
+                invalid={!!customerError}
+                kind={source}
+              />
+            </WizardField>
+            {source === 'person' && <PersonCustomersHint />}
+
+            <WizardField
+              label={t('wizard.clientReference')}
+              htmlFor={refId}
+              error={refError}
+            >
+              <input
+                id={refId}
+                type="text"
+                value={state.customerReference}
+                onChange={e => patch({ customerReference: e.target.value })}
+                placeholder={t('wizard.eG2024118')}
+                autoComplete="off"
+                className={WIZARD_INPUT}
+              />
+            </WizardField>
+            <p className={WIZARD_HELP}>{t('wizard.orderHint')}</p>
+          </>
+        )}
       </SectionCard>
       </div>
 
@@ -176,4 +244,11 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
       </SectionCard>
     </div>
   )
+}
+
+/** Under "Dentist / technician" when the clinic has none yet: where to add them. */
+function PersonCustomersHint() {
+  const { data: customers = [], isLoading } = useCustomers()
+  if (isLoading || customers.some(c => c.kind === 'person' && !c.archived_at)) return null
+  return <p className={WIZARD_HELP}>{t('wizard.noPersonCustomers')}</p>
 }

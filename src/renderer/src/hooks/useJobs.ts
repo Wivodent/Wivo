@@ -71,8 +71,13 @@ export function useCreateJob() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: JobInput) => {
-      const row = { ...withoutDbOwned(input), clinic_id: getActiveClinicId() }
-      const { data, error } = await supabase.from('jobs').insert(row).select().single()
+      let row = { ...withoutDbOwned(input), clinic_id: getActiveClinicId() }
+      let { data, error } = await supabase.from('jobs').insert(row).select().single()
+      // A database without sql/128: the same job without who ordered it.
+      if (lacksOrderColumns(error)) {
+        row = withoutOrderColumns(row)
+        ;({ data, error } = await supabase.from('jobs').insert(row).select().single())
+      }
       if (!error) return data as Job
       // A database without sql/122 refuses the workflow columns: insert without them.
       if (error.code !== 'PGRST204' && error.code !== '42703') throw error
@@ -91,6 +96,22 @@ export function useCreateJob() {
 export const WORKFLOW_JOB_COLUMNS = [
   'template_id', 'ordered_by', 'impression_type', 'implant_count', 'production_method', 'printed_model',
 ] as const
+
+/** The columns sql/128 added to jobs: who ordered it. */
+export const ORDER_JOB_COLUMNS = ['order_source', 'order_doctor'] as const
+
+/** True when the database refused a job because it does not have sql/128's columns. */
+export function lacksOrderColumns(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error || (error.code !== '42703' && error.code !== 'PGRST204')) return false
+  return ORDER_JOB_COLUMNS.some(c => (error.message ?? '').includes(c))
+}
+
+/** The job without sql/128's columns, for a database without them. Pure. */
+export function withoutOrderColumns<T extends object>(row: T): T {
+  const out: Record<string, unknown> = { ...(row as Record<string, unknown>) }
+  for (const c of ORDER_JOB_COLUMNS) delete out[c]
+  return out as T
+}
 
 /** The job as the older insert takes it: without the workflow columns. Pure. */
 export function withoutWorkflowColumns<T extends object>(row: T): T {
@@ -117,9 +138,14 @@ export function useCreateWorkflowJob() {
       stageEdits?: { people: Record<string, string[]>; skipped: string[] }
       onStageEditsFailed?: (e: unknown) => void
     }) => {
-      const row = { ...withoutDbOwned(input), clinic_id: getActiveClinicId() }
+      let row = { ...withoutDbOwned(input), clinic_id: getActiveClinicId() }
       const { status: _status, ...withoutStatus } = row
-      const { data, error } = await supabase.rpc('create_job', { p_job: withoutStatus, p_switches: switches })
+      let { data, error } = await supabase.rpc('create_job', { p_job: withoutStatus, p_switches: switches })
+      // A database without sql/128 names the unknown fields: the same job without them.
+      if (lacksOrderColumns(error)) {
+        row = withoutOrderColumns(row)
+        ;({ data, error } = await supabase.rpc('create_job', { p_job: withoutOrderColumns(withoutStatus), p_switches: switches }))
+      }
       if (!error) {
         const created = data as unknown as Job
         if (stageEdits) {

@@ -148,7 +148,12 @@ export const StepReview: WizardStepComponent = ({ state, patch, rules, errors, s
   const workerName = (id: string | null): string =>
     id ? workers.find(w => w.id === id)?.full_name || t('wizard.unnamed') : ''
 
-  const customerName = state.customer
+  const customerName = state.orderSource === 'own'
+    ? (() => {
+        const doctor = state.orderDoctor ? workers.find(p => p.id === state.orderDoctor)?.full_name : null
+        return doctor ? t('wizard.ourClinicWithDoctor', { doctor }) : t('wizard.orderOwn')
+      })()
+    : state.customer
     ? customers.find(c => c.id === state.customer)?.name ?? t('wizard.unknownClient')
     : ''
 
@@ -426,12 +431,14 @@ export const StepReview: WizardStepComponent = ({ state, patch, rules, errors, s
           onEdit={goToStep}
           errors={pick('customer', 'customerReference')}
         >
-          <WizardSummaryRow label={t('wizard.client')} value={customerName} empty={!customerName} />
-          <WizardSummaryRow
-            label={t('wizard.clientReference')}
-            value={state.customerReference}
-            empty={!state.customerReference.trim()}
-          />
+          <WizardSummaryRow label={t('wizard.orderedByBox')} value={customerName} empty={!customerName} />
+          {state.orderSource !== 'own' && (
+            <WizardSummaryRow
+              label={t('wizard.clientReference')}
+              value={state.customerReference}
+              empty={!state.customerReference.trim()}
+            />
+          )}
         </ReviewSection>
 
         {/* ── 9. Kirjeldus ja märkused ────────────────────────────────────── */}
