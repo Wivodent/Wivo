@@ -31,17 +31,17 @@ export const READ_FUNCTIONS: ReadonlySet<string> = new Set([
  * allowed: reading means opening a job, a file, a preview or a partner's
  * job, and exporting, and each of those is logged or granted first.
  */
-export const READ_TRACES: Readonly<Record<string, string>> = {
-  log_job_view: 'the audit entry for opening a job (sql/078)',
-  open_partner_job: "opening a partner's job, audited (sql/071)",
-  request_file_download: 'the grant and audit entry before a file downloads (sql/072)',
-  request_job_previews: "a job's file previews (sql/073)",
-  preview_partnership_invite: 'reading an invitation before accepting it (sql/070)',
-  audit_export: 'the audit entry an export must leave before the file is made (sql/106)',
-  patient_export: "a patient's data export, audited (sql/081)",
-  mark_notifications_read: 'marking notifications as read',
-  record_mfa_factors: 'the second factor, recorded at sign-in (sql/097)',
-}
+export const READ_TRACES: ReadonlySet<string> = new Set([
+  'log_job_view', //               the audit entry for opening a job (078)
+  'open_partner_job', //           opening a partner's job, audited (071)
+  'request_file_download', //      the grant and audit entry before a file downloads (072)
+  'request_job_previews', //       a job's file previews (073)
+  'preview_partnership_invite', // reading an invitation before accepting it (070)
+  'audit_export', //               the audit entry an export leaves before the file is made (106)
+  'patient_export', //             a patient's data export, audited (081)
+  'mark_notifications_read', //    marking notifications as read
+  'record_mfa_factors', //         the second factor, recorded at sign-in (097)
+])
 
 /** Edge Functions that only read: a file's download link. */
 const READ_EDGE_FUNCTIONS = new Set(['file-link'])
@@ -55,7 +55,7 @@ export function isSaveRequest(url: string, method: string | undefined): boolean 
   let path: string
   try { path = new URL(url).pathname } catch { return false }
   const rpc = /^\/rest\/v1\/rpc\/([A-Za-z0-9_]+)\/?$/.exec(path)
-  if (rpc) return !READ_FUNCTIONS.has(rpc[1]) && !(rpc[1] in READ_TRACES)
+  if (rpc) return !READ_FUNCTIONS.has(rpc[1]) && !READ_TRACES.has(rpc[1])
   if (path.startsWith('/rest/v1/')) return true
   if (path.startsWith('/storage/v1/')) {
     // A signed link, a listing or a file's details: reads, though they are POSTs.

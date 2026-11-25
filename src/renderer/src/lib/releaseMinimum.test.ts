@@ -62,13 +62,13 @@ describe('which function calls are reads', () => {
 
   it('the traces of reading are named one by one, each a function the app calls', () => {
     const called = calledFunctions()
-    for (const name of Object.keys(READ_TRACES)) {
+    for (const name of READ_TRACES) {
       expect(called.has(name), name).toBe(true)
       expect(kinds.has(name), name).toBe(true)
     }
     // Saves stay saves.
     for (const save of ['create_job', 'move_job_stage', 'post_job_comment', 'register_job_file', 'next_invoice_number', 'create_payout']) {
-      expect(save in READ_TRACES || READ_FUNCTIONS.has(save), save).toBe(false)
+      expect(READ_TRACES.has(save) || READ_FUNCTIONS.has(save), save).toBe(false)
     }
   })
 })
