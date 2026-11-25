@@ -4,8 +4,8 @@
 Andmebaasiga ei ühendunud.
 
 **Kontrollid (viimane seis):**
-- Täis testikomplekt (`npx vitest run --mode unit`) jookseb ühe korraga: 207 faili,
-  2736 testi, kõik rohelised.
+- Täis testikomplekt (`npx vitest run --mode unit`) jookseb ühe korraga: 209 faili,
+  2796 testi, kõik rohelised (pärast parandusi, allpool).
 - `tsc`: web ja node rohelised.
 - Build õnnestus nii arvutile (`electron-vite build`) kui telefonile
   (`vite build --config vite.mobile.config.ts`).
@@ -22,6 +22,9 @@ Andmebaasiga ei ühendunud.
 | 3. Töötüübi valikud | `7afbbbc` | Raamatukogu, grupid, nupud, hind ja kulu |
 | 5. Kataloog | `19ecd76` | Lisa kataloogist, 43 tööd |
 | ROADMAP | `42656b0` | Mis jäi 2.2.0-st järgmisse |
+| Parandus: pildid | `81f5cca` | Implantaadisild ja täidis, nimed kliiniku keeles |
+| Parandus: valikute hind | `a8e887c` | Hind ja kulu kaardil, reprice, arve, marginaal |
+| Parandus: palk valiku järgi | `9cc10e3` | „Only with option" + migratsioon 129 |
 
 ## Mis valmis
 
@@ -85,8 +88,9 @@ Andmebaasiga ei ühendunud.
   - raamatukogu: `clinic_settings.pricing.tooValikud`;
   - grupid: `work_types[].valikuGrupid`;
   - töö valik: `work_items[].valikud`.
-- **Järgmisse versiooni** (ROADMAP-is): lisaetapid valiku järgi, palgareeglid
-  valiku järgi, kohustuslik grupp, valikud töö lehel ja kaardil, reprice.
+- **Järgmisse versiooni** (ROADMAP-is): lisaetapid valiku järgi, kohustuslik
+  grupp, valikud töö lehel ja kaardil, valikud arvel eraldi ridadena.
+  Palgareeglid valiku järgi ja reprice tulid parandustega (allpool).
 
 ### 4. Väiksed
 - **Läti tööandja maks** Finance/Statistics-is on nüüd inimese järgi:
@@ -134,13 +138,13 @@ Andmebaasiga ei ühendunud.
   ainult en/et/ru. Seega Dentiks (inglise keel) saab ingliskeelsed nimed.
 
 ### Pildid
-- Python Pilloniga teisendasin 56 pilti: 43 töötüüpi ja 13 valikut. Igaüks on
-  384×384 WebP kvaliteediga 85.
+- Python Pilloniga teisendasin 58 pilti: 45 töötüüpi (2 lisandus parandustega)
+  ja 13 valikut. Igaüks on 384×384 WebP kvaliteediga 85.
 - Skript: `node scripts/optimize-worktype-images.mjs`. `sharp`-i projektis
   pole, seega teeb töö `scripts/optimize-worktype-images.py`. Vaja on Python 3
   ja `pip install pillow numpy`. Uue teegi lisamine ühe aastas paar korda
   käivitatava skripti jaoks ei tasunud end ära.
-- Originaalid (PNG, kokku 62 MB) on kaustas `assets-src/worktypes/3d/`, mis on
+- Originaalid (PNG, kokku 67 MB) on kaustas `assets-src/worktypes/3d/`, mis on
   `.gitignore`-is. Neid ei commititud.
 - **Taust:** ükski originaal polnud läbipaistev, kõik olid RGB peaaegu valgel
   taustal. Proovisin tausta läbipaistvaks teha, aga see ei tulnud puhtalt:
@@ -148,8 +152,8 @@ Andmebaasiga ei ühendunud.
   kaardile täppidena. Jätsin tausta, tegin selle puhtaks valgeks ja rakendus
   näitab pilte valgel ümaral alusel, ka tumedal valitud kaardil. Kui hiljem
   tulevad läbipaistvad originaalid, jätab skript läbipaistvuse alles.
-- **Suurus:** kõik WebP pildid kokku 296 210 baiti (umbes 289 KB), 2–9 KB
-  pilt. Kogu kaust koos README-ga on 298 840 baiti.
+- **Suurus:** kõik WebP pildid kokku 307 296 baiti (umbes 300 KB), 2–9 KB
+  pilt. Kogu kaust koos README-ga on 310 348 baiti.
 - **Nimed vs varasem nimekiri** (2.1.0 README tabel): klappisid `bridge`,
   `veneer`, `night-guard`, `surgical-guide`, `all-on-4`, `all-on-6`,
   `titanium-mesh`. Teistsugused nimed:
@@ -159,8 +163,9 @@ Andmebaasiga ei ühendunud.
   - `inlay` ja `onlay` → `inlay-onlay`;
   - `retainer` → `retainer-fixed` ja `retainer-removable`.
 
-  Puudu on `implant-bridge`, `laminate`, `filling`, `all-on-x` ja `ibt`: need
-  näitavad joonikooni. Kaardistus järgib nüüd failinimesid (ühtegi faili ei
+  Puudu olid `implant-bridge`, `laminate`, `filling`, `all-on-x` ja `ibt`.
+  `implant-bridge` ja `filling` tulid parandustega; laminaat näitab viniiri,
+  All-on-X All-on-4 pilti, IBT joonikooni. Kaardistus järgib nüüd failinimesid (ühtegi faili ei
   nimetatud ümber). Uued failid, mida tabelis polnud, said kataloogi kirjeteks.
 
 ## Migratsioonid
@@ -183,13 +188,26 @@ klient on endiselt tema klient. Iga vana klient on 'clinic'.
 - kõik kliendid on kliinikud;
 - kliendi tüübi salvestamine jäetakse vahele.
 
+**`sql/129_worker_rate_option.sql`** (uus, parandustega; pärast 128-t):
+1. `worker_rates.option_key`: valiku id raamatukogust (nt 'metal-bar'),
+   kontrollitud kujuga (inglise kebab-case, kuni 80 märki). NULL = reegel ei
+   küsi valikut.
+2. Uut tabelit ega funktsiooni pole, seega RLS ja `lock_anon_functions` jäävad
+   samaks. Patsiendi kohta veerg midagi ei ütle.
+
+**Vanad palgareeglid:** midagi ei kirjutata ümber. Iga vana reegli
+`option_key` on NULL ja ta maksab täpselt nagu enne. **Enne migratsiooni**
+salvestuvad valikuta reeglid nagu ennegi; valikuga reegli puhul ütleb rakendus
+neutraalselt „not available yet".
+
 **Kevini sammud testkoopias:**
 1. Kui `sql/127` pole veel tehtud, tee see enne.
 2. SQL Editoris käivita `sql/128_order_source.sql` tervikuna.
-3. Eraldi päringuna käivita `notify pgrst, 'reload schema';`.
-4. Read-only kontroll: `sql/checks/schema_check.sql` ja
-   `sql/checks/trigger_check.sql` peavad mõlemad andma null rida. Mõlemad on
-   128 jaoks uuesti genereeritud.
+3. Siis `sql/129_worker_rate_option.sql` tervikuna.
+4. Eraldi päringuna käivita `notify pgrst, 'reload schema';`.
+5. Read-only kontroll: `sql/checks/schema_check.sql` ja
+   `sql/checks/trigger_check.sql` peavad mõlemad andma null rida. Need on
+   genereeritud 129 järgi, seega jooksuta neid pärast mõlemat migratsiooni.
 
 ## Mida Kevin peab käsitsi kontrollima (`npm run dev:test`, testkoopia, omanikuna)
 
@@ -229,7 +247,25 @@ klient on endiselt tema klient. Iga vana klient on 'clinic'.
    pensionäriks. Finance'i tööandja maks peab olema väiksem kui 23,59% tema
    brutost.
 6. **Pildid:** vaata valitud (tumedat) tööliigi ruutu Lisa töö 1. sammus.
-   Valge alus peab välja nägema sihilik.
+   Valge alus peab välja nägema sihilik. „Implantaadisild" ja „Täidis" peavad
+   nüüd näitama oma pilti.
+7. **Valikute hind kaardil:**
+   - Seaded → Hinnad → All-on-X kaart → „Add option group". Grupi lahter on
+     tühi, siltiga „Group" ja „e.g. Framework". Sees on hall näidisrida ja
+     „i" nupp.
+   - Lisa grupp „Framework" ja sinna „Metal bar": real on pilt, nimi, lisahind
+     ja kulu. Pane 400 ja 120.
+   - Ühik peab olema sama mis töötüübil (€/job või €/tooth).
+   - Tee töö Metal bariga ja ava töö leht: kulude tabelis „Tarvikud" all peab
+     olema „All-on-X · Metal bar 120 €" ja marginaal selle võrra väiksem.
+   - Arve tegemisel peab rida ütlema „All-on-X (Metal bar)" ja summa sisaldama
+     400 €.
+   - Seaded → „More price settings" → reprice: see töö ei tohi hinda muuta.
+8. **Palk valiku järgi** (pärast 129):
+   - Payroll → tehnik → Pay rules: All-on-X 200 €/töö.
+   - Lisa veel reegel: 50 €/töö, „Additive", „Only for work types" All-on-X ja
+     „Only with option" Metal bar. Reeglil peab olema silt „with Metal bar".
+   - Valmis töö Metal bariga peab maksma 250 €, ilma Metal barita 200 €.
 
 ## Otsused ja riskid
 
@@ -244,4 +280,75 @@ klient on endiselt tema klient. Iga vana klient on 'clinic'.
   mida nad küsivad (`WorkType.hambaviis`). Näiteks digitaalne skaneering,
   alainer ja spordikaitse ei küsi hambaid; hammustusvall ja igemmask küsivad
   lõualuud.
-- **Implant bridge** kataloogis pole, sest pilti pole (ROADMAP).
+- **Valiku hind on ühine.** Kaardil muudetud lisahind ja kulu kehtivad igas
+  töötüübis, mis seda valikut pakub, ja rida ütleb, kus veel („Same price in:
+  …"). Kaardil sisestatud summa saab selle töötüübi ühiku.
+- **Valik arvel** on töö rea tekstis („All-on-4 (Metal bar)"), mitte eraldi
+  real: arve rida võtab töö salvestatud hinna, milles valik juba on.
+
+## Parandused (samasse 2.2.0-sse)
+
+### 1. Valikute hind ja kulu (`a8e887c`)
+- **Hinnakaardi „Options" plokk on nüüd selge struktuuriga.** Iga grupi juures
+  on silt „Group" ja tühi lahter „e.g. Framework". Uus grupp ei saa enam
+  valmis nime, sest seda peeti valiku lahtriks ja sinna kirjutati „Metal bar".
+- **Grupi sees on iga valik oma rida:**
+  - pilt raamatukogust: id järgi, muidu nime järgi, ka teises keeles
+    („Metallraam" leiab `metal-bar.webp`);
+  - nimi;
+  - lisahind kliendile ja meie kulu, € töö või hamba kohta (sama ühik mis
+    töötüübil);
+  - eemalda.
+- **Tühjas grupis on hall näidisrida** („Metal bar +400.00, 120.00") ja „i",
+  mis seletab, mis grupp ja valik on ning et hind on ühine.
+- **Leitud ja parandatud kolm auku:**
+  - **Reprice** ja **töö leht** arvutasid hinda ilma valikuteta. Reprice oleks
+    Metal bariga All-on-4 hinna 400 € võrra alla viinud.
+  - **Töö kulude tabel** (töö lehel) jättis valiku kulu välja, seega oli
+    marginaal liiga suur. Finance arvestas seda juba.
+  - **Arve rida** nimetab nüüd valikud töö järel.
+- Testid: `optionMoney.test.ts`. Need katavad reprice'i, kulude tabeli ja
+  marginaali ning arve teksti; hinda katab `workOptions.test.ts`, Finance'it
+  `finance.test.ts`.
+
+### 2. Palgareeglid valiku järgi (`9cc10e3`, migratsioon 129)
+- Payroll → Pay rules: „Only for work types" all on „Only with option"
+  (valik raamatukogust). Reeglil on silt „with Metal bar". Ilma nimeta
+  lisanduv reegel saab valiku nime.
+- **Kus reegel kehtib:** valikuga reegel kehtib ainult töödel, kus see valik on
+  mis tahes grupis valitud.
+- **Mis on täpsem:** valik on täpsem kui ainult töötüüp ja töötüüp täpsem kui
+  üldreegel, prioriteedist sõltumata (`pickRateFor`). Lisanduv reegel (additive)
+  lisandub nagu enne.
+- **Kus see töötab:** sama loogika on palgalehel ja Finance'is
+  (`calculateEarnings`) ning töö kulude tabelis (`jobCosts`).
+- **Testid** (`earnings.test.ts`):
+  - „All-on-4 200 €, Metal bariga lisaks 50 € additive" → 250 €, teise raamiga
+    või ilma 200 €;
+  - valikuga reegel võidab kõrgema prioriteediga tüübireegli;
+  - ainult valikuga reegel võidab tüübireegli;
+  - valik leitakse ka „vali mitu" grupist;
+  - vana reegel ilma `option_key`-ta maksab nagu enne.
+
+  Lisaks: töö kulu (`optionMoney.test.ts`) ja migratsioon
+  (`sql/test/workerRateOption.test.ts`).
+
+### 3. Piltide kaardistus kliiniku keeles (`81f5cca`)
+- **„Implantaadisild" ja „Täidis" ei leidnud pilti**, sest neil polnud faili.
+  Sinu kaks uut pilti (`implant_bridge.png`, `filling.png`) said nimeks
+  `implant-bridge` ja `filling`. Originaalid läksid kausta `assets-src/` ja
+  WebP-d on 7 ja 4 KB. Mõlemad said ka kataloogi kirje (implantaadisild on
+  implantaatidel põhinev, soovitab „Retention" ja „Attachments").
+- **Iga kataloogi kirje on nüüd läbi kontrollitud.** Kirjel, mida liik üksi
+  valesti leiaks, on oma sõnad eesti, vene ja inglise keeles
+  (`VARIANT_3D_FILES`), täpsem enne üldisemat. Näiteks „Proteesi parandus" →
+  `denture-repair`, „Spordikaitse" → `sports-guard`, „Бюгельный протез" →
+  `denture-partial`, „Eemaldatav retainer" → `retainer-removable`, aga
+  „Несъёмный ретейнер" → `retainer-fixed`, „Implantkroon abutmendile" jääb
+  krooniks.
+- Testis on umbes 155 nime, mida kliinikud oma töötüüpidele panevad, kõigi
+  kirjete jaoks peale „Muu töö" (see leitakse ainult oma nimega), ja millise
+  pildi igaüks saab: sild, implantaadisild, täidis,
+  proteez/protees, laminaat, nightguard, splint, retainer, капа, сплинт jne.
+  Iga kirje leitakse ka oma nimega en/et/ru keeles.
+- Pildita jääb joonikoon nagu enne (IBT, tundmatu töö).
