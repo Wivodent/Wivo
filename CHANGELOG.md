@@ -1,5 +1,37 @@
 # Changelog
 
+## [2.2.0] — 2026-11-25
+
+**Implants on the teeth, Ordered by, work type options with their own prices, the catalogue, pay by option**
+
+"What's new": release-notes/2.2.0. Details and every commit: docs/REPORT-2.2.0.md.
+
+- **New job → Teeth:** a "+" over each picked tooth marks an implant; work built
+  on implants marks them itself; teeth · implants · pontics under the chart;
+  Screw / abutment only when there are implants.
+- **New job → Patient & order:** Ordered by (Our clinic + doctor, Another
+  clinic, Dentist / technician); a client is a clinic or a person.
+- **Work type options** (shared/pricing/workOptions.ts): an option library with
+  default prices, groups on a work type, a work type's own price per option
+  (work_types[].valikuHinnad), big buttons on the job; in the price, reprice,
+  job cost and margin, Finance, the invoice line's text.
+- **Work type catalogue** (shared/pricing/workTypeCatalogue.ts): 45 entries
+  with 3D pictures (384 px WebP, scripts/optimize-worktype-images.mjs);
+  pictures found by the clinic's own names in et/ru/en.
+- **Pay rules by option** (worker_rates.option_key): more specific than a work
+  type alone; they pay whoever makes the option (work_items[].valikuTegijad,
+  a person button beside each chosen option on the job card, job page and
+  phone; the technician when nobody is chosen).
+- **Latvia:** the employer's social tax per person (pensioner 20.77%).
+- The full test run no longer hangs (Vite code frame on CRLF files, scripts/).
+
+**Database:** sql/128_order_source.sql (jobs.order_source, jobs.order_doctor,
+customers.kind), sql/129_worker_rate_option.sql (worker_rates.option_key) and
+sql/130_option_doers.sql (an option's doer is a clinic member and is told in
+the bell). The app works without them: no Ordered by is saved, every client is
+a clinic, a pay rule with an option says it is not available yet, and an
+option's doer is saved but not checked or told.
+
 ## [2.1.0] — 2026-11-25
 
 **Settings as tiles, the redesigned job, price and payroll screens, Latvian payroll**
