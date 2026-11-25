@@ -183,3 +183,49 @@ Testkoopias (`npm run dev:test`), omanikuna, kliinik Lätis, kui saad (muidu Ees
 - Desktop build (`electron-vite build`) ja telefoni build
   (`vite build --config vite.mobile.config.ts`): õnnestusid, release'i ei tehtud.
 - Täis testikomplekt: kõik jälgitud testifailid rohelised, ükski ei kukkunud. Ühes jooksus (`npx vitest run --mode unit`) jäi vitest pärast 138 läbitud faili kinni; algne jooks enne muudatusi jäi samamoodi kinni, nii et see ei ole öiste muudatuste viga. Ülejäänud 119 faili (sh mobile ja i18n testid) jooksid 20-kaupa eraldi: 119 faili, 1423 testi, kõik rohelised. Vitesti kinnijäämine täisjooksus tasub eraldi uurida.
+
+## Lisa: testijooksu kinnijäämine ja töötüüpide 3D pildid
+
+**Täis testijooks jäi kinni (parandatud, `f62b9e7`).** Põhjus ei olnud ükski
+test, vaid Vite 5.4.21 viga. `scripts/yubikey/setup-plan.test.mjs` laeb
+`scripts/yubikey/load-release.mjs`. Selles on `import()` `data:` aadressiga, mida
+Vite ei oska analüüsida, ja Vite teeb selle kohta hoiatuse. Hoiatuse koodilõigu
+koostaja (`generateCodeFrame`) jääb lõpmatusse tsüklisse, kui failis on CRLF
+reavahetused (Windowsi töökoopias `text=auto` tõttu) ja `import()` on faili
+lõpu lähedal. Vitesti põhiprotsess jäi 100% protsessoriga ringi käima ning
+workerid ootasid. Mitu faili enne seda läbi sai, sõltus ajastusest (64, 89, 138).
+Leidsin selle, kui peatasin protsessi Node inspectoriga.
+
+Parandus on `/* @vite-ignore */` kommentaar selles `import()`-is. Lisasin selle
+ka kahte teise sama mustriga skripti (`scripts/release-lib.mjs`,
+`scripts/publish-licence.mjs`). Vite ei tee siis hoiatust ja Node ignoreerib
+kommentaari, nii et skriptid töötavad täpselt nagu enne. Rakenduse koodi ei
+muudetud. Teine võimalus oleks uuendada Vite't (uuemates versioonides on
+`generateCodeFrame` parandatud), aga seda ma ei teinud.
+
+Parandus raporti eelmisele lõigule: seal oli kirjas, et kõik testifailid on
+rohelised. `.mjs` testid jäid sealt aga välja ja `setup-plan.test.mjs` ei
+jõudnudki kunagi käia, sest just see jäi kinni. Nüüd jookseb täiskomplekt ühe
+korraga, umbes 24 sekundiga: 202 faili, 2676 testi, kõik rohelised. Ka
+`tsc` (web ja node) on roheline.
+
+**Töötüüpide 3D illustratsioonid (`f21d88f`, `5a37bbd`).** Ühtegi pilti ei lisatud.
+- Pildid lähevad kausta `src/renderer/src/assets/worktypes/3d/`, ingliskeelsete
+  kebab-case nimedega. Kausta README-s on failinimede tabel.
+- Kaardistus on failis `src/renderer/src/lib/workType3dMap.ts`. Pilt ei leita
+  nime järgi, vaid töö liigi järgi (sama `workKindFor`, mis valib joonikooni ja
+  loeb nime ning sünonüüme eesti, inglise ja vene keeles). Enne liiki
+  kontrollitakse kitsamaid variante: All-on-4, All-on-6 ja titaanvõrk.
+  Kui faili pole, langeb variant tagasi liigi pildile ja liik joonikoonile.
+- Suur pilt on Lisa töö 1. sammu ruutudes (kast kasvab 56 px pealt 96 px
+  peale), Hindade kaartidel ja tühjadel lehtedel: tööde tabel, Hinnad, kui
+  töötüüpe pole või otsing ei leia midagi, ja 1. sammu otsing.
+  Väikesed kohad on samad mis enne.
+- Hindade kaardil on järjekord: töötüübile kinnitatud oma pilt (`pilt`), siis
+  3D pilt, siis senine nime järgi leitud foto, siis joonikoon. Joonikoon
+  asendab senist üldist pildiikooni.
+- Muutus, mis on näha juba enne piltide lisamist: tühjadel lehtedel on nüüd
+  krooni joonikoon teksti kohal.
+- Test: `src/renderer/src/lib/workType3d.test.ts`. Muuhulgas kukub see, kui
+  kausta pannakse pilt, mida kaardistus ei nimeta, sest selline pilt ei ilmuks
+  kuskil.
