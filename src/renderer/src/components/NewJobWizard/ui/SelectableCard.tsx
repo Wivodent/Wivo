@@ -32,7 +32,8 @@ export interface SelectableCardProps {
   sublabel?: string
   /** Work-type hex — tints the icon tile, exactly like JobDetailPanel's grid. */
   hex?: string
-  /** workTypeImage() result. null → fall back to `icon`, then to a hex dot. */
+  /** A picture (a work type's 3D illustration). null → fall back to `icon`, then
+   *  to a hex dot. A tile shows it in a larger box than an icon. */
   imageSrc?: string | null
   icon?: ReactNode
   /** Small pill (e.g. 'Sild', '4 hammast'). */
@@ -137,7 +138,7 @@ export function SelectableCard({
         <span
           className={[
             'flex items-center justify-center rounded-xl flex-shrink-0 overflow-hidden',
-            tile ? 'w-14 h-14' : 'w-11 h-11 rounded-lg',
+            tile ? (imageSrc ? 'w-24 h-24' : 'w-14 h-14') : 'w-11 h-11 rounded-lg',
           ].join(' ')}
           style={{ backgroundColor: hex && !cyan ? `${hex}1f` : undefined }}
           aria-hidden="true"

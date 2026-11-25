@@ -24,6 +24,7 @@ import { toDate, fmtDate } from '../../lib/dates'
 import { jobTotalValue } from '../../lib/jobPayments'
 import { debtors, type DebtorRow } from '../../lib/debtors'
 import { t } from '@/lib/i18n'
+import { WorkTypeArt } from '../ui/WorkTypeArt'
 
 type SortKey = keyof Job | null
 type SortDir = 'asc' | 'desc'
@@ -721,7 +722,10 @@ export function TableView({ jobs, onJobClick, onJobEye, onBulkStatusChange, onBu
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={money ? 15 : 13} className="text-center py-16 text-ink-faint text-sm">
-                  {hasFilters ? t('tableView.noResults') : t('tableView.noJobsAddedYet')}
+                  <div className="flex flex-col items-center gap-3">
+                    <WorkTypeArt kind="crown" size={96} iconSize={56} />
+                    {hasFilters ? t('tableView.noResults') : t('tableView.noJobsAddedYet')}
+                  </div>
                 </td>
               </tr>
             )}

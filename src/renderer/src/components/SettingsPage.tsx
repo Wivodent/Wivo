@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, Image as ImageIcon , KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
+import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
 } from 'lucide-react'
 import { useSettings, THEMES, TEXT_SIZES } from '../stores/useSettings'
 import { NotificationChannels } from './Settings/NotificationChannels'
@@ -15,6 +15,8 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useClinicSyncState } from './ClinicSettingsSync'
 import { WORK_TYPE_PALETTE, sortedTiers, type WorkType, type PriceMode, type WorkTypeCost } from '../config/workTypes'
 import { workTypeImage, slugifyWorkType } from '../lib/workTypeImages'
+import { workType3dImage } from '../lib/workType3d'
+import { WorkTypeArt } from './ui/WorkTypeArt'
 import { RepriceJobsSection } from './Settings/RepriceJobsSection'
 import { supabase, updateProfile, displayIdentity } from '../lib/supabase'
 import type { PipelineStage } from '../config/pipeline'
@@ -778,11 +780,17 @@ function ProfileSection({ auth }: { auth: ReturnType<typeof useAuth> }) {
 // client, the volume price, our cost. Big price fields; the explanations are
 // behind the page's "i". Every field keeps its text locally and saves on blur
 // or Enter (DraftInput), so typing never loses the focus.
+//
+// The picture: a file the clinic pinned on the type (`pilt`) first, then the
+// type's 3D illustration (lib/workType3dMap.ts) in a larger box, then the photo
+// found by its name, then the line icon.
 function WorkTypePriceCard({ type, onPatch }: {
   type: WorkType
   onPatch: (patch: Partial<WorkType>) => void
 }) {
-  const img = workTypeImage(type.nimi, type.pilt)
+  const pinned = type.pilt?.trim() ? workTypeImage(type.nimi, type.pilt) : null
+  const art3d = pinned ? null : workType3dImage(type)
+  const img = pinned ?? (art3d ? null : workTypeImage(type.nimi))
   const mode: PriceMode = type.hinnaTyyp ?? 'too'
   const unit = mode === 'hammas' ? t('settingsPage.tooth') : t('settingsPage.job')
 
@@ -811,12 +819,15 @@ function WorkTypePriceCard({ type, onPatch }: {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3.5 min-w-0">
           <span
-            className="w-14 h-14 rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0"
+            className={`${art3d ? 'w-24 h-24' : 'w-14 h-14'} rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0`}
             style={{ backgroundColor: `${type.hex}1f` }}
+            aria-hidden="true"
           >
-            {img
+            {art3d
+              ? <img src={art3d} alt="" className="h-full w-full object-contain" />
+              : img
               ? <img src={img} alt="" className="h-full w-full object-cover" />
-              : <ImageIcon size={24} style={{ color: type.hex }} aria-hidden="true" />}
+              : <WorkTypeArt type={type} size={36} />}
           </span>
           <div className="min-w-0">
             <h3 className="text-lg font-bold text-ink truncate" title={type.nimi}>{type.nimi}</h3>
@@ -1980,12 +1991,20 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
               )}
 
               {settings.tooTuubid.length === 0 ? (
-                <p className="text-sm text-ink-muted">{t('settingsPage.noWorkTypesAddThemUnder')}</p>
+                <div className="card p-8 flex flex-col items-center gap-3 text-center">
+                  <WorkTypeArt kind="crown" size={96} iconSize={56} />
+                  <p className="text-sm text-ink-muted">{t('settingsPage.noWorkTypesAddThemUnder')}</p>
+                </div>
               ) : (() => {
                 const q = priceSearch.trim().toLowerCase()
                 const shown = q ? settings.tooTuubid.filter(w => w.nimi.toLowerCase().includes(q)) : settings.tooTuubid
                 return shown.length === 0
-                  ? <p className="text-sm text-ink-muted">{t('settingsPage.noWorkTypeFound')}</p>
+                  ? (
+                    <div className="card p-8 flex flex-col items-center gap-3 text-center">
+                      <WorkTypeArt kind="crown" size={96} iconSize={56} />
+                      <p className="text-sm text-ink-muted">{t('settingsPage.noWorkTypeFound')}</p>
+                    </div>
+                  )
                   : (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
                       {shown.map(workType => (

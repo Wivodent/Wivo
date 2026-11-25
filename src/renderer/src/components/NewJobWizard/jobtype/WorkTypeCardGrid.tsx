@@ -12,6 +12,9 @@
  * The icons are the 15 line drawings of WorkKindIcon (Kevin, November 2026),
  * on cyan cards: light (#ECFEFF), dark navy (#0F1B3A) when chosen. They
  * replace the pictures (assets/jobs) here; other screens keep those.
+ *
+ * A type with a 3D illustration (assets/worktypes/3d, lib/workType3dMap.ts)
+ * shows that, larger, in place of the line icon.
  */
 import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
@@ -20,6 +23,8 @@ import { slugifyWorkType } from '@/lib/workTypeImages'
 import { SelectableCard } from '../ui/SelectableCard'
 import { WIZARD_BTN } from '../wizardTheme'
 import { WorkKindIcon, workKindFor } from './WorkKindIcon'
+import { workType3dImage } from '@/lib/workType3d'
+import { WorkTypeArt } from '../../ui/WorkTypeArt'
 import { t } from '@/lib/i18n'
 
 /** How many cards show before "Näita rohkem". Two full rows on a wide screen. */
@@ -94,9 +99,10 @@ export function WorkTypeCardGrid({
 
   if (filtered.length === 0) {
     return (
-      <p className="py-8 text-center text-base text-ink-muted">
-        {t('wizard.noWorkTypesMatchYourSearch')}
-      </p>
+      <div className="py-8 flex flex-col items-center gap-3 text-center">
+        <WorkTypeArt kind="crown" size={96} iconSize={56} />
+        <p className="text-base text-ink-muted">{t('wizard.noWorkTypesMatchYourSearch')}</p>
+      </div>
     )
   }
 
@@ -114,6 +120,7 @@ export function WorkTypeCardGrid({
             onToggle={() => onToggle(type.nimi)}
             label={type.nimi}
             sublabel={priceLabel(type)}
+            imageSrc={workType3dImage(type)}
             icon={<WorkKindIcon kind={workKindFor(identityTokens(type))} size={44} />}
             tone="cyan"
             size="tile"
