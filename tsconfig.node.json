@@ -9,7 +9,7 @@
     "types": ["electron-vite/node"]
   },
   "include": [
-    "electron.vite.config.*", "config/testCopyEnv.ts", "src/main/**/*", "src/preload/**/*", "src/types/**/*",
+    "electron.vite.config.*", "config/testCopyEnv.ts", "config/csp.ts", "src/main/**/*", "src/preload/**/*", "src/types/**/*",
     "shared/license/token.ts", "shared/license/published.ts", "shared/privacy/scrub.ts", "shared/release/release.ts"
   ]
 }
