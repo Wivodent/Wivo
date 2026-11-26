@@ -8,6 +8,8 @@
 /*
   X-Frame-Options: DENY
   Content-Security-Policy: frame-ancestors 'none'; object-src 'none'; base-uri 'self'
+  Content-Security-Policy-Report-Only: %CSP_REPORT_ONLY%
+  Strict-Transport-Security: max-age=31536000
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(self), microphone=(), geolocation=()

@@ -1,3 +1,4 @@
+import { printJobSheet } from '../../lib/printSheet'
 import { describeError } from '../Patients/errors'
 import { useState, useRef, useEffect } from 'react'
 import { ArrowUpRight, Clock, Cpu, Euro, FileText, History, UserRound, Zap, Trash2, Plus, Copy, Printer, Pencil, Bolt } from 'lucide-react'
@@ -214,19 +215,11 @@ export function JobReadView({
             onClick={() => {
               const el = printRef.current
               if (!el) return
-              const w = window.open('', '_blank', 'width=800,height=600')
-              if (!w) return
-              // The print has no Tailwind, so the one-column order (job details,
-              // then production) is restated here; see the grid below.
-              w.document.write(`<html><head><title>${job.patsient} — ${job.too || t('jobDetail.job')}</title>
-                <style>body{font-family:Inter,system-ui,sans-serif;padding:24px;font-size:13px;color:#1a1a1a}
-                section{border:1px solid #e5e5e5;border-radius:8px;padding:12px;margin-bottom:12px}
-                h3{font-size:11px;text-transform:uppercase;color:#0AB6C4;margin:0 0 8px}
-                body{display:flex;flex-direction:column}.job-col{display:contents}
-                .order-1{order:1}.order-2{order:2}.order-3{order:3}.order-4{order:4}
-                </style></head><body>${el.innerHTML}</body></html>`)
-              w.document.close()
-              w.print()
+              // A hidden frame in this window, not a new one: Electron opens no
+              // window from the page (src/main/navigation.ts), so the old
+              // window.open('') printed nothing on the desktop. The title is
+              // TEXT: a patient's name went into the HTML as it was (2.2.5, A5).
+              printJobSheet(el.innerHTML, `${job.patsient} — ${job.too || t('jobDetail.job')}`)
             }}
             className="flex items-center gap-1 text-xs font-medium text-ink-muted hover:text-ink px-2 py-1 rounded-lg hover:bg-bg-sidebar transition-colors"
             title={t('jobDetail.print')}
@@ -836,3 +829,4 @@ function Event({ ts, text, badge, meta, active, onClick }: {
     </li>
   )
 }
+

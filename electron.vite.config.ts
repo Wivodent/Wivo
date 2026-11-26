@@ -1,8 +1,28 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { testCopyDefine } from './config/testCopyEnv'
+import { desktopCsp } from './config/csp'
+
+/**
+ * The desktop window's Content-Security-Policy (config/csp.ts), as a meta tag
+ * in index.html. Packaged builds only: the dev server's React refresh is an
+ * inline script, and `npm run dev` would stop. updater.html has its own.
+ */
+function desktopCspPlugin(mode: string): Plugin {
+  const env = { ...loadEnv(mode, process.cwd(), ['MAIN_VITE_', 'VITE_']), ...process.env }
+  const csp = desktopCsp({ apiUrl: env.MAIN_VITE_WIVO_API })
+  return {
+    name: 'wivo-desktop-csp',
+    apply: 'build',
+    transformIndexHtml(html, ctx) {
+      if (!ctx.filename.split('\\').join('/').endsWith('/index.html')) return html
+      return html.replace('<head>', `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}" />`)
+    },
+  }
+}
 
 // Read the version straight off package.json rather than
 // process.env.npm_package_version, which is only set when the build runs
@@ -52,7 +72,7 @@ export default defineConfig({
         '@shared': resolve('shared')
       }
     },
-    plugins: [react()],
+    plugins: [react(), desktopCspPlugin(mode)],
     css: {
       postcss: resolve('postcss.config.cjs')
     }

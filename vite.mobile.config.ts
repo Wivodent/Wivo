@@ -13,8 +13,9 @@
  */
 import { readFileSync, readdirSync } from 'fs'
 import { resolve, join } from 'path'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { mobileCsp } from './config/csp'
 
 const pkg = JSON.parse(readFileSync(resolve('package.json'), 'utf-8')) as { version: string }
 const STATIC_DIR = resolve('src/renderer/mobile-static')
@@ -25,7 +26,21 @@ const TYPES: Record<string, string> = {
 }
 
 /** Serve (dev) and emit (build) the phone-only files; name the page index.html. */
-function mobileStatic(): Plugin {
+/**
+ * `_headers` carries this build's own policy (2.2.5, W1, W3): the CSP made for
+ * the one Supabase project this phone app is built against
+ * (VITE_SUPABASE_URL, set per Pages project), Report-Only at first, so a
+ * wrong rule is reported in the browser's console instead of breaking the app.
+ */
+function headersFor(mode: string): (text: string) => string {
+  const env = { ...loadEnv(mode, resolve('.'), 'VITE_'), ...process.env }
+  if (!env.VITE_SUPABASE_URL) console.warn('[wivo-mobile] VITE_SUPABASE_URL is not set: the CSP allows any *.supabase.co')
+  const csp = mobileCsp({ supabaseUrl: env.VITE_SUPABASE_URL, sentryDsn: env.VITE_SENTRY_DSN })
+  return text => text.replace('%CSP_REPORT_ONLY%', csp)
+}
+
+function mobileStatic(mode: string): Plugin {
+  const fill = headersFor(mode)
   const files = (): [string, Buffer][] => [
     ...readdirSync(STATIC_DIR).map(f => [f, readFileSync(join(STATIC_DIR, f))] as [string, Buffer]),
     ['icon-256.png', readFileSync(ICON)],
@@ -42,19 +57,21 @@ function mobileStatic(): Plugin {
       })
     },
     generateBundle(_options, bundle) {
-      for (const [name, source] of files()) this.emitFile({ type: 'asset', fileName: name, source })
+      for (const [name, source] of files()) {
+        this.emitFile({ type: 'asset', fileName: name, source: name === '_headers' ? fill(source.toString('utf8')) : source })
+      }
       const page = bundle['mobile.html']
       if (page) page.fileName = 'index.html'
     },
   }
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   root: resolve('src/renderer'),
   base: '/',
   envDir: resolve('.'),
   publicDir: resolve('src/renderer/public'),
-  plugins: [react(), mobileStatic()],
+  plugins: [react(), mobileStatic(mode)],
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   resolve: {
     alias: {
@@ -70,4 +87,4 @@ export default defineConfig({
     rollupOptions: { input: { mobile: resolve('src/renderer/mobile.html') } },
   },
   server: { port: 5174 },
-})
+}))
