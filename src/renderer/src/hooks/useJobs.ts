@@ -25,6 +25,8 @@ export function useJobs() {
       .channel(`jobs-realtime-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs' }, () => {
         qc.invalidateQueries({ queryKey: QUERY_KEY })
+        // A stage moved elsewhere moves the job's status; its stage bar is read apart.
+        qc.invalidateQueries({ queryKey: ['job_stages'] })
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }

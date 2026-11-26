@@ -11,6 +11,7 @@
  * A database without sql/122–123 answers with a missing table or function;
  * that is "no stages", never an error on screen (jobStagesUnavailable).
  */
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from './supabase'
 
@@ -113,6 +114,9 @@ export const jobStagesKey = (jobId: string) => ['job_stages', jobId] as const
 
 /** A job's stages, with their people. Empty for a database without them. */
 export function useJobStages(jobId: string | null | undefined) {
+  // Who is on a stage, changed on another computer, shows at once (2.2.4);
+  // the board's pay stages read the same people, so the jobs list too.
+  useRealtimeInvalidate('job_stage_person', [['job_stages'], ['jobs']], !!jobId)
   return useQuery<JobStage[]>({
     queryKey: jobStagesKey(jobId ?? ''),
     enabled: !!jobId,

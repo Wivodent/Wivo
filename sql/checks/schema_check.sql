@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2188.
+-- Expected rows: 2190.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -2127,6 +2127,8 @@ with expected(kind, key, def) as (values
     ('realtime', 'public.customers', 'in publication supabase_realtime'),
     ('realtime', 'public.invoice_lines', 'in publication supabase_realtime'),
     ('realtime', 'public.invoices', 'in publication supabase_realtime'),
+    ('realtime', 'public.job_file', 'in publication supabase_realtime'),
+    ('realtime', 'public.job_stage_person', 'in publication supabase_realtime'),
     ('realtime', 'public.jobs', 'in publication supabase_realtime'),
     ('realtime', 'public.messages', 'in publication supabase_realtime'),
     ('realtime', 'public.notification', 'in publication supabase_realtime'),

@@ -7,6 +7,7 @@
  * and never delete — the same rule the database enforces; the screen only
  * avoids offering what would be refused.
  */
+import { useRealtimeInvalidate } from '../../hooks/useRealtimeInvalidate'
 import { useEffect, useRef, useState } from 'react'
 import { format } from 'date-fns'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -65,6 +66,10 @@ export function JobFiles({ jobId, partner = false }: { jobId: string; partner?: 
       return (data ?? []) as JobFileRow[]
     },
   })
+  // A file added, replaced or removed on another computer shows here at once
+  // (2.2.4). Not on a partner's screen: the lab's file rows are not theirs to
+  // read, so no event would come; their list is the job_files function's.
+  useRealtimeInvalidate('job_file', [['job_files'], ['job_previews']], !partner)
   const uploads = useJobUploads(jobId)
   // One request per job opened: grants for every ready preview, one audit row.
   const { data: previews } = useQuery<Map<string, string>>({
