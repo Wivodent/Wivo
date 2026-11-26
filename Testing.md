@@ -43,6 +43,29 @@ For feedback, the most useful format is: which step, what you expected, what hap
 Start with steps 1 and 3. If the settings banner is orange or the invoice number comes out wrong, send that immediately and stop — both would mean something structural I should fix before you spend time on the rest.
 ---
 
+## Kaks inimest korraga (2.2.3)
+
+Kaks test-akent, kummalgi oma userData kaust (sisselogimine, seaded, lukk):
+
+```
+npm run dev:test      # esimene aken: %APPDATA%/wivo-test-copy
+npm run dev:test:2    # teine aken:   %APPDATA%/wivo-test-copy-2, pealkirjas [test 2]
+```
+
+Käivita need kahes terminalis. Teine Vite võtab ise järgmise vaba pordi.
+Kolmas aken: `node scripts/dev-test-profile.mjs 3`. Logi aknad sisse kahe
+eri kasutajana (või sama kasutajaga, kui proovid ühte omanikku kahes masinas).
+
+Proovi:
+- Sama töö mõlemas aknas lahti, Edit. Ühes muuda etappi, teises tähtaega.
+  Salvesta mõlemad: mõlemad muudatused jäävad, etapp ei lähe tagasi.
+- Mõlemas muuda sama välja (tehnik) erinevaks: teine salvestus näitab
+  „Someone else changed this while you were editing" + Reload.
+- Settings → Prices: ühes muuda üht töötüüpi, teises teist: mõlemad jäävad.
+  Sama hind mõlemas: teise aknas bänner, mis nimetab töötüübi.
+- Lisa märge mõlemas peaaegu korraga: mõlemad jäävad.
+- Töö juures Duplicate → Save: uus töö, algne jääb samaks.
+
 ## Auto-uuenduse suitsutest
 
 Jooksuta see iga kord, kui `electron`, `electron-updater` või `electron-builder`

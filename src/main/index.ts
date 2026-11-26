@@ -21,8 +21,16 @@ import { chromiumLocaleFor, rememberedLanguage, rememberLanguage } from './uiLan
 // window's storage (sign-in, settings, caches), cookies, logs and the
 // single-instance lock. A session from `npm run dev` on the same machine is
 // never seen there, and both can run side by side. Before anything reads it.
+//
+// A second (third …) test window beside the first, to try two people at once
+// (`npm run dev:test:2`): WIVO_TEST_PROFILE names its own folder, so it has
+// its own sign-in, settings and lock. Letters and digits only; anything else
+// is ignored and the window uses the first folder. Never outside test mode.
+const testProfile = import.meta.env.MODE === 'test' && /^[A-Za-z0-9]{1,16}$/.test(process.env['WIVO_TEST_PROFILE'] ?? '')
+  ? process.env['WIVO_TEST_PROFILE'] as string
+  : null
 if (import.meta.env.MODE === 'test') {
-  app.setPath('userData', join(app.getPath('appData'), `${app.getName()}-test-copy`))
+  app.setPath('userData', join(app.getPath('appData'), `${app.getName()}-test-copy${testProfile ? `-${testProfile}` : ''}`))
 }
 
 // Chromium's own controls — the date and time pickers, the right-click menu,
@@ -52,6 +60,14 @@ function createWindow(): void {
 
   setMainWindow(mainWindow)
   mainWindow.on('closed', () => setMainWindow(null))
+
+  // Which test window is which, in the title bar and the taskbar.
+  if (testProfile) {
+    mainWindow.on('page-title-updated', (e, title) => {
+      e.preventDefault()
+      mainWindow.setTitle(`[test ${testProfile}] ${title}`)
+    })
+  }
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
