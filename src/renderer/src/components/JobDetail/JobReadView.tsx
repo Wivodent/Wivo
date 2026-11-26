@@ -503,7 +503,7 @@ export function JobReadView({
                   const next = { ...(job.kulu_yle ?? {}) }
                   if (value == null) delete next[key]
                   else next[key] = value
-                  updateJob.mutate({ id: job.id, kulu_yle: next })
+                  updateJob.mutate({ id: job.id, base: job, kulu_yle: next })
                 }}
               />
             )}

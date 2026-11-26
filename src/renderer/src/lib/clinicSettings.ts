@@ -280,13 +280,18 @@ export async function seedClinicSettings(
   return fetchClinicSettings(clinicId)
 }
 
-export async function pushClinicSettings(clinicId: string, patch: ClinicPatch): Promise<void> {
-  if (Object.keys(patch).length === 0) return
-  const { error } = await supabase
-    .from('clinic_settings')
-    .update(patch)
-    .eq('clinic_id', clinicId)
+/**
+ * Write these columns only where the row's updated_at is still `expected`
+ * (2.2.3): the new updated_at, or null when somebody else saved first (or the
+ * row cannot be written by this person). The trigger stamps updated_at.
+ */
+export async function writeClinicSettingsIf(clinicId: string, patch: ClinicPatch, expected: string | null): Promise<string | null> {
+  if (Object.keys(patch).length === 0) return expected
+  const q = supabase.from('clinic_settings').update(patch).eq('clinic_id', clinicId)
+  const { data, error } = await (expected == null ? q.is('updated_at', null) : q.eq('updated_at', expected)).select('updated_at')
   if (error) throw error
+  const row = (data as { updated_at?: string | null }[] | null)?.[0]
+  return row ? (row.updated_at ?? new Date().toISOString()) : null
 }
 
 /**

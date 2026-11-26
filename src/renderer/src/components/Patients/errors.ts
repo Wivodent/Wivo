@@ -1,5 +1,6 @@
 // Turn a Supabase/PostgREST error into something actionable in Estonian.
 // 42501 = RLS denial, which otherwise just looks like "the button does nothing".
+import { isConflict } from '@shared/concurrency/guardedSave'
 import { t } from '@/lib/i18n'
 import { isUpdateRequired } from '../../lib/appVersion'
 
@@ -8,6 +9,9 @@ export function describeError(err: unknown): string {
   const e = err as { code?: string; message?: string } | null
   const msg = e?.message ?? ''
 
+  // 2.2.3: somebody else saved the same thing first; nothing was overwritten.
+  if (isConflict(err)) return t('conflict.someoneElseChanged')
+  if (err instanceof Error && err.name === 'RowGoneError') return t('conflict.gone')
   // sql/104: this build is below the minimum version; saves are refused.
   if (isUpdateRequired(err)) {
     return t('app.updateRequired')

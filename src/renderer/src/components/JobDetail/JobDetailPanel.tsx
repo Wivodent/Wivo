@@ -45,11 +45,18 @@ import { splitMaterials, joinMaterials, materialList } from '@shared/pricing/mat
 import { t } from '@/lib/i18n'
 import { describeError } from '../Patients/errors'
 import { useHoldRestart } from '../../lib/restartGuard'
+import { useUpdateJob } from '../../hooks/useJobs'
+import { changedFields, isConflict, type FieldConflict } from '@shared/concurrency/guardedSave'
+import { ConflictBanner } from '../ui/ConflictBanner'
+import { jobFieldLabel } from '../../lib/conflictLabels'
 
 interface JobDetailPanelProps {
   job: Job | null       // null = create mode
   onClose: () => void
+  /** A new job (create mode). An existing job is saved here, field by field (2.2.3). */
   onSave: (input: JobInput) => Promise<void>
+  /** "Duplicate": the copy is a NEW job; the original is never written. Hidden without it. */
+  onCreateCopy?: (input: JobInput) => Promise<void>
   onDelete?: (id: string) => Promise<void>
   saving?: boolean
   position?: 'side' | 'bottom' | 'fullscreen'  // default: side
@@ -462,7 +469,73 @@ function PricingBlock({ form, set, settings, smallCount, largeCount, prodPrice, 
   )
 }
 
-export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, position = 'side', initialDate, highlightRevisionId, highlightNoteId, onOpenPatient }: JobDetailPanelProps) {
+/**
+ * The form as a job stands: what Edit starts from. Filled again from the
+ * latest job each time Edit is pressed, never from a copy made when the job
+ * was opened (2.2.3): what somebody else saved meanwhile is in the form.
+ */
+function formFromJob(job: Job): JobInput {
+  // Migrate legacy single-revision fields into revisions array
+  let revisions: Revision[] = job.revisions ?? []
+  if (revisions.length === 0 && job.muudatused) {
+    revisions = [{
+      id: crypto.randomUUID(),
+      ts: job.updated_at,
+      note: job.muudatused,
+      hambad: job.rev_hambad ?? undefined,
+      varv: job.rev_varv ?? undefined,
+      deadline: job.uus_valmis ?? undefined,
+    }]
+  }
+
+  return {
+    status: job.status,
+    kuupaev: job.kuupaev,
+    patsient: job.patsient,
+    patient_id: job.patient_id ?? null,
+    customer_id: job.customer_id ?? null,
+    customer_ref: job.customer_ref ?? '',
+    delivery_status: job.delivery_status ?? 'labor',
+    delivered_at: job.delivered_at ?? null,
+    too: job.too ?? '',
+    kirjeldus: job.kirjeldus ?? '',
+    materjal: job.materjal ?? '',
+    masina: job.masina ?? '',
+    // Left UNDEFINED when the job has none, never null: an undefined key is
+    // dropped from the JSON, so a clinic that has not run sql/063 yet never
+    // sends a column that does not exist.
+    ...(typeof job.materjali_yhikud === 'number'
+      ? { materjali_yhikud: job.materjali_yhikud }
+      : {}),
+    print_id: job.print_id ?? '',
+    disain_id: job.disain_id ?? '',
+    varv: job.varv ?? '',
+    kondivarv: job.kondivarv ?? '',
+    hambad: job.hambad ?? '',
+    work_items: Array.isArray(job.work_items) ? job.work_items.map(i => ({ ...i })) : [],
+    extras: Array.isArray(job.extras) ? job.extras.map(e => ({ ...e })) : [],
+    // Was missing entirely, so opening a saved job blanked its ad-hoc costs
+    // in the form. They survived in the DB only until the next edit added
+    // one — then the save wrote a one-item list over the lot.
+    extra_costs: Array.isArray(job.extra_costs) ? job.extra_costs.map(c => ({ ...c })) : [],
+    // Copied, never shared: editing the form must not mutate the cached row.
+    kulu_yle: { ...(job.kulu_yle ?? {}) },
+    valmis_aeg: toLocalInput(job.valmis_aeg),
+    valmis_kuupaev: job.valmis_kuupaev ?? null,
+    kiirtoo: job.kiirtoo ?? false,
+    mudel: job.mudel ?? false,
+    mudel_id: job.mudel_id ?? '',
+    revisions,
+    hind: job.hind,
+    disain_hind: job.disain_hind ?? null,
+    assigned_to: job.assigned_to ?? null,
+    designed_by: job.designed_by ?? null,
+    makstud: job.makstud,
+    makse_kuupaev: job.makse_kuupaev ?? ''
+  }
+}
+
+export function JobDetailPanel({ job, onClose, onSave, onCreateCopy, onDelete, saving, position = 'side', initialDate, highlightRevisionId, highlightNoteId, onOpenPatient }: JobDetailPanelProps) {
   // An update restart waits while a job's form is open (lib/restartGuard).
   useHoldRestart()
   const isBottom = position === 'bottom'
@@ -510,6 +583,28 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
   // from the patient history lands on that revision instead of the original.
   const [activeRevId, setActiveRevId] = useState<string | null>(highlightRevisionId ?? null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Where this edit started: the job as it stood and the form made from it.
+  // The save sends only what differs from that form, and only over that job
+  // (2.2.3); somebody else's save in between is kept, never overwritten.
+  const editStart = useRef<{ row: Job; form: JobInput } | null>(null)
+  // "Duplicate": the form holds a copy that is saved as a NEW job.
+  const [copying, setCopying] = useState(false)
+  // Somebody else changed the same thing first: shown above the form, nothing written.
+  const [conflict, setConflict] = useState<{ conflicts: FieldConflict[]; current: Job; mine: Partial<JobInput> } | null>(null)
+  const updateJob = useUpdateJob()
+
+  /** Edit the job as it stands now. */
+  const startEditing = useCallback(() => {
+    if (!job) return
+    const f = formFromJob(job)
+    hindAutoRef.current = job.hind == null
+    setForm(f)
+    editStart.current = { row: job, form: f }
+    setCopying(false)
+    setConflict(null)
+    setSaveError(null)
+    setEditing(true)
+  }, [job])
 
   // Auto-price mode: on for new jobs OR existing jobs with no price set
   const hindAutoRef = useRef(false)
@@ -518,64 +613,9 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
   useEffect(() => {
     hindAutoRef.current = job ? job.hind == null : true  // auto on if no price exists yet
     if (job) {
-      // Migrate legacy single-revision fields into revisions array
-      let revisions: Revision[] = job.revisions ?? []
-      if (revisions.length === 0 && job.muudatused) {
-        revisions = [{
-          id: crypto.randomUUID(),
-          ts: job.updated_at,
-          note: job.muudatused,
-          hambad: job.rev_hambad ?? undefined,
-          varv: job.rev_varv ?? undefined,
-          deadline: job.uus_valmis ?? undefined,
-        }]
-      }
-
-      setForm({
-        status: job.status,
-        kuupaev: job.kuupaev,
-        patsient: job.patsient,
-        patient_id: job.patient_id ?? null,
-        customer_id: job.customer_id ?? null,
-        customer_ref: job.customer_ref ?? '',
-        delivery_status: job.delivery_status ?? 'labor',
-        delivered_at: job.delivered_at ?? null,
-        too: job.too ?? '',
-        kirjeldus: job.kirjeldus ?? '',
-        materjal: job.materjal ?? '',
-        masina: job.masina ?? '',
-        // Left UNDEFINED when the job has none, never null: an undefined key is
-        // dropped from the JSON, so a clinic that has not run sql/063 yet never
-        // sends a column that does not exist.
-        ...(typeof job.materjali_yhikud === 'number'
-          ? { materjali_yhikud: job.materjali_yhikud }
-          : {}),
-        print_id: job.print_id ?? '',
-        disain_id: job.disain_id ?? '',
-        varv: job.varv ?? '',
-        kondivarv: job.kondivarv ?? '',
-        hambad: job.hambad ?? '',
-        work_items: Array.isArray(job.work_items) ? job.work_items.map(i => ({ ...i })) : [],
-        extras: Array.isArray(job.extras) ? job.extras.map(e => ({ ...e })) : [],
-        // Was missing entirely, so opening a saved job blanked its ad-hoc costs
-        // in the form. They survived in the DB only until the next edit added
-        // one — then the save wrote a one-item list over the lot.
-        extra_costs: Array.isArray(job.extra_costs) ? job.extra_costs.map(c => ({ ...c })) : [],
-        // Copied, never shared: editing the form must not mutate the cached row.
-        kulu_yle: { ...(job.kulu_yle ?? {}) },
-        valmis_aeg: toLocalInput(job.valmis_aeg),
-        valmis_kuupaev: job.valmis_kuupaev ?? null,
-        kiirtoo: job.kiirtoo ?? false,
-        mudel: job.mudel ?? false,
-        mudel_id: job.mudel_id ?? '',
-        revisions,
-        hind: job.hind,
-        disain_hind: job.disain_hind ?? null,
-        assigned_to: job.assigned_to ?? null,
-        designed_by: job.designed_by ?? null,
-        makstud: job.makstud,
-        makse_kuupaev: job.makse_kuupaev ?? ''
-      })
+      const f = formFromJob(job)
+      setForm(f)
+      editStart.current = { row: job, form: f }
     } else {
       setForm({
         ...EMPTY_FORM,
@@ -707,7 +747,9 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
       setSaveError(t('jobDetail.enterTheNumberOfCapsulesIs', { masina: form.masina }))
       return
     }
-    const cleaned: JobInput = {
+    const clean = (form: JobInput): JobInput => {
+      const designerPerItem = form.work_items.length > 1
+      return {
       ...form,
       // Sync denormalized too/hambad from work_items if items exist
       too: form.work_items.length > 0
@@ -766,15 +808,71 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
       uus_valmis: null,
       makse_kuupaev: form.makse_kuupaev || null
     } as JobInput
+    }
+    const cleaned = clean(form)
+    // Moving a job into the done stage from the form stamps the day it was
+    // finished, the same as dragging it there (App.withCompletionDate).
+    const withDone = (input: JobInput): JobInput =>
+      input.status === doneStageKey && !input.valmis_kuupaev
+        ? { ...input, valmis_kuupaev: new Date().toISOString().slice(0, 10) }
+        : input
     try {
-      await onSave(cleaned)
-      // Existing job: return to read view instead of closing
-      if (job) {
-        setEditing(false)
+      if (!job) {
+        await onSave(cleaned)
+        return
       }
+      if (copying) {
+        if (!onCreateCopy) return
+        await onCreateCopy(withDone(cleaned))
+        setCopying(false)
+        setEditing(false)
+        return
+      }
+      // Only what this person changed, over the job as it stood when they
+      // pressed Edit (2.2.3). A stage, a doer or a price somebody else set in
+      // the meantime is not sent back with the old value.
+      const start = editStart.current ?? { row: job, form: formFromJob(job) }
+      const changes: Partial<JobInput> = changedFields(clean(start.form), withDone(cleaned))
+      // A job from before revisions were a list: the form turned its old
+      // single revision into one, and the save writes that and clears the old fields.
+      if (start.row.muudatused || start.row.rev_hambad || start.row.rev_varv || start.row.uus_valmis) {
+        Object.assign(changes, { revisions: cleaned.revisions, muudatused: null, rev_hambad: null, rev_varv: null, uus_valmis: null })
+      }
+      await updateJob.mutateAsync({ id: job.id, base: start.row, ...changes } as Partial<Job> & { id: string; base: Job })
+      editStart.current = null
+      setConflict(null)
+      setEditing(false)
     } catch (err: unknown) {
+      if (isConflict(err) && err.current && job && !copying) {
+        const start = editStart.current ?? { row: job, form: formFromJob(job) }
+        setConflict({
+          conflicts: err.conflicts,
+          current: err.current as unknown as Job,
+          mine: changedFields(clean(start.form), withDone(cleaned)),
+        })
+        return
+      }
       setSaveError(describeError(err) || t('jobDetail.savingFailed'))
     }
+  }
+
+  /**
+   * "Reload": the job as it is stored now, with this person's own changes
+   * kept wherever nobody else touched the same field. The fields both
+   * changed show the other person's value; saving again saves what is shown.
+   */
+  function reloadAfterConflict(): void {
+    if (!conflict) return
+    const latest = formFromJob(conflict.current)
+    const theirs = new Set(conflict.conflicts.map(c => c.field))
+    const next = { ...latest } as Record<string, unknown>
+    for (const k of Object.keys(conflict.mine)) {
+      if (!theirs.has(k) && k in form) next[k] = (form as unknown as Record<string, unknown>)[k]
+    }
+    setForm(next as unknown as JobInput)
+    editStart.current = { row: conflict.current, form: latest }
+    setConflict(null)
+    setSaveError(null)
   }
 
   async function handleDelete() {
@@ -890,7 +988,7 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
                 if (activeRev) {
                   setQuickRevisionId(activeRev.id)
                 } else {
-                  setEditing(true)
+                  startEditing()
                 }
               }} className="btn-ghost">
                 <Pencil size={14} />
@@ -902,7 +1000,10 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
               <>
                 <button
                   type="button"
-                  onClick={() => (job ? setEditing(false) : onClose())}
+                  onClick={() => {
+                    if (!job) { onClose(); return }
+                    setEditing(false); setCopying(false); setConflict(null); setSaveError(null)
+                  }}
                   className="btn-ghost text-sm"
                 >
                   {t('jobDetail.cancel2')}
@@ -910,10 +1011,10 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
                 <button
                   type="submit"
                   form="job-form"
-                  disabled={saving || !form.patsient}
+                  disabled={saving || updateJob.isPending || !form.patsient}
                   className="btn-primary disabled:opacity-50"
                 >
-                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  {saving || updateJob.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                   {job ? t('jobDetail.save') : t('jobDetail.createJob')}
                 </button>
               </>
@@ -945,17 +1046,30 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
                 onOpenPatient={onOpenPatient}
                 onMarkPaid={() => setPaidDialog(true)}
                 onAddRevision={canEdit ? () => setQuickRevisionId('__new__') : undefined}
-                onDuplicate={!canEdit ? undefined : () => {
-                  setForm(f => ({
-                    ...f,
-                    ...job,
+                onDuplicate={!canEdit || !onCreateCopy ? undefined : () => {
+                  // A copy for a NEW job. Before 2.2.3 the form was saved over
+                  // the original: its stage went back to the first one, its
+                  // revisions and its payment were wiped.
+                  const { id: _id, created_at: _c, updated_at: _u, markused: _m, job_code: _jc, pay_stages: _ps, ...rest } =
+                    job as Job & { job_code?: unknown; pay_stages?: unknown }
+                  const copy = formFromJob(job)
+                  // The columns the form does not show (who ordered it, the template) come along as they are.
+                  const more = Object.fromEntries(Object.entries(rest).filter(([k]) => !(k in copy)))
+                  setForm({
+                    ...copy,
+                    ...(more as Partial<JobInput>),
                     revisions: [],
                     makstud: false,
                     makse_kuupaev: null,
                     valmis_kuupaev: null,
+                    delivery_status: 'labor',
+                    delivered_at: null,
                     status: stages[0]?.key ?? 'disain',
                     kuupaev: new Date().toISOString().split('T')[0],
-                  }))
+                  })
+                  editStart.current = null
+                  setConflict(null)
+                  setCopying(true)
                   setEditing(true)
                 }}
               />
@@ -964,6 +1078,13 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
         ) : (
         /* Scrollable form body */
         <form id="job-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+          {conflict && (
+            <ConflictBanner
+              className="mx-6 mt-4"
+              items={[...new Set(conflict.conflicts.map(c => jobFieldLabel(c.field)))]}
+              onReload={reloadAfterConflict}
+            />
+          )}
           <div className={
             isFullscreen
               ? 'px-6 py-5 grid grid-cols-[1fr_minmax(400px,2fr)_1fr] gap-x-6 items-start'
@@ -1965,8 +2086,9 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
                 const updatedRevisions = isNew
                   ? [...(job.revisions ?? []), rev]
                   : (job.revisions ?? []).map(r => r.id === rev.id ? rev : r)
-                const { id: _id, created_at: _c, updated_at: _u, markused: _m, ...input } = job as Job & { markused?: unknown }
-                await onSave({ ...input, revisions: updatedRevisions })
+                // Only the revisions, over the job as shown: another person's
+                // revision added meanwhile is merged in, never overwritten (2.2.3).
+                await updateJob.mutateAsync({ id: job.id, base: job, revisions: updatedRevisions })
                 setActiveRevId(rev.id)
                 setQuickRevisionId(null)
               } catch (err) {
@@ -1975,7 +2097,7 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
               }
             }}
             onCancel={() => setQuickRevisionId(null)}
-            saving={saving}
+            saving={saving || updateJob.isPending}
           />
         )
       })()}

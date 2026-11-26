@@ -1,3 +1,5 @@
+import { ConflictError, guardedSave } from '@shared/concurrency/guardedSave'
+import { rowIo } from '../lib/guardedRow'
 import { useEffect, useId } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase, getActiveClinicId } from '../lib/supabase'
@@ -89,9 +91,17 @@ export const lacksOptionColumn = (error: { code?: string; message?: string } | n
 export function useSaveWorkerRate() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (rate: WorkerRateInput & { id?: string }) => {
+    mutationFn: async (rate: (WorkerRateInput & { id?: string }) | { id: string; base: WorkerRate; patch: Partial<WorkerRateInput> }) => {
       const clinicId = getActiveClinicId()
       if (!clinicId) throw new Error(t('useWorkerPay.noClinic'))
+      // A change to a rule someone may be editing too (2.2.3): only these
+      // fields, over the rule as it was when this person started.
+      if ('base' in rate) {
+        const result = await guardedSave(rowIo<WorkerRate & Record<string, unknown>>('worker_rates', rate.id),
+          rate.base as unknown as WorkerRate & Record<string, unknown>, rate.patch as Record<string, unknown>)
+        if (result.kind === 'conflict') throw new ConflictError(result.conflicts, result.current)
+        return (result.kind === 'saved' ? result.row : rate.base) as WorkerRate
+      }
       if (rate.id) {
         const { id, ...patch } = rate
         const { data, error } = await supabase

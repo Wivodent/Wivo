@@ -14,6 +14,11 @@
  *   4. subscribe to realtime so a price changed on the owner's machine reaches
  *      the other workstations without a restart
  *
+ * Since 2.2.3 the reading and writing go through lib/settingsSync: a save
+ * writes only the columns changed here, and only over the row as last known;
+ * changes from elsewhere are merged into what is being edited, item by item;
+ * a save that fails stays to be sent, again by itself and after a restart.
+ *
  * If any of this fails — table not migrated yet, offline, no clinic — the app
  * keeps running on the local copy. That is the whole reason the store still
  * writes to localStorage first and treats the push as a side effect.
@@ -25,9 +30,10 @@ import {
 } from '../stores/useSettings'
 import { applyRemoteStages, getStages, setStagePusher } from '../context/PipelineContext'
 import {
-  fetchClinicLanguage, fetchClinicSettings, seedClinicSettings, pushClinicSettings,
-  subscribeClinicSettings, type ClinicPatch, type ClinicSettingsRow
+  fetchClinicLanguage, fetchClinicSettings, seedClinicSettings, writeClinicSettingsIf,
+  subscribeClinicSettings, CLINIC_COLUMNS, type ClinicPatch, type ClinicSettingsRow
 } from '../lib/clinicSettings'
+import { SettingsSync, type ColumnConflict, type Columns, type SettingsRowSnapshot, type UnsentStore } from '../lib/settingsSync'
 import { defaultWorkTypesFor, isUntouchedDefaultList } from '@shared/pricing/workTypes'
 import { t } from '@/lib/i18n'
 
@@ -56,20 +62,63 @@ export function useClinicSyncState(): SyncState {
   return state
 }
 
+// ── What both people changed at once (2.2.3), for Settings' banner ───────────
+const conflictListeners = new Set<(c: ColumnConflict[]) => void>()
+let lastConflicts: ColumnConflict[] = []
+function emitConflicts(c: ColumnConflict[]) {
+  lastConflicts = c
+  conflictListeners.forEach(fn => fn(c))
+}
+let refreshNow: (() => void) | null = null
+
+/** The settings this person and somebody else changed at once, until Reload. */
+export function useSettingsConflicts(): { conflicts: ColumnConflict[]; reload: () => void } {
+  const [c, setC] = useState<ColumnConflict[]>(lastConflicts)
+  useEffect(() => {
+    conflictListeners.add(setC)
+    setC(lastConflicts)
+    return () => { conflictListeners.delete(setC) }
+  }, [])
+  return { conflicts: c, reload: () => { emitConflicts([]); refreshNow?.() } }
+}
+
+/** The columns synced here (pipeline_stages included); the rest of the row is written elsewhere. */
+const SYNCED: readonly string[] = [...CLINIC_COLUMNS]
+
+const snapshotOf = (row: ClinicSettingsRow): SettingsRowSnapshot => ({
+  values: Object.fromEntries(SYNCED.filter(c => c in row).map(c => [c, (row as unknown as Columns)[c]])),
+  updatedAt: row.updated_at ?? null,
+})
+
+/** Unsent settings over a restart, per clinic. */
+function unsentStore(clinicId: string): UnsentStore {
+  const key = `wivo_clinic_unsent_v1:${clinicId}`
+  return {
+    read: () => {
+      try {
+        const v = JSON.parse(localStorage.getItem(key) ?? 'null')
+        return v && Array.isArray(v.columns) && v.known && typeof v.known === 'object' ? v : null
+      } catch { return null }
+    },
+    write: v => {
+      try {
+        if (v) localStorage.setItem(key, JSON.stringify(v))
+        else localStorage.removeItem(key)
+      } catch { /* full storage: the change is still in memory and on screen */ }
+    },
+  }
+}
+
 export function ClinicSettingsSync(): null {
   // Keyed on the PROFILE's clinic_id, not on the fetched clinic object: if the
   // clinic row fails to load (RLS, network, a deleted row) the id is still
   // valid, and settings must keep syncing rather than silently falling back to
   // this machine's local copy.
   const { clinicId, role, status } = useAuth()
-  // Writes are queued and flushed together: dragging a price spinner fires a
+  // Writes are gathered and flushed together: dragging a price spinner fires a
   // setter per keystroke, and one round-trip per keystroke would both hammer
   // the table and let responses land out of order.
-  const pending = useRef<ClinicPatch>({})
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // Ignore the realtime echo of our own write, which would otherwise overwrite
-  // whatever the user typed in the meantime with the value we just sent.
-  const selfWriteUntil = useRef(0)
 
   useEffect(() => {
     if (status !== 'authenticated' || !clinicId) {
@@ -82,33 +131,79 @@ export function ClinicSettingsSync(): null {
     let cancelled = false
     emit({ status: 'loading' })
 
-    const flush = async () => {
+    const engine = new SettingsSync(
+      {
+        fetch: async () => {
+          const row = await fetchClinicSettings(clinicId)
+          return row ? snapshotOf(row) : null
+        },
+        write: (patch, expected) => writeClinicSettingsIf(clinicId, patch as ClinicPatch, expected),
+      },
+      {
+        get: col => (col === 'pipeline_stages'
+          ? getStages()
+          : (clinicSliceOf(getSettingsSnapshot()) as unknown as Columns)[col]),
+        apply: values => {
+          const { pipeline_stages: stages, ...rest } = values
+          if (Object.keys(rest).length) applyClinicRow(rest as Partial<ClinicSettingsRow>)
+          if (Array.isArray(stages) && stages.length) applyRemoteStages(stages as ClinicSettingsRow['pipeline_stages'])
+        },
+      },
+      { onConflict: emitConflicts, unsent: unsentStore(clinicId) },
+    )
+
+    // A failed save is tried again by itself: soon, and whenever the
+    // connection comes back or the window is used again.
+    let retry: ReturnType<typeof setTimeout> | null = null
+    const flush = async (): Promise<void> => {
       timer.current = null
-      const patch = pending.current
-      pending.current = {}
-      if (Object.keys(patch).length === 0) return
-      selfWriteUntil.current = Date.now() + 2000
-      try {
-        await pushClinicSettings(clinicId, patch)
+      if (cancelled) return
+      const outcome = await engine.flush()
+      if (cancelled) return
+      if (outcome === 'offline' || outcome === 'busy') {
+        emit({ status: 'local', reason: t('conflict.notSavedYet') })
+        if (retry) clearTimeout(retry)
+        retry = setTimeout(() => { retry = null; void flush() }, 30_000)
+      } else if (outcome === 'saved') {
         emit({ status: 'synced', at: new Date().toISOString() })
-      } catch (err) {
-        // Owner-only update policy, offline, or the table is missing. The local
-        // copy already holds the change, so the user is not blocked — but the
-        // UI must not claim the clinic is in sync when it is not.
-        emit({ status: 'local', reason: (err as Error)?.message ?? t('clinicSettingsSync.savingFailed') })
       }
     }
 
     const queue = (patch: ClinicPatch) => {
-      Object.assign(pending.current, patch)
+      engine.markDirty(Object.keys(patch))
       if (timer.current) clearTimeout(timer.current)
-      timer.current = setTimeout(flush, 400)
+      timer.current = setTimeout(() => { void flush() }, 400)
     }
 
     // Workers never write clinic settings — the RLS policy would reject it, and
     // queuing a doomed request just to show an error is worse than not offering
     // it. The UI gates the same way (settings.read / owner).
     const canWrite = role === 'owner'
+
+    // Read again: after sleep, a lost connection, or on "Reload". Merged into
+    // what is being edited here, never replacing it.
+    let lastRead = 0
+    const reread = async (force = false): Promise<void> => {
+      if (cancelled || (!force && Date.now() - lastRead < 30_000)) return
+      lastRead = Date.now()
+      try {
+        const row = await fetchClinicSettings(clinicId)
+        if (cancelled || !row) return
+        engine.remote(snapshotOf(row))
+        if (engine.pending.length) {
+          emit({ status: 'local', reason: t('conflict.notSavedYet') })
+          if (canWrite) void flush()
+        } else {
+          emit({ status: 'synced', at: row.updated_at ?? null })
+        }
+      } catch { /* still offline: the next trigger tries again */ }
+    }
+    refreshNow = () => { void reread(true) }
+    const onOnline = () => { void reread(true) }
+    const onVisible = () => { if (document.visibilityState === 'visible') void reread() }
+    window.addEventListener('online', onOnline)
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
 
     ;(async () => {
       try {
@@ -136,14 +231,17 @@ export function ClinicSettingsSync(): null {
         if (cancelled) return
 
         if (row) {
-          applyClinicRow(row)
-          if (row.pipeline_stages?.length) applyRemoteStages(row.pipeline_stages)
+          // The row wins over the local copy, except for changes this machine
+          // could not send last time: those are merged onto it and sent now.
+          engine.start(snapshotOf(row))
+          lastRead = Date.now()
           emit({ status: 'synced', at: row.updated_at ?? null })
         }
 
         if (canWrite) {
           setClinicPusher(queue)
           setStagePusher(stages => queue({ pipeline_stages: stages }))
+          if (engine.pending.length) void flush()
         }
       } catch (err) {
         if (!cancelled) {
@@ -152,16 +250,22 @@ export function ClinicSettingsSync(): null {
       }
     })()
 
+    // Every change elsewhere, our own save's echo included: an echo equals
+    // what is known and changes nothing, so nothing has to be ignored.
     const unsubscribe = subscribeClinicSettings(clinicId, (row: ClinicSettingsRow) => {
-      if (Date.now() < selfWriteUntil.current) return
-      applyClinicRow(row)
-      if (row.pipeline_stages?.length) applyRemoteStages(row.pipeline_stages)
-      emit({ status: 'synced', at: row.updated_at ?? null })
+      if (cancelled) return
+      engine.remote(snapshotOf(row))
+      if (!engine.pending.length) emit({ status: 'synced', at: row.updated_at ?? null })
     })
 
     return () => {
       cancelled = true
       if (timer.current) clearTimeout(timer.current)
+      if (retry) clearTimeout(retry)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+      refreshNow = null
       setClinicPusher(null)
       setStagePusher(null)
       unsubscribe()

@@ -7,6 +7,8 @@ import {
   payStagesKnownUnavailable, markPayStagesUnavailable,
 } from '../lib/jobPayStages'
 import { applyStageEdits, jobStagesUnavailable } from '../lib/jobStages'
+import { ConflictError, guardedSave, type GuardedResult } from '@shared/concurrency/guardedSave'
+import { rowIo } from '../lib/guardedRow'
 
 const QUERY_KEY = ['jobs']
 
@@ -164,10 +166,45 @@ export function useCreateWorkflowJob() {
 }
 
 // --- Update an existing job ---
+/**
+ * A job's fields that hold a list or an object, merged item by item when two
+ * people changed different items at once (shared/concurrency/merge): work
+ * items, revisions and extras by id, notes by id, cost overrides by key.
+ * `extra_costs` has no ids and is one value.
+ */
+export const JOB_MERGEABLE = ['work_items', 'revisions', 'extras', 'markused', 'kulu_yle'] as const
+
+/**
+ * Save only `changes`, and only over the job as this person last saw it
+ * (`base`, with its updated_at): somebody else's save in between is kept, and
+ * where both changed the same thing nothing is written (2.2.3).
+ */
+export async function saveJobChanges(id: string, base: Job, changes: Partial<Job>): Promise<GuardedResult<Job & Record<string, unknown>>> {
+  const { id: _id, created_at: _c, updated_at: _u, ...rest } = changes as Partial<Job>
+  return guardedSave(
+    rowIo<Job & Record<string, unknown>>('jobs', id),
+    base as unknown as Job & Record<string, unknown>,
+    withoutDbOwned(rest) as Record<string, unknown>,
+    { mergeable: JOB_MERGEABLE },
+  )
+}
+
+/**
+ * Update a job. With `base` (the job as this person saw it), the save goes
+ * through saveJobChanges: only these fields, never over a newer save, and a
+ * conflict is thrown as ConflictError. Without it, a plain update: for a
+ * single field set on its own (a stage moved on the board, a doer chosen in
+ * bulk), which writes nothing else.
+ */
 export function useUpdateJob() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id, ...patch }: Partial<Job> & { id: string }) => {
+    mutationFn: async ({ id, base, ...patch }: Partial<Job> & { id: string; base?: Job }) => {
+      if (base) {
+        const result = await saveJobChanges(id, base, patch)
+        if (result.kind === 'conflict') throw new ConflictError(result.conflicts, result.current)
+        return (result.kind === 'saved' ? result.row : base) as Job
+      }
       const { data, error } = await supabase
         .from('jobs')
         .update({ ...withoutDbOwned(patch), updated_at: new Date().toISOString() })

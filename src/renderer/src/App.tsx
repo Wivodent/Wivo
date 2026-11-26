@@ -248,7 +248,7 @@ function AppContent() {
             }
           : r
       )
-      await updateJob.mutateAsync({ id: jobId, revisions: updatedRevisions })
+      await updateJob.mutateAsync({ id: jobId, base: job, revisions: updatedRevisions })
     },
     [jobs, updateJob, doneStageKey]
   )
@@ -273,6 +273,17 @@ function AppContent() {
       }
     },
     [panelJob, createJob, updateJob, closePanel, withCompletionDate]
+  )
+
+  // "Duplicate" on a job: the copy is a new job, opened in the panel. The
+  // original is not written (before 2.2.3 the copy was saved over it).
+  const handleCreateCopy = useCallback(
+    async (input: JobInput) => {
+      const created = await createJob.mutateAsync(withCompletionDate(input))
+      setBottomJob(null); setBottomRevisionId(undefined)
+      setPanelJob(created); setPanelRevisionId(undefined); setPanelNoteId(undefined)
+    },
+    [createJob, withCompletionDate]
   )
 
   const handleDelete = useCallback(
@@ -495,6 +506,7 @@ function AppContent() {
             job={panelJobOrNull}
             onClose={closePanel}
             onSave={handleSave}
+            onCreateCopy={handleCreateCopy}
             onDelete={panelJob !== 'new' && canDelete ? handleDelete : undefined}
             saving={createJob.isPending || updateJob.isPending}
             position={panelPosition}
@@ -527,6 +539,7 @@ function AppContent() {
           job={bottomJobLive}
           onClose={closeBottom}
           onSave={handleBottomSave}
+          onCreateCopy={handleCreateCopy}
           onDelete={canDelete ? handleDelete : undefined}
           saving={updateJob.isPending}
           position={panelPosition}

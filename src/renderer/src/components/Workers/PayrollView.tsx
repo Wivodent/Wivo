@@ -5,7 +5,7 @@
  * payout freezes it: once a period is paid, its lines are a copy, so changing a
  * rate afterwards cannot restate what someone was already paid.
  */
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Wallet, Plus, Trash2, Loader2, AlertTriangle, Clock, CheckCircle2,
   ChevronDown, ChevronRight, Euro, Lock, Download
@@ -1848,19 +1848,32 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
   // there for months: nobody deletes a working rule to change one number.
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
+  // The rule as it was when editing started: the save goes over that one only (2.2.3).
+  const editBase = useRef<WorkerRate | null>(null)
+  const [rateError, setRateError] = useState<string | null>(null)
 
   function startEdit(r: WorkerRate): void {
     setEditing(r.id)
     setDraft(String(Number(r.amount)))
+    editBase.current = r
+    setRateError(null)
   }
 
   async function commitEdit(r: WorkerRate): Promise<void> {
     const v = parseFloat(draft.replace(',', '.'))
     setEditing(null)
+    const base = editBase.current?.id === r.id ? editBase.current : r
+    editBase.current = null
     // Anything unparseable or negative is a typo, not an instruction. An
     // unchanged value is not worth a write — or an `updated_at` bump.
-    if (!Number.isFinite(v) || v < 0 || v === Number(r.amount)) return
-    await save.mutateAsync({ ...r, amount: v })
+    if (!Number.isFinite(v) || v < 0 || v === Number(base.amount)) return
+    // Only the amount. Sending the whole rule as this list had it wrote back a
+    // work type or an option somebody else had just changed on it.
+    try {
+      await save.mutateAsync({ id: r.id, base, patch: { amount: v } })
+    } catch (e) {
+      setRateError(describeError(e))
+    }
   }
   const wt = useWorkTypes()
   const { settings: rateSettings } = useSettings()
@@ -1922,6 +1935,7 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
       <h4 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
         {t('workers.payRules')}
       </h4>
+      {rateError && <p role="alert" className="text-xs text-amber-700 mb-2">{rateError}</p>}
       <p className="text-[11px] text-ink-faint mb-2 leading-relaxed">
         {t('workers.aRuleWithAWorkType')}
         <br />

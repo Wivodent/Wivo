@@ -10,6 +10,7 @@
  * Nothing here reads a patient: a template holds stage keys, task texts and
  * profile ids.
  */
+import { ConflictError } from '@shared/concurrency/guardedSave'
 import {
   validateTemplate, type OnlyIfRule, type PayRole, type TemplateProblem, type TemplateStage,
 } from '@shared/workflow/workflow'
@@ -22,6 +23,8 @@ export interface TemplateRow {
   isDefault: boolean
   archived: boolean
   stages: TemplateStage[]
+  /** When it was last saved: a save goes only over this version (2.2.3). */
+  updatedAt: string | null
 }
 
 interface RawStage {
@@ -41,11 +44,12 @@ interface RawTemplate {
   name: string
   is_default: boolean
   archived_at: string | null
+  updated_at?: string | null
   workflow_template_stage: RawStage[] | null
 }
 
 export const TEMPLATE_SELECT =
-  'id, name, is_default, archived_at, workflow_template_stage(id, stage_key, position, task, optional, default_on, only_if, orderer, pay_role, workflow_template_stage_person(profile_id))'
+  'id, name, is_default, archived_at, updated_at, workflow_template_stage(id, stage_key, position, task, optional, default_on, only_if, orderer, pay_role, workflow_template_stage_person(profile_id))'
 
 /** Rows as read → templates, stages in their order. Pure. */
 export function templatesFromRows(rows: readonly RawTemplate[] | null | undefined): TemplateRow[] {
@@ -54,6 +58,7 @@ export function templatesFromRows(rows: readonly RawTemplate[] | null | undefine
     name: r.name,
     isDefault: r.is_default,
     archived: r.archived_at !== null,
+    updatedAt: r.updated_at ?? null,
     stages: [...(r.workflow_template_stage ?? [])]
       .sort((a, b) => a.position - b.position)
       .map(s => ({
@@ -144,7 +149,7 @@ export type SaveProblem = TemplateProblem[]
  */
 export async function saveTemplate(
   orgId: string,
-  template: { id: string | null; name: string; stages: readonly TemplateStage[] },
+  template: { id: string | null; name: string; stages: readonly TemplateStage[]; updatedAt?: string | null },
 ): Promise<{ id: string } | { problems: SaveProblem }> {
   const stages = normaliseStages(template.stages)
   const problems = validateTemplate(stages)
@@ -152,9 +157,16 @@ export async function saveTemplate(
 
   let id = template.id
   if (id) {
-    const { error } = await supabase.from('workflow_template')
+    // Only over the version this person opened (2.2.3): when somebody else
+    // saved the template meanwhile, nothing is written and the form says so.
+    // The row's updated_at is the lock; every save of a template stamps it.
+    const q = supabase.from('workflow_template')
       .update({ name: template.name.trim(), updated_at: new Date().toISOString() }).eq('id', id)
+    const expected = template.updatedAt
+    const { data, error } = await (expected === undefined ? q : expected === null ? q.is('updated_at', null) : q.eq('updated_at', expected))
+      .select('id')
     if (error) throw error
+    if (!data || data.length === 0) throw new ConflictError([], null)
     const { error: delErr } = await supabase.from('workflow_template_stage').delete().eq('template_id', id)
     if (delErr) throw delErr
   } else {

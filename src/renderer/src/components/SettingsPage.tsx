@@ -12,7 +12,9 @@ import { useAuth, fetchClinic, type Clinic } from '../context/AuthContext'
 import { clinicCountry, hasEstonianTax, invoicesAvailable, fieldExamples, payrollTaxSystem } from '../lib/country'
 import { latviaRulesFor } from '@shared/payroll/countryTax'
 import { usePermissions } from '../hooks/usePermissions'
-import { useClinicSyncState } from './ClinicSettingsSync'
+import { useClinicSyncState, useSettingsConflicts } from './ClinicSettingsSync'
+import { ConflictBanner } from './ui/ConflictBanner'
+import { settingsConflictLabel } from '../lib/conflictLabels'
 import { WORK_TYPE_PALETTE, sortedTiers, type WorkType, type PriceMode, type WorkTypeCost } from '../config/workTypes'
 import { workTypeImage, slugifyWorkType } from '../lib/workTypeImages'
 import { pictureChoice, workType3dImage } from '../lib/workType3d'
@@ -1023,6 +1025,16 @@ function WorkTypePriceCard({ type, onPatch, focused = false }: {
   )
 }
 
+// ─── Both changed the same setting (2.2.3) ────────────────────────────────────
+// The rest of both people's changes is saved; where both changed the same
+// thing (a work type's price, say) the other person's value stayed.
+function SettingsConflictNotice() {
+  const { conflicts, reload } = useSettingsConflicts()
+  if (conflicts.length === 0) return null
+  const items = [...new Set(conflicts.flatMap(c => c.conflicts.map(x => settingsConflictLabel(c.column, x))))]
+  return <ConflictBanner items={items} hint={t('conflict.settingsKept')} onReload={reload} />
+}
+
 // ─── Clinic sync banner ───────────────────────────────────────────────────────
 // These settings are shared by the whole clinic, and until 1.7.15 they were not
 // — they were per-machine. The banner says which of the two is true right now,
@@ -1400,6 +1412,7 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
               the settings body is short items, not long forms. */}
           <div className="flex-1 min-w-0 space-y-3">
           {isClinicGroup && <ClinicSyncBanner canEdit={canEditClinic} />}
+          {isClinicGroup && <SettingsConflictNotice />}
           {/* Read-only for everyone but the owner. Not merely cosmetic: without
               it a worker's edit would save to their own machine and never reach
               the clinic, which is the exact per-machine drift this page moved to

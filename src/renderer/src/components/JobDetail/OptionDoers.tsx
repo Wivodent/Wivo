@@ -53,7 +53,7 @@ export function OptionDoers({ job, size = 'md', compact = false, className = '' 
     setError(null)
     if (doer === c.doer) return
     try {
-      await update.mutateAsync({ id: job.id, work_items: withOptionDoer(items, c.itemId, c.optionId, doer) })
+      await update.mutateAsync({ id: job.id, base: job, work_items: withOptionDoer(items, c.itemId, c.optionId, doer) })
     } catch (e) {
       setError(describeError(e))
     }

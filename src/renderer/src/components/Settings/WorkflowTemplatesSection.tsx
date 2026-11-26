@@ -7,6 +7,8 @@
  * What a template may hold is checked first by shared/workflow
  * validateTemplate: a pay kind on two stages, a switch that is also a rule.
  */
+import { isConflict } from '@shared/concurrency/guardedSave'
+import { ConflictBanner } from '../ui/ConflictBanner'
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { ArrowDown, ArrowUp, Trash2, Plus, GitBranch } from 'lucide-react'
@@ -46,6 +48,9 @@ export function WorkflowTemplatesSection({ part = 'all' }: { part?: 'all' | 'tem
   const [problems, setProblems] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // The version the form was filled from; the save goes over that one only (2.2.3).
+  const [baseUpdatedAt, setBaseUpdatedAt] = useState<string | null | undefined>(undefined)
+  const [conflict, setConflict] = useState(false)
 
   const label = (key: string) => stageMap[key]?.label ?? key
   const current = templates.find(x => x.id === selected)
@@ -53,11 +58,18 @@ export function WorkflowTemplatesSection({ part = 'all' }: { part?: 'all' | 'tem
   useEffect(() => {
     if (selected === null && templates.length > 0) setSelected(templates[0].id)
   }, [templates, selected])
+  // Filled when a template is chosen, not on every refetch: a refetch used to
+  // throw away what was being typed. What somebody else saves meanwhile is
+  // caught by the save (the lock), not by quietly replacing the form.
+  const fill = (x: typeof current) => {
+    if (x) { setName(x.name); setRows(x.stages); setBaseUpdatedAt(x.updatedAt) }
+    else if (selected === 'new') { setName(''); setRows([]); setBaseUpdatedAt(undefined) }
+    setProblems([]); setError(null); setConflict(false)
+  }
   useEffect(() => {
-    if (current) { setName(current.name); setRows(current.stages) }
-    else if (selected === 'new') { setName(''); setRows([]) }
-    setProblems([]); setError(null)
-  }, [selected, current])
+    fill(current)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, current?.id])
 
   if (templates.length === 0 && !canEdit) return null
 
@@ -75,12 +87,15 @@ export function WorkflowTemplatesSection({ part = 'all' }: { part?: 'all' | 'tem
     if (!clinicId) return
     setBusy(true); setError(null)
     try {
-      const result = await saveTemplate(clinicId, { id: current?.id ?? null, name, stages: rows })
+      const result = await saveTemplate(clinicId, { id: current?.id ?? null, name, stages: rows, updatedAt: current ? baseUpdatedAt : undefined })
       if ('problems' in result) { setProblems(result.problems.map(p => problemText(p, label))); return }
       setProblems([])
       await refresh()
       setSelected(result.id)
+      const saved = (qc.getQueryData<typeof templates>(TEMPLATES_KEY) ?? []).find(x => x.id === result.id)
+      if (saved) setBaseUpdatedAt(saved.updatedAt)
     } catch (e) {
+      if (isConflict(e)) { setConflict(true); await refresh(); return }
       setError(describeError(e))
       await refresh()
     } finally { setBusy(false) }
@@ -202,6 +217,7 @@ export function WorkflowTemplatesSection({ part = 'all' }: { part?: 'all' | 'tem
           )}
 
           {[...new Set([...live, ...problems])].map(p => <p key={p} role="alert" className="text-sm text-rose-500">{p}</p>)}
+          {conflict && <ConflictBanner onReload={() => fill(current)} />}
           {error && <p role="alert" className="text-sm text-rose-500">{error}</p>}
 
           {canEdit && (

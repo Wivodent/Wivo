@@ -1,3 +1,4 @@
+import { isConflict } from '@shared/concurrency/guardedSave'
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MessageSquare, Plus, Trash2, X } from 'lucide-react'
 import { format, parseISO, isValid } from 'date-fns'
@@ -49,13 +50,14 @@ export function JobNotesPanel({ job, highlightNoteId }: JobNotesPanelProps) {
   async function write(next: JobNote[], after?: () => void) {
     setError(null)
     try {
-      await updateJob.mutateAsync({ id: job.id, markused: next })
+      await updateJob.mutateAsync({ id: job.id, base: job, markused: next })
       after?.()
     } catch (err) {
       const e = err as { code?: string; message?: string }
       setError(
         e?.code === 'PGRST204' || e?.code === '42703'
           ? t('app.notAvailableYet')
+          : isConflict(err) ? t('conflict.someoneElseChanged')
           : e?.message ?? t('jobDetail.savingFailed')
       )
     }
