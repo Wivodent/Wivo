@@ -247,6 +247,27 @@ the cloud with a way back. **Plan only, and after the demo.**
 
 ---
 
+## Website: wivodent.com (alongside 2.2.x–2.3.x)
+
+**The plan:** docs/WEBSITE-PLAN.md (plan only, waiting for Kevin's OK and its
+§12 decisions). **No code yet.**
+
+- **What it is:** Wivo's public site at `wivodent.com`, separate from the phone
+  app (`app.wivodent.com`) and the console (`admin.wivodent.com`).
+- **The home page:** particles that come together into the logo, and a scroll
+  story where the logo opens into Wivo's parts (frames cut from an AI video,
+  canvas + WebP, a shorter sequence on the phone).
+- **The feature search:** green for what Wivo does, red with "Request this
+  feature" for what it does not. It reads `features.json`, which is made from
+  the code (the licence modules and a feature catalogue with its own test) at
+  every build of `main`, so each release updates it.
+- **Build your Wivo:** the modules, mode, seats and country, then a request for
+  an offer.
+- **Where requests go:** feature requests and orders reach the admin console
+  (below) through one Edge Function, `site-intake`. The console signs nothing,
+  and the anon key still gets nothing.
+- **Not a step on the version ladder:** it changes nothing in a clinic's Wivo.
+
 ## Wivo admin console (after Riga is stable)
 
 **When:** after Riga is stable. Clinics see no change from it, so it waits until
