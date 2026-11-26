@@ -23,9 +23,13 @@ const register = (actor: { id: string }, type: string, supersedes: string | null
     `select * from public.register_job_file($1, $2, $3, 1000, 'model/stl', 'stl', $4)`, [jobId, type, SHA, supersedes])
     .then(r => r[0])
 
-/** What Storage does on upload: insert the object row as the user, under RLS. */
+/**
+ * What Storage does on upload: insert the object row as the user, under RLS,
+ * with the metadata it records (the content type sql/135 checks on a preview).
+ */
 const upload = (actor: { id: string }, path: string) =>
-  errorAs(db, actor, `insert into storage.objects (bucket_id, name, owner) values ('job-files', $1, $2)`, [path, (actor as { id: string }).id])
+  errorAs(db, actor, `insert into storage.objects (bucket_id, name, owner, metadata) values ('job-files', $1, $2, $3)`,
+    [path, (actor as { id: string }).id, JSON.stringify({ mimetype: path.endsWith('.png') ? 'image/png' : 'model/stl', size: 1000 })])
 
 const canSeeObject = (actor: { id: string }, path: string) =>
   rowsAs(db, actor, `select 1 from storage.objects where bucket_id = 'job-files' and name = $1`, [path]).then(r => r.length > 0)

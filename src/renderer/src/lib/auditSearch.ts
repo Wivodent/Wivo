@@ -33,7 +33,7 @@ const NO_NAMES: Names = new Map()
 export const AUDIT_ACTIONS = [
   'create', 'edit', 'view', 'download', 'upload', 'file_deleted', 'share', 'unshare', 'stage_move', 'partnership',
   'export', 'question', 'delete', 'restore', 'permission', 'stock_override', 'mfa_added', 'mfa_removed', 'mfa_reset',
-  'account_deleted', 'update', 'stage_start', 'stage_edit',
+  'account_deleted', 'update', 'stage_start', 'stage_edit', 'password_set',
 ] as const
 
 export function actionLabel(a: string): string {
@@ -44,6 +44,7 @@ export function actionLabel(a: string): string {
     delete: t('audit.delete'), restore: t('audit.restore'), stock_override: t('audit.stockOverride'),
     mfa_added: t('audit.mfaAdded'), mfa_removed: t('audit.mfaRemoved'), mfa_reset: t('audit.mfaReset'),
     account_deleted: t('audit.accountDeleted'),
+    password_set: t('audit.passwordSet'),
     create: t('audit.create'), edit: t('audit.edit'), permission: t('audit.permission'), file_deleted: t('audit.fileDeleted'),
     update: t('audit.update'), stage_start: t('audit.stageStart'), stage_edit: t('audit.stageEdit'),
   } as Record<string, string>)[a] ?? a
@@ -259,6 +260,8 @@ export function describeEntry(e: AuditEntry, names: Names = NO_NAMES): string {
   if (e.action === 'mfa_reset') return t('audit.mfaResetDetail', { who: String(d.target_name ?? ''), reason: String(d.reason ?? '') })
   // An account deleted for good (sql/110): whose.
   if (e.action === 'account_deleted') return String(d.target_name ?? '')
+  // A password set by the owner (sql/135): whose, and that they were signed out.
+  if (e.action === 'password_set') return d.signed_out ? t('audit.passwordSetDetail', { who: String(d.target_name ?? '') }) : String(d.target_name ?? '')
   // sql/114: edits, permissions, a deleted file.
   if (e.action === 'edit') return editText(d, namesFor(e, names))
   if (e.action === 'permission') return permissionText(d)

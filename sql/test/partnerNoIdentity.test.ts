@@ -246,7 +246,7 @@ describe('leak test: nothing that identifies the patient reaches a partner, thro
     await rowsAs(db, { id: A.ownerId }, `insert into storage.objects (bucket_id, name, owner) values ('job-files', $1, $2)`, [f.storage_path, A.ownerId])
     await rowsAs(db, { id: A.ownerId }, `select public.confirm_job_file($1)`, [f.id])
     const [{ path: previewPath }] = await rowsAs<{ path: string }>(db, { id: A.ownerId }, `select public.set_job_file_preview($1) as path`, [f.id])
-    await rowsAs(db, { id: A.ownerId }, `insert into storage.objects (bucket_id, name, owner) values ('job-files', $1, $2)`, [previewPath, A.ownerId])
+    await rowsAs(db, { id: A.ownerId }, `insert into storage.objects (bucket_id, name, owner, metadata) values ('job-files', $1, $2, '{"mimetype":"image/png","size":1000}')`, [previewPath, A.ownerId])
     await rowsAs(db, { id: A.ownerId }, `select public.confirm_job_file_preview($1)`, [f.id])
     const [q] = (await db.query<{ id: string }>(
       `select m.id from public.messages m join public.channels c on c.id = m.channel_id where c.job_id = $1 and m.is_question`, [j])).rows

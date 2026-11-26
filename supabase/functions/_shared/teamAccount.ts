@@ -7,6 +7,7 @@
  *                                                          owner: a login without e-mail (a stand-in)
  *   { action: 'resend', userId, language }                 owner: the invite again, while not accepted
  *   { action: 'add_email', email, language }               oneself: a real e-mail replaces one's stand-in
+ *   { action: 'set_password', userId, password }           owner: a worker's (or their own) new password (2.2.5)
  *
  * The caller check, as in `account-security`:
  *  1. A signed-in user's access token, not a key (userTokenSubject).
@@ -52,6 +53,10 @@ export interface TeamAccountDeps {
   sendMail: (m: { to: string; subject: string; text: string }) => Promise<{ ok: boolean; error?: string }>
   /** sql/125 record_mail_quota_hit, as the service role: Resend's limit was reached. */
   recordQuota?: (kind: QuotaKind, source: string) => Promise<void>
+  /** As the service role (sql/135 complete_password_set). */
+  asService?: Rpc
+  /** GoTrue admin updateUserById: the password. */
+  setPassword?: (userId: string, password: string) => Promise<{ error: string | null }>
   env: (name: string) => string | undefined
   warn: (message: string) => void
   now?: () => number
@@ -60,6 +65,7 @@ export interface TeamAccountDeps {
 export type ErrorCode =
   | 'sign_in' | 'bad_request' | 'mfa_required' | 'not_allowed' | 'not_allowed_here' | 'mail_not_set_up'
   | 'email_taken' | 'username_taken' | 'weak_password' | 'not_pending' | 'has_email' | 'mail_failed' | 'failed'
+  | 'fresh_code'
 
 export interface Answer {
   status: number
@@ -71,6 +77,7 @@ export type TeamRequest =
   | { action: 'create_login'; username: string; fullName: string; password: string; language: Lang }
   | { action: 'resend'; userId: string; language: Lang }
   | { action: 'add_email'; email: string; language: Lang }
+  | { action: 'set_password'; userId: string; password: string }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** As the app's (lib/authConfirm.ts); the project's "Minimum password length" should match. */
@@ -104,6 +111,10 @@ export function parseTeamRequest(body: unknown): TeamRequest | null {
     const email = realEmail(b.email)
     return email ? { action: 'add_email', email, language } : null
   }
+  if (b.action === 'set_password' && typeof b.userId === 'string' && UUID.test(b.userId)) {
+    const password = typeof b.password === 'string' && b.password.length >= MIN_PASSWORD && b.password.length <= 200 ? b.password : null
+    return password ? { action: 'set_password', userId: b.userId.toLowerCase(), password } : null
+  }
   return null
 }
 
@@ -118,6 +129,7 @@ const fail = (status: number, error: ErrorCode, userId?: string): Answer =>
 function refusal(e: { message: string; code?: string; hint?: string }, deps: TeamAccountDeps): Answer {
   if (e.code?.startsWith('PGRST3') || /JWT/i.test(e.message)) return fail(401, 'sign_in')
   if (e.hint === 'mfa_required') return fail(403, 'mfa_required')
+  if (e.hint === 'fresh_code') return fail(403, 'fresh_code')
   if (e.code === '42501') return fail(403, 'not_allowed')
   deps.warn(`database: ${scrub(`${e.code ?? ''} ${e.message}`.trim())}`)
   return fail(502, 'failed')
@@ -186,6 +198,7 @@ export async function handleTeamRequest(authorization: string | null, body: unkn
     case 'create_login': return createLogin(caller, req, deps)
     case 'resend': return resend(caller, req, deps)
     case 'add_email': return addEmail(caller, req, deps)
+    case 'set_password': return setPassword(req, deps)
   }
 }
 
@@ -336,4 +349,36 @@ async function noteQuota(error: string | undefined, source: string, deps: TeamAc
   try { await deps.recordQuota?.(kind, source) } catch (e) {
     deps.warn(`record_mail_quota_hit: ${e instanceof Error ? e.message : String(e)}`)
   }
+}
+
+/**
+ * The owner sets a worker's password (2.2.5, sql/135, docs/SECURITY-REVIEW-2026-11.md
+ * D1). The database decides first (authorize_password_set: the owner of the
+ * same clinic, a code from the last 5 minutes, never another owner); only
+ * then does the service key set it; then the audit entry and the worker's
+ * sessions ended (complete_password_set). The password is never logged.
+ */
+async function setPassword(req: Extract<TeamRequest, { action: 'set_password' }>, deps: TeamAccountDeps): Promise<Answer> {
+  if (!deps.asService || !deps.setPassword) return fail(502, 'failed')
+  const { data, error } = await deps.asUser('authorize_password_set', { p_user: req.userId })
+  if (error) return refusal(error, deps)
+  const r = data as { ok?: boolean; org_id?: string; actor_id?: string; user_id?: string } | null
+  if (!r?.ok || !r.org_id || !r.actor_id || r.user_id !== req.userId) {
+    deps.warn('set_password: unexpected answer from authorize_password_set')
+    return fail(403, 'not_allowed')
+  }
+  const set = await deps.setPassword(req.userId, req.password)
+  if (set.error) {
+    if (/password/i.test(set.error)) return fail(400, 'weak_password')
+    deps.warn(`set_password: updateUserById failed: ${scrub(set.error)}`)
+    return fail(502, 'failed')
+  }
+  const done = await deps.asService('complete_password_set', { p_org: r.org_id, p_actor: r.actor_id, p_target: req.userId })
+  if (done.error) {
+    // The password is set; the audit entry or the sign-out is not. Said, so
+    // the owner can sign the worker out by hand (Team → the person).
+    deps.warn(`set_password: complete_password_set failed: ${scrub(`${done.error.code ?? ''} ${done.error.message}`)}`)
+    return fail(502, 'failed', req.userId)
+  }
+  return { status: 200, body: { ok: true, userId: req.userId } }
 }

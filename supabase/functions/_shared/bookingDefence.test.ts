@@ -6,6 +6,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { clientIp } from './clientIp'
 import { verifyTurnstile, originHostnames } from './turnstile'
+import { safeReturnUrl } from './returnUrl'
 import { scrubDbDetail, scrubPersonalData } from '../../../shared/privacy/scrub'
 
 const h = (o: Record<string, string>) => ({ get: (k: string) => o[k.toLowerCase()] ?? null })
@@ -60,5 +61,13 @@ describe('a refused row never reaches a log or Sentry whole', () => {
       .toBe('duplicate key value violates unique constraint "p_key" Key (patsient, clinic_id)=(…) already exists.')
     expect(scrubDbDetail('DETAIL: Key (email)=(mari@x.ee) is still referenced')).toBe('DETAIL: …')
     expect(scrubPersonalData('Failing row contains (Mari, mari@x.ee)')).toBe('Failing row contains (…)')
+  })
+})
+
+describe('the return page links only to an https address (E3)', () => {
+  it('https kept; javascript:, data:, http: and nonsense give no link', () => {
+    expect(safeReturnUrl(' https://dentiks.lv/aitah ')).toBe('https://dentiks.lv/aitah')
+    for (const v of ['javascript:alert(1)', 'data:text/html,<script>x</script>', 'http://dentiks.lv', 'dentiks.lv', '', null, 5])
+      expect(safeReturnUrl(v), String(v)).toBeNull()
   })
 })

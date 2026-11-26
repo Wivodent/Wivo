@@ -29,6 +29,7 @@
  * go through an edge function holding the service key, never through an anon
  * session." This is that function.
  */
+import { safeReturnUrl } from './returnUrl.ts'
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import type { PublicService } from '@shared/portal/publicService.ts'
 import type { BookingRules } from '@shared/portal/slots.ts'
@@ -189,7 +190,8 @@ export async function bookingSettingsOf(clinicId: string): Promise<BookingSettin
     automaatKinnitus: b.automaatKinnitus === true,
     visiiditasu: Number.isFinite(fee) && fee > 0 ? Math.round(fee * 100) / 100 : 0,
     valuuta: typeof b.valuuta === 'string' && b.valuuta.trim() ? b.valuuta.trim().toUpperCase() : 'EUR',
-    tagasiUrl: typeof b.tagasiUrl === 'string' && b.tagasiUrl.trim() ? b.tagasiUrl.trim() : null,
+    // https only: anything else gives no link (returnUrl.ts, 2.2.5).
+    tagasiUrl: safeReturnUrl(b.tagasiUrl),
     // The diary rules, straight through. `freeSlots` treats a missing weekday
     // as CLOSED, so an unconfigured clinic offers no times rather than all of
     // them — the safe direction for a setting nobody has filled in yet.

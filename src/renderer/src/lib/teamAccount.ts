@@ -10,6 +10,7 @@ import type { MessageKey } from '@shared/i18n'
 export type TeamErrorCode =
   | 'sign_in' | 'bad_request' | 'mfa_required' | 'not_allowed' | 'not_allowed_here' | 'mail_not_set_up'
   | 'email_taken' | 'username_taken' | 'weak_password' | 'not_pending' | 'has_email' | 'mail_failed' | 'failed'
+  | 'fresh_code'
   /** Ours, not the server's: no answer within TEAM_CALL_TIMEOUT_MS. */
   | 'no_answer'
 
@@ -31,6 +32,7 @@ const MESSAGE: Record<TeamErrorCode, MessageKey> = {
   has_email: 'team.errorHasEmail',
   mail_failed: 'team.errorMailFailed',
   failed: 'team.errorFailed',
+  fresh_code: 'team.errorFreshCode',
   no_answer: 'team.errorNoAnswer',
 }
 
@@ -77,6 +79,15 @@ export function createLogin(p: { username: string; fullName: string; password: s
 /** The owner: the invite again, while it has not been accepted. */
 export function resendInvite(userId: string, language: Language): Promise<{ userId: string }> {
   return call({ action: 'resend', userId, language })
+}
+
+/**
+ * The owner: a worker's new password (2.2.5). The server asks the database
+ * first (a code from the last 5 minutes: FreshCodeDialog), records it in the
+ * audit log and ends the worker's sessions.
+ */
+export function setMemberPassword(userId: string, password: string): Promise<{ userId: string }> {
+  return call({ action: 'set_password', userId, password })
 }
 
 /** Oneself: a real e-mail replaces one's stand-in, once the link in that mailbox is opened. */

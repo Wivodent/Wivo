@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { Users, UserPlus, Shield, Loader2, Trash2, Check, Lock, Copy } from 'lucide-react'
 import { supabase, displayIdentity, PROFILE_COLUMNS } from '../../lib/supabase'
 import { AddMemberDialog } from './AddMemberDialog'
-import { teamAccounts, accountBadges, signInLine, resendInvite, teamErrorMessage, type TeamAccount } from '../../lib/teamAccount'
+import { teamAccounts, accountBadges, signInLine, resendInvite, teamErrorMessage, setMemberPassword, type TeamAccount } from '../../lib/teamAccount'
+import { FreshCodeDialog } from '../ui/FreshCodeDialog'
 import { MIN_PASSWORD } from '../../lib/authConfirm'
 import { ROLE_PRESETS, ROLE_PRESET_KEYS, type RolePreset } from '@shared/permissions'
 import { useUpdateStatus } from '../../hooks/useUpdateStatus'
@@ -138,6 +139,8 @@ export function WorkersPage() {
   const [newPassword, setNewPassword] = useState('')
   const [pwSaving, setPwSaving] = useState(false)
   const [pwDone, setPwDone] = useState<string | null>(null)
+  // A new password needs a code from the owner's authenticator at that moment (2.2.5, sql/135).
+  const [pwAskCode, setPwAskCode] = useState<WorkerWithPerms | null>(null)
   const [showAllRemoved, setShowAllRemoved] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
 
@@ -241,23 +244,28 @@ export function WorkersPage() {
    * through a SECURITY DEFINER function that checks the caller owns the clinic
    * (migration 030) — the client is never trusted with that decision.
    */
-  async function setWorkerPassword(worker: WorkerWithPerms) {
+  function setWorkerPassword(worker: WorkerWithPerms) {
     setRemoveError(null); setPwDone(null)
     if (newPassword.trim().length < MIN_PASSWORD) {
       setRemoveError(t('workers.passwordMustBeAtLeast', { n: MIN_PASSWORD }))
       return
     }
+    setPwAskCode(worker)
+  }
+
+  /**
+   * After the fresh code: through the Edge Function team-account (2.2.5),
+   * which records it in the audit log and ends the worker's open sessions.
+   * Before, the database function did it with no trace and left them signed in.
+   */
+  async function confirmWorkerPassword(worker: WorkerWithPerms) {
     setPwSaving(true)
     try {
-      const { error } = await supabase.rpc('admin_set_worker_password', {
-        p_profile: worker.id,
-        p_password: newPassword.trim(),
-      })
-      if (error) throw error
+      await setMemberPassword(worker.id, newPassword.trim())
       setPwDone(newPassword.trim())
       setNewPassword('')
     } catch (err) {
-      setRemoveError((err as Error)?.message ?? t('workers.settingThePasswordFailed'))
+      setRemoveError(teamErrorMessage(err) || t('workers.settingThePasswordFailed'))
     } finally {
       setPwSaving(false)
     }
@@ -557,6 +565,15 @@ export function WorkersPage() {
                         {pwSaving ? t('workers.saving') : t('workers.set')}
                       </button>
                     </div>
+                  )}
+                  {pwAskCode && (
+                    <FreshCodeDialog
+                      title={t('workers.passwordCodeTitle')}
+                      explanation={t('workers.passwordCodeExplanation')}
+                      confirmLabel={t('workers.set')}
+                      onConfirmed={() => confirmWorkerPassword(pwAskCode)}
+                      onClose={() => setPwAskCode(null)}
+                    />
                   )}
                   {/* Only when it is known how they sign in: an e-mail account can reset its own. */}
                   {accounts.get(selected.id) && (

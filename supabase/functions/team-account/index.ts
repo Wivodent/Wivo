@@ -83,6 +83,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
       })
       return res.ok ? { ok: true } : { ok: false, error: `${res.status} ${(await res.text()).slice(0, 200)}` }
     },
+    asService: async (fn, args) => await service.rpc(fn, args),
+    setPassword: async (userId, password) => {
+      const { error } = await service.auth.admin.updateUserById(userId, { password })
+      return { error: error ? `${error.code ?? ''} ${error.message}`.trim() : null }
+    },
     recordQuota: async (kind, source) => {
       const { error } = await service.rpc('record_mail_quota_hit', { p_kind: kind, p_source: source })
       if (error) logWarn('team-account', `record_mail_quota_hit: ${error.message}`)
