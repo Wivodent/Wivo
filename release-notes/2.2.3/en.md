@@ -15,6 +15,12 @@ The same goes for prices and work types, pay rules and workflow templates.
 A price saved without a connection is no longer lost: Wivo sends it again by
 itself.
 
+## Changes from another computer show at once
+
+A note, a price or a stage changed on another computer now shows straight
+away, and always when you open the job. Before, it could take until Wivo was
+restarted. If a save or a stage move fails, Wivo says why.
+
 ## Duplicate makes a new job
 
 **Duplicate** on a job now creates a new job. Before, saving the copy

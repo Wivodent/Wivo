@@ -1,3 +1,4 @@
+import { describeError } from '../Patients/errors'
 import { useState, useRef, useEffect } from 'react'
 import { ArrowUpRight, Clock, Cpu, Euro, FileText, History, UserRound, Zap, Trash2, Plus, Copy, Printer, Pencil, Bolt } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -507,6 +508,10 @@ export function JobReadView({
                 }}
               />
             )}
+            {/* A failed save is said, never silent (2.2.3). */}
+            {updateJob.error && (
+              <p role="alert" className="text-xs text-rose-500">{describeError(updateJob.error)}</p>
+            )}
 
             <Card title={t('jobDetail.jOBHISTORY')} icon={History}>
               {/* Derived from the timestamps the job already carries — there is no
@@ -719,7 +724,10 @@ function CompletionDate({ job, editable }: { job: Job; editable: boolean }) {
             onClick={() => {
               // Empty clears it — and the screen then says so, rather than
               // pretending the job has a date it does not have.
-              updateJob.mutate({ id: job.id, valmis_kuupaev: draft || null })
+              updateJob.mutate({ id: job.id, valmis_kuupaev: draft || null }, {
+                // Back to the field with the message: the date was not saved.
+                onError: () => setEditing(true),
+              })
               setEditing(false)
             }}
             className="text-emerald-600 hover:text-emerald-700 text-xs px-1"
@@ -734,6 +742,7 @@ function CompletionDate({ job, editable }: { job: Job; editable: boolean }) {
             {t('jobDetail.cancel')}
           </button>
         </div>
+        {updateJob.error && <p role="alert" className="text-[11px] text-rose-500">{describeError(updateJob.error)}</p>}
       </div>
     )
   }

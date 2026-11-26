@@ -4270,6 +4270,8 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'catalogue.kindOther': "Muu",
   'picturePicker.title': "{name}: pilt",
   'picturePicker.subtitle': "Näidatakse kõikjal, kus see töötüüp on: uue töö vormil, hindades ja kataloogis.",
+  'app.stageNotMoved': "Etappi ei muudetud: {e}",
+  'app.dismiss': "Sulge",
   'conflict.someoneElseChanged': "Keegi teine muutis seda samal ajal, kui sina muutsid",
   'conflict.changedBoth': "Mõlemad muutsite: {items}",
   'conflict.reloadHint': "Midagi ei salvestatud. Reload näitab tema versiooni; sinu teised muudatused jäävad vormi alles.",

@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { isMenuPlace } from '@shared/permissions'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query'
 import { AnimatePresence } from 'framer-motion'
 import { TopBar } from './components/TopBar'
 import { Sidebar } from './components/Sidebar'
@@ -50,6 +50,8 @@ import { ConfirmHost } from './components/ui/ConfirmHost'
 import { UpdateProvider } from './providers/UpdateProvider'
 import type { Job, JobInput, StageKey } from './types/job'
 import type { ViewMode } from './types/view'
+import { describeError } from './components/Patients/errors'
+import { t } from '@/lib/i18n'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,10 +62,27 @@ const queryClient = new QueryClient({
   }
 })
 
+// "Refetch when the window is back in use" listens for visibilitychange,
+// which does not fire when switching between two app windows (two
+// computers' worth of Wivo side by side, or Wivo and the e-mail): the
+// window's own focus counts too. Data older than staleTime is read again.
+focusManager.setEventListener(handleFocus => {
+  const onFocus = () => handleFocus(true)
+  const onVisibility = () => handleFocus(document.visibilityState === 'visible')
+  window.addEventListener('focus', onFocus)
+  document.addEventListener('visibilitychange', onVisibility)
+  return () => {
+    window.removeEventListener('focus', onFocus)
+    document.removeEventListener('visibilitychange', onVisibility)
+  }
+})
+
 function AppContent() {
   const [view, setView] = useState<ViewMode>('overview')
   // Which settings tab to open; `n` remounts the page when it is already open.
   // `workType`: the Prices card to show (the new job's "Not a bridge? Change type").
+  // A stage move on the board that was refused or failed: said at the top.
+  const [moveError, setMoveError] = useState<string | null>(null)
   const [settingsAt, setSettingsAt] = useState<{ group?: GroupKey; workType?: string; n: number }>({ n: 0 })
   // Only for that one opening: Settings from the sidebar opens where it always does.
   useEffect(() => { if (view !== 'settings') setSettingsAt(a => (a.group ? { n: a.n } : a)) }, [view])
@@ -215,17 +234,24 @@ function AppContent() {
     async (jobId: string, stage: StageKey) => {
       const job = jobs.find(j => j.id === jobId)
       const becomingDone = stage === doneStageKey && job?.valmis_kuupaev == null
-      await updateJob.mutateAsync({
-        id: jobId,
-        status: stage,
-        ...(becomingDone ? { valmis_kuupaev: new Date().toISOString().slice(0, 10) } : {}),
-      })
+      setMoveError(null)
+      try {
+        await updateJob.mutateAsync({
+          id: jobId,
+          status: stage,
+          ...(becomingDone ? { valmis_kuupaev: new Date().toISOString().slice(0, 10) } : {}),
+        })
+      } catch (e) {
+        // The card goes back to where it was; the reason is said, not swallowed.
+        setMoveError(describeError(e))
+      }
     },
     [updateJob, jobs, doneStageKey]
   )
 
-  const handleRevisionStageChange = useCallback(
+  const moveRevisionStage = useCallback(
     async (jobId: string, revId: string, stage: StageKey) => {
+      setMoveError(null)
       const job = jobs.find(j => j.id === jobId)
       if (!job) return
       // Through the stage gate (sql/087): rules, audit and notifications, the
@@ -251,6 +277,13 @@ function AppContent() {
       await updateJob.mutateAsync({ id: jobId, base: job, revisions: updatedRevisions })
     },
     [jobs, updateJob, doneStageKey]
+  )
+
+  const handleRevisionStageChange = useCallback(
+    async (jobId: string, revId: string, stage: StageKey) => {
+      try { await moveRevisionStage(jobId, revId, stage) } catch (e) { setMoveError(describeError(e)) }
+    },
+    [moveRevisionStage]
   )
 
   // Same stamp when the status is changed from inside the form rather than by
@@ -418,6 +451,12 @@ function AppContent() {
 
         <LicenseBanner onOpenSettings={() => { setSettingsAt(a => ({ group: 'litsents', n: a.n + 1 })); setView('settings') }} />
         <LicenceUpdatedBanner onOpenSettings={() => { setSettingsAt(a => ({ group: 'litsents', n: a.n + 1 })); setView('settings') }} />
+        {moveError && (
+          <div role="alert" className="mx-4 mt-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2 flex items-center gap-3">
+            <span className="flex-1 text-sm text-rose-600">{t('app.stageNotMoved', { e: moveError })}</span>
+            <button type="button" onClick={() => setMoveError(null)} className="text-sm font-semibold text-ink-soft hover:text-ink">{t('app.dismiss')}</button>
+          </div>
+        )}
         <UpdateStaleBanner />
         <DatabaseUpdateBanner />
         <ProfileProblemBanner />

@@ -255,6 +255,8 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'catalogue.kindOther': "Другое",
   'picturePicker.title': "Картинка: {name}",
   'picturePicker.subtitle': "Показывается везде, где есть этот вид работы: в форме новой работы, в ценах и в каталоге.",
+  'app.stageNotMoved': "Этап не изменён: {e}",
+  'app.dismiss': "Закрыть",
   'conflict.someoneElseChanged': "Кто-то другой изменил это, пока вы редактировали",
   'conflict.changedBoth': "Изменили вы оба: {items}",
   'conflict.reloadHint': "Ничего не сохранено. Reload покажет их версию; остальные ваши изменения останутся в форме.",

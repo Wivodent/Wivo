@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { supabaseTarget, allowedInTestMode, TestCopyRefused } from './testCopy'
 import { licensedApiOrigins } from './licensedApi'
 import { supabaseOptions } from './supabaseOptions'
+import { followTokenForRealtime } from './realtimeAuth'
 import type { Job } from '../types/job'
 import type { Session, User, AuthChangeEvent } from '@supabase/supabase-js'
 import { STANDIN_DOMAIN, loginAddresses, loginNameOf, normaliseClinicCode } from '@shared/auth/loginAddress'
@@ -40,6 +41,13 @@ const testMode = import.meta.env.MODE === 'test'
  * sign-in is kept under its own key (lib/testCopy).
  */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, supabaseOptions(testMode))
+
+// The realtime connection gets the token signed in with the second factor
+// too, or it hears no change at all (lib/realtimeAuth).
+followTokenForRealtime({
+  onAuthStateChange: cb => supabase.auth.onAuthStateChange(cb),
+  setRealtimeAuth: token => supabase.realtime.setAuth(token),
+})
 
 
 /**

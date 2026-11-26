@@ -34,10 +34,27 @@
   requests, not one transaction: that is 2.2.4.
 - **Duplicate** on a job made the copy by saving over the ORIGINAL (stage to
   the first, revisions and payment wiped). It now creates a new job.
+- **Another computer's change is on screen** (hand test: B kept the old note
+  and price until Ctrl+R; the save itself was right). Three causes, all older
+  than 2.2.3:
+  - realtime kept the token from before the second-factor code: supabase-js
+    passes a new token to realtime on SIGNED_IN / TOKEN_REFRESHED /
+    INITIAL_SESSION, not on MFA_CHALLENGE_VERIFIED, and every table answers
+    only aal2 (sql/098), so a session signed in that day heard no change at
+    all until the token refresh (lib/realtimeAuth passes every new token);
+  - opening a job showed the cached list's copy: now read from the database
+    on opening (`useFreshJobOnOpen`, desktop panel and phone);
+  - "refetch on focus" listened only to visibilitychange, which switching
+    between app windows does not fire: the window's focus counts too.
+- A failed save is never silent: the read view's cost override and finished
+  date, and a stage move on the board (the card went back without a word)
+  now say why.
 - Not in this release: stage defaults (#10) and booking hours (#11) stay
   last-write-wins; atomic saves are 2.2.4.
 - **Tests:** shared/concurrency/merge.test.ts, guardedSave.test.ts, and
-  src/renderer/src/lib/settingsSync.test.ts — two people on one row.
+  src/renderer/src/lib/settingsSync.test.ts — two people on one row;
+  src/renderer/src/hooks/freshJob.test.ts — the hand test (A: note and price,
+  B: stage, B opens the job and sees all three) and the realtime token.
 
 **Database:** no migration (jobs and clinic_settings have an updated_at
 trigger; worker_rates and workflow_template are stamped by every writer).

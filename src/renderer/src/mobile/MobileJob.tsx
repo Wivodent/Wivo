@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { Camera, Loader2, Zap } from 'lucide-react'
-import { useJobs } from '../hooks/useJobs'
+import { useFreshJobOnOpen, useJobs } from '../hooks/useJobs'
 import { useJobById } from '../hooks/useJobSearch'
 import { usePartnerJobs, type PartnerJob } from '../hooks/usePartners'
 import { usePipeline } from '../context/PipelineContext'
@@ -28,6 +28,8 @@ import { t, dateLocale } from '@/lib/i18n'
 
 export function MobileJob({ id, onClose }: { id: string; onClose: () => void }) {
   const { data: jobs, isLoading } = useJobs()
+  // Read fresh on opening: another device's change is on screen at once.
+  useFreshJobOnOpen(id)
   const { data: shared, isLoading: sharedLoading } = usePartnerJobs('')
   const loaded = jobs?.find(j => j.id === id)
   const partner = shared?.find(s => s.job_id === id)

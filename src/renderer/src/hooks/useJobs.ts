@@ -1,5 +1,5 @@
 import { useEffect, useId } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { supabase, getActiveClinicId } from '../lib/supabase'
 import type { Job, JobInput } from '../types/job'
 import {
@@ -54,6 +54,55 @@ export function useJobs() {
       return data as Job[]
     }
   })
+}
+
+// --- One job, read fresh when it is opened ---
+/**
+ * The job as stored now, with its pay stages like the list (lib/jobPayStages).
+ * Null when it cannot be seen (deleted, or not allowed).
+ */
+export async function fetchJobRow(id: string): Promise<Job | null> {
+  if (!payStagesKnownUnavailable()) {
+    const { data, error } = await supabase.from('jobs').select(JOBS_WITH_PAY_STAGES)
+      .not(...PAY_STAGE_FILTER).eq('id', id).maybeSingle()
+    if (!error) return data ? withPayStages(data as unknown as Record<string, unknown>) : null
+    if (!payStagesUnavailable(error)) throw error
+    markPayStagesUnavailable()
+  }
+  const { data, error } = await supabase.from('jobs').select('*').eq('id', id).maybeSingle()
+  if (error) throw error
+  return (data ?? null) as Job | null
+}
+
+/** The list with this job's fresh copy in its place. A job not in the list is left out. Pure. */
+export function withJobReplaced(list: Job[] | undefined, fresh: Job | null): Job[] | undefined {
+  if (!list || !fresh) return list
+  return list.some(j => j.id === fresh.id) ? list.map(j => (j.id === fresh.id ? fresh : j)) : list
+}
+
+/**
+ * Read the job from the database and put it in the jobs list: what another
+ * computer saved is on screen when the job is opened, whatever the list
+ * last heard (2.2.3: a note and a price saved elsewhere stayed invisible
+ * until Ctrl+R).
+ */
+export async function refreshJobInCache(
+  qc: QueryClient, id: string, read: (id: string) => Promise<Job | null> = fetchJobRow,
+): Promise<Job | null> {
+  const fresh = await read(id)
+  if (fresh) qc.setQueryData<Job[]>(QUERY_KEY, old => withJobReplaced(old, fresh))
+  return fresh
+}
+
+/** Each time a job is opened: read it fresh (the panel shows the list's copy meanwhile). */
+export function useFreshJobOnOpen(id: string | null | undefined): void {
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (!id) return
+    // A failed read leaves the list's copy on screen; saving still checks the
+    // stored row (saveJobChanges), so nothing is written over a newer one.
+    refreshJobInCache(qc, id).catch(() => {})
+  }, [qc, id])
 }
 
 // --- Create a new job ---

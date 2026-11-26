@@ -14,6 +14,12 @@ muudatused vormi alles.
 Sama kehtib hindade ja töötüüpide, palgareeglite ja töövoo mallide kohta.
 Ilma ühenduseta salvestatud hind ei kao enam: Wivo saadab selle ise uuesti.
 
+## Teise arvuti muudatused on kohe näha
+
+Teises arvutis muudetud märge, hind või etapp on nüüd kohe näha ja alati
+siis, kui töö avad. Varem võis see paista alles pärast Wivo taaskäivitust.
+Kui salvestus või etapi muutmine ebaõnnestub, ütleb Wivo põhjuse.
+
 ## Dubleeri teeb uue töö
 
 Töö juures **Dubleeri** teeb nüüd uue töö. Varem muutis koopia salvestamine

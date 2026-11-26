@@ -45,7 +45,7 @@ import { splitMaterials, joinMaterials, materialList } from '@shared/pricing/mat
 import { t } from '@/lib/i18n'
 import { describeError } from '../Patients/errors'
 import { useHoldRestart } from '../../lib/restartGuard'
-import { useUpdateJob } from '../../hooks/useJobs'
+import { useFreshJobOnOpen, useUpdateJob } from '../../hooks/useJobs'
 import { changedFields, isConflict, type FieldConflict } from '@shared/concurrency/guardedSave'
 import { ConflictBanner } from '../ui/ConflictBanner'
 import { jobFieldLabel } from '../../lib/conflictLabels'
@@ -538,6 +538,9 @@ function formFromJob(job: Job): JobInput {
 export function JobDetailPanel({ job, onClose, onSave, onCreateCopy, onDelete, saving, position = 'side', initialDate, highlightRevisionId, highlightNoteId, onOpenPatient }: JobDetailPanelProps) {
   // An update restart waits while a job's form is open (lib/restartGuard).
   useHoldRestart()
+  // Opening a job reads it from the database: another computer's note or
+  // price is on screen now, not after a restart (2.2.3).
+  useFreshJobOnOpen(job?.id)
   const isBottom = position === 'bottom'
   const isFullscreen = position === 'fullscreen'
   // Both bottom and fullscreen are sheets: they rise from the bottom edge and
