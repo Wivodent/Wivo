@@ -371,6 +371,21 @@ uuendused tulevad installeriga.
 
 Kui CLI ütleb, et `--use-api` on tundmatu: `brew upgrade supabase` ja uuesti.
 
+**Kui kliinik kasutab veebibroneeringut (`public-booking`, alates 2.2.5):**
+ilma Turnstile'i saladuseta ei võta funktsioon ühtegi taotlust vastu
+(„Online booking is not set up yet"). Cloudflare'is: Turnstile → Add site
+→ kliiniku kodulehe domeen. Siis:
+
+```sh
+supabase secrets set --project-ref <REF> \
+  TURNSTILE_SECRET_KEY=<salavõti> TURNSTILE_SITE_KEY=<saidivõti> \
+  PUBLIC_BOOKING_ORIGINS=https://<kliiniku-koduleht> IP_HASH_PEPPER=<juhuslik pikk tekst>
+supabase functions deploy public-booking --project-ref <REF> --use-api
+```
+
+Kodulehe vidin peab Turnstile'i näitama (`/services` annab `turnstileSiteKey`)
+ja saatma selle tokeni taotluses väljana `turnstileToken`.
+
 **8.3. VAPID-i paar** telefoni pushi jaoks:
 
 ```sh

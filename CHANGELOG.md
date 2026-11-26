@@ -1,5 +1,40 @@
 # Changelog
 
+## [2.2.5] — 2026-11-27
+
+**The security review's fixes (docs/SECURITY-REVIEW-2026-11.md, plan steps 1–8)**
+
+"What's new": release-notes/2.2.5. Details, the database steps and the hand tests: docs/REPORT-2.2.5.md.
+
+- **Online booking** (E1): the IP from CF-Connecting-IP or the platform's last
+  X-Forwarded-For hop, never the caller's first; a clinic-wide ceiling of 30
+  requests an hour over every IP; Cloudflare Turnstile checked in the
+  function (`TURNSTILE_SECRET_KEY`; without it no request is taken, and the
+  page says so). The website widget must send `turnstileToken`.
+- **Electron** (A1–A3, A6): no `window.electron` (it gave the page
+  `process.env` and every IPC channel); outside addresses only https, mailto,
+  tel; the window cannot be navigated away from Wivo; no `<webview>`; the
+  git-pull helper only in a development build.
+- **Desktop CSP** (A4) as a meta tag in the packaged build (config/csp.ts),
+  checked against what the bundle loads.
+- **The job sheet prints again** (A5): from a hidden frame, not
+  `window.open('')`, which Electron refused; the title as text.
+- **A worker's password** (D1, sql/135): through team-account with an
+  authenticator code from the last 5 minutes, an audit entry, and the worker
+  signed out everywhere; the old database function is closed.
+- **Rights** (D2, R1, sql/135): chat_prune and purge_visit_requests only for
+  the nightly job; the anonymous key has no right on any table.
+- **Logs** (E2, E4, L1): Edge Functions log a code and a scrubbed message,
+  never a refused row, a body or a hint; Sentry drops database detail.
+- **Previews and return links** (S2, E3, sql/135): a preview is a PNG, WebP
+  or JPEG of at most 5 MB; the payment return page links only to https.
+- **Phone** (W1, W3): each build's `_headers` carries a Report-Only CSP for
+  exactly its own project, and HSTS.
+- **Not in this release:** F6 (a ceiling on a signed link's lifetime) needs
+  2.2.6, file-link only; see the report.
+
+**Database:** sql/135 (after 131–134 of 2.2.4).
+
 ## [2.2.4] — 2026-11-26
 
 **Realtime everywhere it is listened to; saves that are one step**
