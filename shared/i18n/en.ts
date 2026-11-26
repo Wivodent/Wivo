@@ -4286,6 +4286,7 @@ export const en = {
   'picturePicker.subtitle': "Shown wherever this work type is: the new job form, prices and the catalogue.",
   'app.stageNotMoved': "The stage was not changed: {e}",
   'app.dismiss': "Close",
+  'conflict.reloadHintSettings': "Nothing was saved. Reload shows what is stored now; your unsaved changes here go.",
   'conflict.someoneElseChanged': "Someone else changed this while you were editing",
   'conflict.changedBoth': "Changed by both of you: {items}",
   'conflict.reloadHint': "Nothing was saved. Reload shows their version; your other changes stay in the form.",

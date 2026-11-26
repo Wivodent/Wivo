@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2193.
+-- Expected rows: 2205.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -565,6 +565,7 @@ with expected(kind, key, def) as (values
     ('default', 'public.workflow_template_stage.optional', 'false'),
     ('default', 'public.workflow_template_stage.orderer', 'false'),
     ('function', 'public.accept_partnership_invite(p_code text, p_share_stock boolean, p_default_visibility text, p_roles text[], p_dpa_reference text)', 'security definer, volatile, search_path=public, body md5 8ffc7a5e76b86d6d5a7d8b9788551cc1'),
+    ('function', 'public.add_job_note(p_job uuid, p_text text, p_author text)', 'security invoker, volatile, search_path=public, body md5 28e477f5d20032e4c62539112846c5e2'),
     ('function', 'public.add_job_stage(p_job uuid, p_stage text, p_after text, p_task text)', 'security definer, volatile, search_path=public, body md5 0a8a95ef43429565a7886f8c87768edd'),
     ('function', 'public.add_stock_item(p_category text, p_manufacturer text, p_system text, p_size text, p_product text, p_lot text, p_expiry date, p_qty integer, p_min_qty integer, p_owner_org uuid, p_owner_supplier text, p_consignment_due date)', 'security definer, volatile, search_path=public, body md5 85e4bef39004538f8398ebf2557f9b3d'),
     ('function', 'public.adjust_stock(p_item uuid, p_delta integer, p_reason text)', 'security definer, volatile, search_path=public, body md5 8676f6c4b0c89dc99a9cafbc13a8f4f0'),
@@ -637,6 +638,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.guard_job_option_doers()', 'security definer, volatile, search_path=public, body md5 44fe0e00197e68c1615dc9ade3584b47'),
     ('function', 'public.guard_job_order_doctor()', 'security definer, volatile, search_path=public, body md5 6f1c93644fc7961be82dfe87f1372f48'),
     ('function', 'public.guard_job_orderer()', 'security invoker, volatile, search_path=public, body md5 0dff489029d8b21c0e156ac85dd54fae'),
+    ('function', 'public.guard_job_template()', 'security invoker, volatile, search_path=public, body md5 67b3e29a96b158d74659d961e83441d9'),
     ('function', 'public.guard_partner_visible_job_text()', 'security definer, volatile, search_path=public, body md5 ebb721059bfec14c1952650eedd19e8e'),
     ('function', 'public.guard_partner_visible_message()', 'security definer, volatile, search_path=public, body md5 80a3eb810123d68bab0ec2c3f165c43d'),
     ('function', 'public.guard_partner_visible_stock_text()', 'security definer, volatile, search_path=public, body md5 1a9ae142a4e88c776e5bd0f466d0219a'),
@@ -747,6 +749,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.refuse_file_on_deleted_job()', 'security definer, volatile, search_path=public, body md5 671ecc781088dc0562b81269908b87ee'),
     ('function', 'public.refuse_share_of_deleted_job()', 'security definer, volatile, search_path=public, body md5 ba80dc59ac3b1557f56031e7c1d57ec0'),
     ('function', 'public.register_job_file(p_job uuid, p_type text, p_sha256 text, p_size bigint, p_mime text, p_extension text, p_supersedes uuid)', 'security definer, volatile, search_path=public, body md5 8ea8d6d9fbc195232b2d42ab9e98668a'),
+    ('function', 'public.remove_job_note(p_job uuid, p_note text)', 'security invoker, volatile, search_path=public, body md5 1adba4d171df087c321df2af8455c922'),
     ('function', 'public.replace_stale_grant()', 'security definer, volatile, search_path=public, body md5 59a2787dbcc7c1c86ac4b018abdd4834'),
     ('function', 'public.request_file_download(p_file uuid)', 'security definer, volatile, search_path=public, body md5 c1a09145877deefadca86dde25c21a2f'),
     ('function', 'public.request_job_previews(p_job uuid)', 'security definer, volatile, search_path=public, body md5 10750576eba81c7a9c4d50d8e0664b67'),
@@ -758,6 +761,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.restore_job(p_job uuid)', 'security definer, volatile, search_path=public, body md5 9e86dd8f5519f5b9efa3c89f026b9067'),
     ('function', 'public.return_stock(p_item uuid, p_qty integer, p_reason text)', 'security definer, volatile, search_path=public, body md5 3214d694aba554847f5a96682d23ed13'),
     ('function', 'public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text)', 'security definer, volatile, search_path=public, body md5 80cb15daf71cf8c5188fb59aedcdb9f7'),
+    ('function', 'public.save_stage_default(p_stage_key text, p_people uuid[])', 'security invoker, volatile, search_path=public, body md5 f03ed0a309dfe1a74e0da51885b36700'),
     ('function', 'public.save_workflow_template(p_id uuid, p_name text, p_stages jsonb, p_expected_updated_at timestamp with time zone)', 'security invoker, volatile, search_path=public, body md5 830f9796b6e3202ce62f9a35fdd2fea9'),
     ('function', 'public.set_app_min_version(p_version text, p_required boolean, p_note text, p_org uuid)', 'security invoker, volatile, search_path=public, body md5 3afdcbebab8516121bc6619aec20e386'),
     ('function', 'public.set_code_prefix()', 'security definer, volatile, search_path=public, body md5 4d8008fad96b8eab77dcebfb78b5dc77'),
@@ -819,6 +823,8 @@ with expected(kind, key, def) as (values
     ('function', 'public.writeoff_stock(p_item uuid, p_qty integer, p_reason_code text, p_note text)', 'security definer, volatile, search_path=public, body md5 1fb23260422cd70995bfe09eb2cf960d'),
     ('grant', 'public.accept_partnership_invite(p_code text, p_share_stock boolean, p_default_visibility text, p_roles text[], p_dpa_reference text) to authenticated', 'EXECUTE'),
     ('grant', 'public.accept_partnership_invite(p_code text, p_share_stock boolean, p_default_visibility text, p_roles text[], p_dpa_reference text) to service_role', 'EXECUTE'),
+    ('grant', 'public.add_job_note(p_job uuid, p_text text, p_author text) to authenticated', 'EXECUTE'),
+    ('grant', 'public.add_job_note(p_job uuid, p_text text, p_author text) to service_role', 'EXECUTE'),
     ('grant', 'public.add_job_stage(p_job uuid, p_stage text, p_after text, p_task text) to authenticated', 'EXECUTE'),
     ('grant', 'public.add_job_stage(p_job uuid, p_stage text, p_after text, p_task text) to service_role', 'EXECUTE'),
     ('grant', 'public.add_stock_item(p_category text, p_manufacturer text, p_system text, p_size text, p_product text, p_lot text, p_expiry date, p_qty integer, p_min_qty integer, p_owner_org uuid, p_owner_supplier text, p_consignment_due date) to authenticated', 'EXECUTE'),
@@ -992,6 +998,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.guard_job_option_doers() to service_role', 'EXECUTE'),
     ('grant', 'public.guard_job_order_doctor() to service_role', 'EXECUTE'),
     ('grant', 'public.guard_job_orderer() to service_role', 'EXECUTE'),
+    ('grant', 'public.guard_job_template() to service_role', 'EXECUTE'),
     ('grant', 'public.guard_partner_visible_job_text() to PUBLIC', 'EXECUTE'),
     ('grant', 'public.guard_partner_visible_job_text() to anon', 'EXECUTE'),
     ('grant', 'public.guard_partner_visible_job_text() to authenticated', 'EXECUTE'),
@@ -1306,6 +1313,8 @@ with expected(kind, key, def) as (values
     ('grant', 'public.refuse_share_of_deleted_job() to service_role', 'EXECUTE'),
     ('grant', 'public.register_job_file(p_job uuid, p_type text, p_sha256 text, p_size bigint, p_mime text, p_extension text, p_supersedes uuid) to authenticated', 'EXECUTE'),
     ('grant', 'public.register_job_file(p_job uuid, p_type text, p_sha256 text, p_size bigint, p_mime text, p_extension text, p_supersedes uuid) to service_role', 'EXECUTE'),
+    ('grant', 'public.remove_job_note(p_job uuid, p_note text) to authenticated', 'EXECUTE'),
+    ('grant', 'public.remove_job_note(p_job uuid, p_note text) to service_role', 'EXECUTE'),
     ('grant', 'public.replace_stale_grant() to PUBLIC', 'EXECUTE'),
     ('grant', 'public.replace_stale_grant() to anon', 'EXECUTE'),
     ('grant', 'public.replace_stale_grant() to authenticated', 'EXECUTE'),
@@ -1330,6 +1339,8 @@ with expected(kind, key, def) as (values
     ('grant', 'public.return_stock(p_item uuid, p_qty integer, p_reason text) to service_role', 'EXECUTE'),
     ('grant', 'public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text) to authenticated', 'EXECUTE'),
     ('grant', 'public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text) to service_role', 'EXECUTE'),
+    ('grant', 'public.save_stage_default(p_stage_key text, p_people uuid[]) to authenticated', 'EXECUTE'),
+    ('grant', 'public.save_stage_default(p_stage_key text, p_people uuid[]) to service_role', 'EXECUTE'),
     ('grant', 'public.save_workflow_template(p_id uuid, p_name text, p_stages jsonb, p_expected_updated_at timestamp with time zone) to authenticated', 'EXECUTE'),
     ('grant', 'public.save_workflow_template(p_id uuid, p_name text, p_stages jsonb, p_expected_updated_at timestamp with time zone) to service_role', 'EXECUTE'),
     ('grant', 'public.set_code_prefix() to PUBLIC', 'EXECUTE'),
@@ -2229,6 +2240,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.jobs.guard_job_option_doers', 'CREATE TRIGGER guard_job_option_doers BEFORE INSERT OR UPDATE OF work_items, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_option_doers()'),
     ('trigger', 'public.jobs.guard_job_order_doctor', 'CREATE TRIGGER guard_job_order_doctor BEFORE INSERT OR UPDATE OF order_doctor, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_order_doctor()'),
     ('trigger', 'public.jobs.guard_job_orderer', 'CREATE TRIGGER guard_job_orderer BEFORE INSERT OR UPDATE OF ordered_by ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_orderer()'),
+    ('trigger', 'public.jobs.guard_job_template', 'CREATE TRIGGER guard_job_template BEFORE UPDATE OF template_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_template()'),
     ('trigger', 'public.jobs.guard_partner_visible_job_text', 'CREATE TRIGGER guard_partner_visible_job_text BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_job_text()'),
     ('trigger', 'public.jobs.guard_stage_change', 'CREATE TRIGGER guard_stage_change BEFORE UPDATE OF status ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_stage_change()'),
     ('trigger', 'public.jobs.job_stage_notify', 'CREATE TRIGGER job_stage_notify AFTER UPDATE OF status ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_stage_notify()'),

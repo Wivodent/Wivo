@@ -1,9 +1,9 @@
-import { isConflict } from '@shared/concurrency/guardedSave'
+import { describeError } from '../Patients/errors'
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MessageSquare, Plus, Trash2, X } from 'lucide-react'
 import { format, parseISO, isValid } from 'date-fns'
-import type { Job, JobNote } from '../../types/job'
-import { useUpdateJob } from '../../hooks/useJobs'
+import type { Job } from '../../types/job'
+import { useJobNote } from '../../hooks/useJobs'
 import { useSettings } from '../../stores/useSettings'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -19,7 +19,9 @@ interface JobNotesPanelProps {
  * Notes on a job — sits under Tootmise andmed in the read view.
  *
  * Writes through its own mutation rather than the panel's form save, so adding a
- * note neither closes the panel nor carries the rest of the form with it.
+ * note neither closes the panel nor carries the rest of the form with it. One
+ * note at a time, in the database (add_job_note, remove_job_note; sql/134):
+ * the list is never read here and written back, so two people's notes both stay.
  * `markused` is excluded from JobInput for the same reason: a form save must not
  * overwrite notes added since the form was seeded.
  */
@@ -32,7 +34,7 @@ export function JobNotesPanel({ job, highlightNoteId }: JobNotesPanelProps) {
     highlightRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [highlightNoteId])
 
-  const updateJob = useUpdateJob()
+  const noteSave = useJobNote()
   // A note is part of the job: adding or deleting one is editing it.
   const canEdit = usePermissions().can('jobs.write')
   const { settings } = useSettings()
@@ -47,18 +49,17 @@ export function JobNotesPanel({ job, highlightNoteId }: JobNotesPanelProps) {
   const notes = job.markused ?? []
   const sorted = [...notes].sort((a, b) => b.ts.localeCompare(a.ts))
 
-  async function write(next: JobNote[], after?: () => void) {
+  async function run(action: { add: { text: string; author: string } } | { remove: string }, after?: () => void) {
     setError(null)
     try {
-      await updateJob.mutateAsync({ id: job.id, base: job, markused: next })
+      await noteSave.mutateAsync({ job: job.id, ...action })
       after?.()
     } catch (err) {
       const e = err as { code?: string; message?: string }
       setError(
-        e?.code === 'PGRST204' || e?.code === '42703'
+        e?.code === 'PGRST202' || e?.code === '42883' || e?.code === 'PGRST204' || e?.code === '42703'
           ? t('app.notAvailableYet')
-          : isConflict(err) ? t('conflict.someoneElseChanged')
-          : e?.message ?? t('jobDetail.savingFailed')
+          : describeError(err) || t('jobDetail.savingFailed')
       )
     }
   }
@@ -66,13 +67,7 @@ export function JobNotesPanel({ job, highlightNoteId }: JobNotesPanelProps) {
   async function addNote() {
     const tekst = draft.trim()
     if (!tekst) return
-    const note: JobNote = {
-      id: crypto.randomUUID(),
-      ts: new Date().toISOString(),
-      autor: displayName,
-      tekst
-    }
-    await write([...notes, note], () => { setDraft(''); setAdding(false) })
+    await run({ add: { text: tekst, author: displayName } }, () => { setDraft(''); setAdding(false) })
   }
 
   return (
@@ -125,8 +120,8 @@ export function JobNotesPanel({ job, highlightNoteId }: JobNotesPanelProps) {
                 <span className="flex items-center gap-1.5 flex-shrink-0 pt-0.5">
                   <button
                     type="button"
-                    onClick={() => write(notes.filter(x => x.id !== n.id), () => setConfirmId(null))}
-                    disabled={updateJob.isPending}
+                    onClick={() => run({ remove: n.id }, () => setConfirmId(null))}
+                    disabled={noteSave.isPending}
                     className="text-[10px] font-semibold text-red-600 hover:underline disabled:opacity-40"
                   >
                     {t('jobDetail.delete2')}
@@ -164,10 +159,10 @@ export function JobNotesPanel({ job, highlightNoteId }: JobNotesPanelProps) {
             <button
               type="button"
               onClick={addNote}
-              disabled={!draft.trim() || updateJob.isPending}
+              disabled={!draft.trim() || noteSave.isPending}
               className="btn-primary text-xs py-1 px-2.5 disabled:opacity-40"
             >
-              {updateJob.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+              {noteSave.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
               {t('jobDetail.add')}
             </button>
             <button

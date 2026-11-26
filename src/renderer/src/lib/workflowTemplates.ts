@@ -204,12 +204,12 @@ export async function fetchStageDefaults(): Promise<Record<string, string[]>> {
   return defaultsFromRows(data as { stage_key: string; profile_id: string }[])
 }
 
-/** One stage's default people, replaced. */
-export async function saveStageDefault(orgId: string, stageKey: string, people: readonly string[]): Promise<void> {
-  const { error } = await supabase.from('clinic_stage_default').delete().eq('org_id', orgId).eq('stage_key', stageKey)
+/**
+ * One stage's default people, replaced in one call (save_stage_default,
+ * sql/134): a lost connection leaves them as they were, never emptied (it was
+ * a delete and an insert). The database takes the person's own clinic.
+ */
+export async function saveStageDefault(_orgId: string, stageKey: string, people: readonly string[]): Promise<void> {
+  const { error } = await supabase.rpc('save_stage_default', { p_stage_key: stageKey, p_people: [...new Set(people)] })
   if (error) throw error
-  const rows = [...new Set(people)].map(p => ({ org_id: orgId, stage_key: stageKey, profile_id: p }))
-  if (rows.length === 0) return
-  const { error: insErr } = await supabase.from('clinic_stage_default').insert(rows)
-  if (insErr) throw insErr
 }

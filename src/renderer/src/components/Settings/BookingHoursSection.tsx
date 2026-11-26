@@ -16,7 +16,9 @@
 import { useState } from 'react'
 import { Clock, Plus, Trash2, CalendarOff, Save, Loader2 } from 'lucide-react'
 import { supabase, getActiveClinicId } from '../../lib/supabase'
-import { fetchPrivateSettings } from '../../lib/clinicSettings'
+import { fetchPrivateSettings, writeClinicSettingsIf, type ClinicPatch } from '../../lib/clinicSettings'
+import { merge3 } from '@shared/concurrency/merge'
+import { ConflictBanner } from '../ui/ConflictBanner'
 import { describeError } from '../Patients/errors'
 import type { BookingRules, OpenPeriod } from '@shared/portal/slots'
 import { openWindows, toClock } from '@shared/portal/slots'
@@ -52,6 +54,10 @@ export function BookingHoursSection({ value, onSaved }: {
   onSaved: (next: BookingConfig) => void
 }) {
   const [cfg, setCfg] = useState<BookingConfig>(value)
+  // What the form was filled from: the save merges this person's changes with
+  // whatever another owner saved since (2.2.4), never over it.
+  const [base, setBase] = useState<BookingConfig>(value)
+  const [conflict, setConflict] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -65,28 +71,59 @@ export function BookingHoursSection({ value, onSaved }: {
   const setDay = (key: string, periods: OpenPeriod[]) =>
     patch({ tooajad: { ...(cfg.tooajad ?? {}), [key]: periods } })
 
+  /** The booking column as stored now, and the row's updated_at (the lock). */
+  async function readStored(clinicId: string): Promise<{ at: string | null; stored: BookingConfig }> {
+    // updated_at first: a save landing between the two reads moves it, and
+    // the conditional write below then fails and is tried again.
+    const { data: row, error: atErr } = await supabase
+      .from('clinic_settings').select('updated_at').eq('clinic_id', clinicId).maybeSingle()
+    if (atErr) throw atErr
+    // Read through clinic_settings_private (sql/102): owners and admins only.
+    const priv = await fetchPrivateSettings()
+    const stored = priv ? priv.broneering : (await supabase
+      .from('clinic_settings').select('broneering').eq('clinic_id', clinicId).maybeSingle()).data?.broneering
+    return { at: (row as { updated_at?: string | null } | null)?.updated_at ?? null, stored: ((stored as BookingConfig) ?? {}) }
+  }
+
   async function save() {
     setError(null)
+    setConflict(false)
     setSaving(true)
     try {
       const clinicId = getActiveClinicId()
       if (!clinicId) throw new Error(t('settings.noClinic'))
       // Merged, never written whole: the payment settings live in the same
-      // column and a full overwrite from this screen would erase them.
-      // Read through clinic_settings_private (sql/102): owners and admins only.
-      const priv = await fetchPrivateSettings()
-      const current = priv ? priv.broneering : (await supabase
-        .from('clinic_settings').select('broneering').eq('clinic_id', clinicId).maybeSingle()).data?.broneering
-      const merged = { ...((current as object) ?? {}), ...cfg }
-      const { error: err } = await supabase
-        .from('clinic_settings').update({ broneering: merged }).eq('clinic_id', clinicId)
-      if (err) throw err
-      onSaved(merged as BookingConfig)
-      setDirty(false)
+      // column, and another owner may have changed a day or a rule meanwhile.
+      // Only where both changed the same thing is nothing written (the banner).
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const { at, stored } = await readStored(clinicId)
+        const m = merge3<BookingConfig>(base, cfg, stored)
+        if (m.conflicts.length > 0) { setConflict(true); return }
+        const written = await writeClinicSettingsIf(clinicId, { broneering: m.value } as unknown as ClinicPatch, at)
+        if (written === null) continue
+        onSaved(m.value)
+        setBase(m.value)
+        setCfg(m.value)
+        setDirty(false)
+        return
+      }
+      setConflict(true)
     } catch (e) {
       setError(describeError(e))
     } finally {
       setSaving(false)
+    }
+  }
+
+  /** "Reload": the hours as stored now; this person's unsaved changes go. */
+  async function reload() {
+    const clinicId = getActiveClinicId()
+    if (!clinicId) return
+    try {
+      const { stored } = await readStored(clinicId)
+      setBase(stored); setCfg(stored); onSaved(stored); setDirty(false); setConflict(false)
+    } catch (e) {
+      setError(describeError(e))
     }
   }
 
@@ -347,6 +384,7 @@ export function BookingHoursSection({ value, onSaved }: {
         />
       </div>
 
+      {conflict && <ConflictBanner onReload={() => { void reload() }} hint={t('conflict.reloadHintSettings')} />}
       {error && <p className="text-xs text-red-500">{error}</p>}
 
       <button

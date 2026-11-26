@@ -16,7 +16,7 @@ vi.mock('../hooks/usePermissions', () => ({
 vi.mock('../stores/useSettings', () => ({ useSettings: () => ({ settings: {} }) }))
 vi.mock('../context/AuthContext', () => ({ useAuth: () => ({ displayName: 'Kevin Test', signOut: () => {} }) }))
 vi.mock('../context/PipelineContext', () => ({ usePipeline: () => ({ doneStageKey: 'valmis', stages: [] }) }))
-vi.mock('../hooks/useJobs', () => ({ useUpdateJob: () => ({ isPending: false, mutateAsync: async () => {} }) }))
+vi.mock('../hooks/useJobs', () => ({ useUpdateJob: () => ({ isPending: false, mutateAsync: async () => {} }), useJobNote: () => ({ isPending: false, mutateAsync: async () => {} }) }))
 vi.mock('../lib/sound', () => ({ playSound: () => {} }))
 vi.mock('./ImportCSVButton', () => ({ ImportCSVButton: () => <span>IMPORT</span> }))
 vi.mock('./NotificationBell', () => ({ NotificationBell: () => null }))

@@ -283,6 +283,27 @@ export function useUpdateJob() {
   })
 }
 
+// --- A job's notes, one at a time (sql/134) ---
+/**
+ * Add or remove ONE note where the database keeps the list: add_job_note
+ * appends, remove_job_note drops one by id, each one UPDATE under the row's
+ * lock. Two people adding at once both keep theirs; nothing is read here and
+ * written back. The job is read again afterwards (refreshJobInCache).
+ */
+export function useJobNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (a: { job: string; add: { text: string; author: string } } | { job: string; remove: string }) => {
+      const { error } = 'add' in a
+        ? await supabase.rpc('add_job_note', { p_job: a.job, p_text: a.add.text, p_author: a.add.author })
+        : await supabase.rpc('remove_job_note', { p_job: a.job, p_note: a.remove })
+      if (error) throw error
+      await refreshJobInCache(qc, a.job).catch(() => {})
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
+  })
+}
+
 // --- Delete a job ---
 export function useDeleteJob() {
   const qc = useQueryClient()

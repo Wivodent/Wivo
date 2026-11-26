@@ -91,3 +91,23 @@ describe('merge3: other shapes', () => {
     expect(merge3(1, 4, 4)).toEqual({ value: 4, conflicts: [] })
   })
 })
+
+describe('merge3: online booking hours (clinic_settings.broneering, 2.2.4)', () => {
+  const base = {
+    tooajad: { '1': [{ algus: '09:00', lopp: '17:00' }], '2': [{ algus: '09:00', lopp: '17:00' }] },
+    visiiditasu: 20, valuuta: 'EUR',
+  }
+  it('two owners change different days: both stay, the payment settings too', () => {
+    const anna = { ...base, tooajad: { ...base.tooajad, '1': [{ algus: '08:00', lopp: '16:00' }] } }
+    const bert = { ...base, tooajad: { ...base.tooajad, '2': [] }, visiiditasu: 25 }
+    expect(merge3(base, anna, bert)).toEqual({
+      value: { tooajad: { '1': [{ algus: '08:00', lopp: '16:00' }], '2': [] }, visiiditasu: 25, valuuta: 'EUR' },
+      conflicts: [],
+    })
+  })
+  it('the same day changed by both: a conflict on that day', () => {
+    const anna = { ...base, tooajad: { ...base.tooajad, '1': [{ algus: '08:00', lopp: '16:00' }] } }
+    const bert = { ...base, tooajad: { ...base.tooajad, '1': [{ algus: '10:00', lopp: '18:00' }] } }
+    expect(merge3(base, anna, bert).conflicts.map(c => c.path)).toEqual([['tooajad', '1']])
+  })
+})

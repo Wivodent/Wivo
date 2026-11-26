@@ -257,6 +257,7 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'picturePicker.subtitle': "Показывается везде, где есть этот вид работы: в форме новой работы, в ценах и в каталоге.",
   'app.stageNotMoved': "Этап не изменён: {e}",
   'app.dismiss': "Закрыть",
+  'conflict.reloadHintSettings': "Ничего не сохранено. Обновить покажет то, что сохранено сейчас; ваши несохранённые изменения здесь пропадут.",
   'conflict.someoneElseChanged': "Кто-то другой изменил это, пока вы редактировали",
   'conflict.changedBoth': "Изменили вы оба: {items}",
   'conflict.reloadHint': "Ничего не сохранено. Reload покажет их версию; остальные ваши изменения останутся в форме.",
