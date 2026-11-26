@@ -31,6 +31,7 @@
  *      VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (e.g. "mailto:ops@wivo.ee";
  *      scripts/vapid-keys.mjs makes the pair).
  */
+import { logWarn } from '../_shared/logSafe.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 import { vapidSigningKey, pushToPhone } from '../_shared/vapid.ts'
 import { runSender } from '../_shared/notifySender.ts'
@@ -62,7 +63,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     fetch: (url, init) => fetch(url, init),
     signingKey: vapidSigningKey,
     push: (endpoint, signing, publicKey, subject, message) => pushToPhone(endpoint, signing, publicKey, subject, fetch, message),
-    warn: message => console.warn(`[send-notifications] ${message}`),
+    warn: message => logWarn('send-notifications', message),
   }, dry)
   return json(200, result)
 })

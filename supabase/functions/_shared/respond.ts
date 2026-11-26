@@ -57,6 +57,18 @@ export const ERRORS = {
     et: 'Palun kontrolli vormi.',
     en: 'Please check the form.',
   },
+  /** No TURNSTILE_SECRET_KEY: the spam check is not set up, so nothing is taken. */
+  BOOKING_NOT_READY: {
+    code: 'BOOKING_NOT_READY',
+    et: 'Veebibroneering ei ole veel valmis. Palun helista kliinikusse.',
+    en: 'Online booking is not set up yet. Please call the clinic.',
+  },
+  /** The Turnstile check failed or was missing. */
+  HUMAN_CHECK: {
+    code: 'HUMAN_CHECK',
+    et: 'Kontroll ebaõnnestus. Laadi leht uuesti ja proovi veel kord.',
+    en: 'The check did not pass. Reload the page and try again.',
+  },
   UNKNOWN_SERVICE: {
     code: 'UNKNOWN_SERVICE',
     et: 'Sellist teenust ei ole.',

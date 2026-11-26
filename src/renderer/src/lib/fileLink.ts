@@ -12,7 +12,8 @@ export async function fileDownloadUrl(fileId: string, fileName: string): Promise
   // Refused for rights: say so. Any other failure (not deployed, network):
   // fall back to the grant path, which the database still audits.
   if (error && 'context' in error && (error as { context?: Response }).context?.status === 403) {
-    throw new Error((data as { error?: string } | null)?.error ?? 'Not allowed')
+    // Said as "no permission" (describeError reads 42501), not the function's own words.
+    throw Object.assign(new Error('not allowed'), { code: '42501' })
   }
   const { data: path, error: rpcError } = await supabase.rpc('request_file_download', { p_file: fileId })
   if (rpcError) throw rpcError

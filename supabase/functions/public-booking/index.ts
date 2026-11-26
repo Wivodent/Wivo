@@ -31,11 +31,14 @@
  * visit when a person confirms it in the Wivo inbox. That step is deliberate:
  * the calendar is what the practice runs on, and it must not fill itself.
  */
-import { preflight, corsHeaders } from '../_shared/cors.ts'
+import { preflight, corsHeaders, ALLOWED } from '../_shared/cors.ts'
+import { clientIp } from '../_shared/clientIp.ts'
+import { verifyTurnstile, originHostnames } from '../_shared/turnstile.ts'
+import { logFailure } from '../_shared/logSafe.ts'
 import { ok, fail, failWith, ERRORS } from '../_shared/respond.ts'
 import { ipKey, take } from '../_shared/ratelimit.ts'
 import {
-  clinicBySlug, publicServicesOf, insertVisitRequest, recentRequestCount,
+  clinicBySlug, publicServicesOf, insertVisitRequest, recentRequestCount, recentClinicRequestCount,
   bookingSettingsOf, attachPayment, requestByOrderUuid, settlePayment, confirmRequest,
 } from '../_shared/settings.ts'
 import { createOrder, verifyOrderToken, montonioConfigured } from '../_shared/montonio.ts'
@@ -59,6 +62,16 @@ import type { VisitRequestInput } from '@shared/portal/visitRequest.ts'
  * in front of it to keep obvious floods off the database entirely.
  */
 const REQUESTS_PER_HOUR = 6
+
+/**
+ * All requests to one clinic in an hour, from every IP together (2.2.5). Far
+ * above a real clinic's day, far below a flood.
+ */
+const CLINIC_REQUESTS_PER_HOUR = 30
+
+/** The clinic's Turnstile keys (function secrets). The site key is public. */
+const TURNSTILE_SECRET = (Deno.env.get('TURNSTILE_SECRET_KEY') ?? '').trim()
+const TURNSTILE_SITE_KEY = (Deno.env.get('TURNSTILE_SITE_KEY') ?? '').trim()
 
 /**
  * One place where a token becomes a settled payment — used by both the browser
@@ -85,7 +98,7 @@ async function settleFromToken(token: string): Promise<boolean> {
     summa: Number(row.makse_summa ?? 0),
     valuuta: 'EUR',
   })
-  if (!verdict.ok) console.error('makse tagasi lükatud:', verdict.reason, verdict.selgitus)
+  if (!verdict.ok) logFailure('public-booking: payment refused', { code: verdict.reason })
   await settlePayment(row.id, staatus)
 
   // Paid, and the clinic asked for automatic confirmation: this is the moment.
@@ -161,7 +174,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         email: clinic.email,
       })
 
-      return ok(data, {
+      // The widget renders Turnstile with this (public) key before it lets a
+      // patient send a request. Null: booking is not set up (see /request).
+      return ok({ ...data, turnstileSiteKey: TURNSTILE_SITE_KEY || null }, {
         ...cors,
         // The catalogue changes when someone edits Seaded, which is rare. Five
         // minutes keeps a busy page off the database without making a price
@@ -272,6 +287,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
     }
 
     if (req.method === 'POST' && (route === '/request' || route === '/request/')) {
+      // Without the spam check nothing is taken, and the page says why.
+      if (!TURNSTILE_SECRET) return fail(503, ERRORS.BOOKING_NOT_READY, cors)
+
       // Much tighter than the catalogue's 60/min: this one writes.
       const ip = await ipKey(req)
       if (!take(`w:${ip}`, 5)) return fail(429, ERRORS.RATE_LIMITED, cors)
@@ -286,6 +304,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
       } catch {
         return fail(400, ERRORS.INVALID, cors)
       }
+
+      // A person, by Cloudflare's check, before anything is read or written.
+      const human = await verifyTurnstile({
+        secret: TURNSTILE_SECRET,
+        token: (body as { turnstileToken?: unknown }).turnstileToken,
+        ip: clientIp(req.headers),
+        hostnames: originHostnames(ALLOWED),
+      })
+      if (!human.ok) return fail(403, ERRORS.HUMAN_CHECK, cors)
 
       // A bot gets the same 200 a person gets. Telling it that it was caught is
       // free information for whoever is writing the next one, and the patient
@@ -310,8 +337,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
       }
 
-      // The durable half of the rate limit — see recentRequestCount.
-      if (await recentRequestCount(clinic.id, ip) >= REQUESTS_PER_HOUR) {
+      // The durable half of the rate limit — see recentRequestCount — and the
+      // clinic's own ceiling over every IP together.
+      if (await recentRequestCount(clinic.id, ip) >= REQUESTS_PER_HOUR
+          || await recentClinicRequestCount(clinic.id) >= CLINIC_REQUESTS_PER_HOUR) {
         return fail(429, ERRORS.RATE_LIMITED, cors)
       }
 
@@ -390,7 +419,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           // be the worse trade.
           return ok({ saadetud: true, maksmiseks: order.paymentUrl }, cors)
         } catch (err) {
-          console.error('montonio order failed', err)
+          logFailure('public-booking: montonio order failed', err)
           // Fall through: they asked for an appointment and we have it.
         }
       }
@@ -460,7 +489,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     return fail(404, ERRORS.NOT_FOUND, cors)
   } catch (err) {
     // Never let an internal message reach the page: it can name a column.
-    console.error('public-booking failed', err)
+    logFailure('public-booking failed', err)
     return fail(500, ERRORS.SERVER, cors)
   }
 })

@@ -8,7 +8,7 @@
  * `Vary: Origin` is not optional. Without it a CDN caches one origin's ACAO
  * header and serves it to another, which silently breaks the allowlist.
  */
-const ALLOWED = (Deno.env.get('PUBLIC_BOOKING_ORIGINS') ?? '')
+export const ALLOWED = (Deno.env.get('PUBLIC_BOOKING_ORIGINS') ?? '')
   .split(',')
   .map(s => s.trim())
   .filter(Boolean)

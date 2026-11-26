@@ -116,6 +116,22 @@ export async function recentRequestCount(clinicId: string, ipHash: string): Prom
 }
 
 /**
+ * How many requests this clinic has had in the last hour, from every IP
+ * together (2.2.5). The per-IP limits stop one address; this stops many
+ * addresses at once, whatever their IPs say.
+ */
+export async function recentClinicRequestCount(clinicId: string): Promise<number> {
+  const since = new Date(Date.now() - 60 * 60_000).toISOString()
+  const { count, error } = await admin()
+    .from('visit_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('clinic_id', clinicId)
+    .gte('created_at', since)
+  if (error) throw error
+  return count ?? 0
+}
+
+/**
  * (removed) `acceptsRequests` used to require a PUBLISHED PRICE LIST before a
  * request could be sent. That conflated two unrelated decisions: publishing
  * prices, and being willing to take an appointment request. A clinic that wants

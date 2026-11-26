@@ -9,6 +9,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 export const COPIES = [
   ['shared/auth/loginAddress.ts', 'supabase/functions/_shared/generated/loginAddress.ts'],
   ['shared/release/release.ts', 'supabase/functions/_shared/generated/release.ts'],
+  ['shared/privacy/scrub.ts', 'supabase/functions/_shared/generated/scrub.ts'],
 ]
 
 export const header = (source) => [

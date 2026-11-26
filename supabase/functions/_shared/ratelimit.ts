@@ -8,12 +8,13 @@
  * The IP is peppered and hashed and never stored raw. There is no reason for
  * this function to hold a visitor's address, so it does not.
  */
+import { clientIp } from './clientIp.ts'
+
 const buckets = new Map<string, { tokens: number; refilled: number }>()
 
 export async function ipKey(req: Request): Promise<string> {
-  const raw = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    ?? req.headers.get('cf-connecting-ip')
-    ?? 'unknown'
+  // Never the first X-Forwarded-For value: the caller writes it (clientIp.ts).
+  const raw = clientIp(req.headers)
   const pepper = Deno.env.get('IP_HASH_PEPPER') ?? ''
   const bytes = new TextEncoder().encode(`${pepper}:${raw}`)
   const digest = await crypto.subtle.digest('SHA-256', bytes)

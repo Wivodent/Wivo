@@ -16,6 +16,7 @@
  * kept separate because it is the part worth testing and it needs no crypto.
  * Here: signatures and HTTP. There: what a signature entitles you to.
  */
+import { logFailure } from './logSafe.ts'
 import { acceptPayment, refusalStatus } from '@shared/portal/montonioClaims.ts'
 import type { MontonioClaims, PaymentVerdict } from '@shared/portal/montonioClaims.ts'
 
@@ -152,7 +153,8 @@ export async function createOrder(input: {
   if (!res.ok) {
     // Never let Montonio's body reach the patient's page: it can echo the
     // reference and the amount. Logged for the clinic, generic to the visitor.
-    console.error('montonio order failed', res.status, await res.text().catch(() => ''))
+    // Only the status: the body can echo the customer and the amount (2.2.5).
+    logFailure('montonio: order refused', { status: res.status })
     throw new Error(`Montonio vastas ${res.status}`)
   }
 

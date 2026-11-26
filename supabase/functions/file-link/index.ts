@@ -42,13 +42,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // anything else. A password-only or ended session gets no file.
   if (!(await sessionHasMfa(fn => asUser.rpc(fn)))) return json(403, { error: 'mfa_required' })
   const { data: path, error } = await asUser.rpc('request_file_download', { p_file: fileId })
-  if (error || typeof path !== 'string') return json(403, { error: error?.message ?? 'not allowed' })
+  // A fixed answer: the database's own message names its functions (2.2.5, E4).
+  if (error || typeof path !== 'string') return json(403, { error: 'not allowed' })
 
   const { data: name } = await asUser.rpc('job_file_name', { p_file: fileId })
   const service = createClient(URL_, SERVICE, { auth: { persistSession: false } })
   const { data, error: signError } = await service.storage.from('job-files')
     .createSignedUrl(path, LIFETIME_SECONDS, typeof name === 'string' ? { download: name } : undefined)
-  if (signError || !data) return json(500, { error: signError?.message ?? 'could not sign' })
+  if (signError || !data) return json(500, { error: 'could not sign' })
   return json(200, { url: data.signedUrl, expiresIn: LIFETIME_SECONDS })
 })
 

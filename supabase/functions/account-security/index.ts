@@ -14,6 +14,7 @@
  * as for send-notifications (SUPABASE_SERVICE_ROLE_KEY / SUPABASE_SECRET_KEYS
  * / WIVO_SERVICE_SECRET_KEY).
  */
+import { logWarn } from '../_shared/logSafe.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 import { handleSecurityRequest } from '../_shared/accountSecurity.ts'
 import { serviceClientKey } from '../_shared/serviceAuth.ts'
@@ -50,7 +51,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       const { error } = await service.auth.admin.mfa.deleteFactor({ id: factorId, userId })
       return { error: error ? { message: error.message } : null }
     },
-    warn: message => console.warn(`[account-security] ${message}`),
+    warn: message => logWarn('account-security', message),
   })
   return json(answer.status, answer.body)
 })

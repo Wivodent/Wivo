@@ -15,6 +15,7 @@
  * for send-notifications); ours: RESEND_API_KEY, NOTIFY_FROM, APP_LINK,
  * optional STANDIN_DOMAIN, and EMAIL_ALLOW_ONLY on the test copy only.
  */
+import { logWarn } from '../_shared/logSafe.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 import { handleTeamRequest } from '../_shared/teamAccount.ts'
 import { serviceClientKey } from '../_shared/serviceAuth.ts'
@@ -84,10 +85,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
     },
     recordQuota: async (kind, source) => {
       const { error } = await service.rpc('record_mail_quota_hit', { p_kind: kind, p_source: source })
-      if (error) console.warn(`[team-account] record_mail_quota_hit: ${error.message}`)
+      if (error) logWarn('team-account', `record_mail_quota_hit: ${error.message}`)
     },
     env,
-    warn: message => console.warn(`[team-account] ${message}`),
+    warn: message => logWarn('team-account', message),
   })
   return json(answer.status, answer.body)
 })

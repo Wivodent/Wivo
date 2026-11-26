@@ -13,8 +13,24 @@
  *    there, `?patsient=ilike.*Maasikas*` included.
  */
 
-export function scrubPersonalData(text: string): string {
+/**
+ * The parts of a database error that repeat the row's values (2.2.5,
+ * docs/SECURITY-REVIEW-2026-11.md L1): `Failing row contains (… name, phone …)`
+ * and `Key (patsient)=(Mari Maasikas) already exists`. A name cannot be
+ * recognised as such, so the values go whole; the column names stay, they
+ * say what went wrong.
+ */
+export function scrubDbDetail(text: string): string {
   return text
+    // Up to the closing parenthesis at the end of the sentence: the values
+    // themselves may hold parentheses ("Mari (Jr)").
+    .replace(/Failing row contains \(.*\)(?=\.?\s*$)/gm, 'Failing row contains (…)')
+    .replace(/Key \(([^)]*)\)=\(.*?\)(?= already| is not| conflicts|\.|$)/gm, 'Key ($1)=(…)')
+    .replace(/(DETAIL|HINT):\s.*$/gm, '$1: …')
+}
+
+export function scrubPersonalData(text: string): string {
+  return scrubDbDetail(text)
     .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '[email]')
     .replace(/\b[1-6]\d{2}[01]\d[0-3]\d{5}\b/g, '[personal-code]')     // EE isikukood (11 digits)
     .replace(/\b[0-3]\d[01]\d\d{2}-?[0-2]\d{4}\b/g, '[personal-code]')  // LV personas kods
@@ -51,6 +67,11 @@ export function scrubSentryEvent<E extends AnyEvent | null>(event: E): E | null 
   delete e.user
   delete e.extra
   delete e.server_name
+  // A database error's context (PostgrestError: details, hint) repeats row values.
+  if (e.contexts && typeof e.contexts === 'object') {
+    const { details: _d, hint: _h, ...contexts } = e.contexts as AnyEvent
+    e.contexts = contexts
+  }
   if (e.request) e.request = { url: stripQuery(e.request.url), method: e.request.method }
   if (typeof e.message === 'string') e.message = scrubPersonalData(e.message).slice(0, 500)
   if (e.logentry?.message) e.logentry = { message: scrubPersonalData(String(e.logentry.message)).slice(0, 500) }
