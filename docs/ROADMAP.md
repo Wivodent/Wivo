@@ -8,6 +8,33 @@ This file is the **order**. docs/BACKLOG.md stays the list of ideas: nothing
 here is an idea, and nothing there has a date. docs/VISION.md is where the
 product is going after 2.0; this is how Riga gets there.
 
+## The version ladder (Kevin, 2026-11-26)
+
+| Version | What it means |
+|---|---|
+| **2.5** | The complete, polished app: comfortable on the phone and the desktop, everything one clinic or lab needs. Everything about the work process is done by 2.5.0. |
+| **3.0** | Partnerships and connections between clinics, working end to end. |
+| **3.5** | The partnership finished. |
+| **4.0** | WivoStore. |
+| **4.5** | WivoStore polished. |
+| **5.0** | Wivo Network. |
+
+**How versions move:**
+- Work ships in small steps (2.2.2, 2.2.3 …; 2.2.11 is fine), each tested and
+  released.
+- A minor version (2.3.0, 2.4.0 …) only marks that a larger block is done.
+- The rule is also in CLAUDE.md.
+
+**The release-by-release order to 2.5.0 is docs/ROADMAP-2.5.md.** It holds:
+- the gap analysis from the code;
+- blocks A (2.2.2 → 2.3.0), B (2.3.1 → 2.4.0) and C (2.4.1 → 2.5.0);
+- what only Kevin can do;
+- 2.6–2.9, which build the ground for 3.0 between two test clinics without
+  adding anything a customer sees.
+
+Riga's steps 1–4 below are the order Riga asked for, and that file schedules
+what is left of them.
+
 The switch for every step below is the **licence modules**
 (docs/MODULES-AND-RATINGS.md, part 1). A step is "delivered" when its module
 is turned on in Riga's licence — which is also how a step can be turned back
@@ -129,12 +156,35 @@ No new data is collected for the first version.
     day, so the same duty to inform.
   - Decide it once the first statistics show whether calendar time is enough.
 
+## 2.6–2.9 — the ground for 3.0
+
+These versions add no work-process feature a customer sees. They build the
+partner bridge between two test clinics with demo data, behind the licence
+module `partners`, which stays off for customers:
+- **2.6:** one build for every clinic, functions in signed packages, and the
+  test pair;
+- **2.7:** keys, signatures and pairing;
+- **2.8:** the sharing layer;
+- **2.9:** delivery and version tests, then the independent review.
+
+The plan is in docs/ROADMAP-2.5.md §5; the design is in
+docs/ARCHITECTURE-INSTANCES.md §1–§4.
+
 ## 3.0 — the partnership system, working end to end
 
 The partner bridge (phase 2) is **on hold, not cancelled** — the Tallinn
-clinic partnership ended. 3.0 is where it comes back and is finished:
-partner jobs, partner stock, and the lawyer's locked rule that no personal
-data crosses between clinics (sql/092, CLAUDE.md).
+clinic partnership ended. 3.0 is where it comes back and is switched on for
+the first real pair: partner jobs with their files and stages, and the
+lawyer's locked rule that no personal data crosses between clinics (sql/092,
+CLAUDE.md).
+
+## 3.5 — the partnership finished
+
+What phase 2 left out (ARCHITECTURE-INSTANCES §9, "After Riga is running"):
+- chat across clinics, and changes to a job after it was sent;
+- stock across projects (§3);
+- key rotation, the "Messages" admin view, and monitoring per partnership;
+- the pentest of the new endpoints.
 
 ## 4.0 — WivoStore
 
@@ -143,7 +193,13 @@ and can send an enquiry — "do you have X?" — to those who have not listed it
 This is VISION.md's supplier marketplace seen from the clinic side, and it
 needs 3.0's partnership system underneath it.
 
-## Wivo Network (vision for 3.0/4.0)
+## 4.5 — WivoStore polished
+
+The store after it has run with real orders: the verification criteria,
+transparent ranking and labelled placement of VISION.md's neutrality rule, in
+full.
+
+## Wivo Network (5.0)
 
 Wivo for people, not only for clinics. The plan, the preparation and the
 questions for the lawyer are in **docs/WIVO-NETWORK.md**.
@@ -245,7 +301,8 @@ data. It is not a clinic's project and not production.
 ## After 2.1.0 (Kevin, 2026-11-25)
 
 Queued by Kevin with the 2.1.0 night run (docs/NIGHT-REPORT-2026-11-25.md).
-In this order unless Riga says otherwise.
+These items, and those under "After 2.2.0", now have their releases in
+docs/ROADMAP-2.5.md.
 
 - **"Request a feature" into the admin console.** Today the Settings tile
   opens an e-mail to Wivo (`VITE_WIVO_CONTACT_EMAIL`, config/contact.ts). Later

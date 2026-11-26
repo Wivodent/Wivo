@@ -21,12 +21,17 @@ Electron + React + TypeScript desktop app with a Supabase/Postgres backend.
 - **A small fix with no database change:** make it directly on `main`, then cherry-pick it onto `testing`. Leave the folder on `main` and tell Kevin "ready to push main". After Kevin has pushed, switch the folder back to `testing`.
 - **Anything with a migration:** only on `testing`, tested on the test copy, and released later by merging `testing` into `main`.
 - **A release:** the version bump in package.json is the last commit on `main`. A push to `main` without a version bump updates the phone app (Cloudflare) but not the desktop.
+- **Version numbers** (Kevin, 2026-11-26; the ladder and the order are in docs/ROADMAP.md and docs/ROADMAP-2.5.md):
+  - Work ships in small steps that raise the last number: 2.2.2, 2.2.3 …, and it may go past 9 (2.2.11 is fine). Each step is tested and released.
+  - A minor version (2.3.0, 2.4.0, 2.5.0 …) is used only when a larger block is done. It never carries a half-finished block.
+  - The ladder: 2.5 the complete app; 3.0 partnerships; 3.5 the partnership finished; 4.0 WivoStore; 4.5 the store polished; 5.0 Wivo Network.
+  - Everything about the work process is done by 2.5.0. 2.6–2.9 add nothing a customer sees: they build the ground for 3.0.
 - **Kevin does every push.** Claude never pushes.
 - **Every `supabase` command gets `--project-ref`.** There is no default project: never run `supabase link`. (Until the commit that stops tracking `supabase/.temp` reaches `main`, checking out `main` puts production's ref back in `supabase/.temp/project-ref`.)
 - Only a push to `main` runs GitHub Actions. Cloudflare Pages is set in its dashboard, not in this repo: `wivo-test` must have `testing` as its production branch, and `wivo` must not build preview deployments of other branches (a preview of `wivo` would run with production's settings).
 
 ## Rules
-- Migrations are numbered SQL files in sql/ (next one is 127_...). Only add new files. Never edit or delete existing ones. A migration that changes the schema also regenerates the read-only check (sql/checks/, `WRITE_SCHEMA_CHECK=1 npx vitest run --mode unit sql/test/schemaCheck.test.ts`); sql/test/schemaCheck.test.ts fails until it does.
+- Migrations are numbered SQL files in sql/ (next one is 131_...). Only add new files. Never edit or delete existing ones. A migration that changes the schema also regenerates the read-only check (sql/checks/, `WRITE_SCHEMA_CHECK=1 npx vitest run --mode unit sql/test/schemaCheck.test.ts`); sql/test/schemaCheck.test.ts fails until it does.
 - Every new table gets org_id and RLS in the same migration, plus an RLS leak test, and ends with `select public.ensure_mfa_policies();` (sql/098: nothing without the second factor; sql/test/requireMfa.test.ts fails for a table without it).
 - Every migration that adds a function ends with `select public.lock_anon_functions();` (sql/101: the anon key runs nothing but `require_mfa_for_api()`; a function that must run before sign-in goes into `anon_allowed_functions()` with the reason; sql/test/anonFunctions.test.ts fails otherwise).
 - The app uses only the anon key. The service-role key lives only in Edge Functions.
