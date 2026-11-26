@@ -32,6 +32,7 @@ import { WizardSuccess } from './WizardSuccess'
 import { WizardCloseDialog } from './WizardCloseDialog'
 import { describeError } from '../Patients/errors'
 import { PartnerShareContext } from './production/PartnerShare'
+import { WizardLinksContext } from './ui/ChangeTypeLink'
 import { shareJob, shareSpecProblem, type ShareSpec } from '@/hooks/usePartners'
 import { t } from '@/lib/i18n'
 import { useHoldRestart } from '../../lib/restartGuard'
@@ -46,10 +47,15 @@ export interface NewJobWizardProps {
   onClose: () => void
   /** Fired after a successful insert, with the full Job (id included). */
   onCreated: (job: Job) => void
+  /**
+   * Open a work type's card in Settings → Prices ("Not a bridge? Change
+   * type"). The job is kept as a draft first, and comes back on the next open.
+   */
+  onOpenWorkType?: (nimi: string) => void
 }
 
 export function NewJobWizard({
-  open, initialDate, onClose, onCreated,
+  open, initialDate, onClose, onCreated, onOpenWorkType,
 }: NewJobWizardProps): JSX.Element | null {
   const { settings } = useSettings()
   const { types } = useWorkTypes()
@@ -90,6 +96,9 @@ export function NewJobWizard({
   const [share, setShare] = useState<ShareSpec | null>(null)
   const [shareWarning, setShareWarning] = useState<string | null>(null)
   const shareContext = useMemo(() => ({ spec: share, setSpec: setShare }), [share])
+  const links = useMemo(() => ({
+    openWorkType: onOpenWorkType && ((nimi: string) => { wizard.saveDraft(); onOpenWorkType(nimi) }),
+  }), [onOpenWorkType, wizard])
 
   // ONE quote, built by the same function StepReview uses. Two builders would
   // eventually disagree, and the number the user approved would not be the
@@ -188,6 +197,7 @@ export function NewJobWizard({
 
   return (
     <PartnerShareContext.Provider value={shareContext}>
+    <WizardLinksContext.Provider value={links}>
       <WizardShell
         wizard={wizard}
         onRequestClose={requestClose}
@@ -205,6 +215,7 @@ export function NewJobWizard({
           />
         )}
       </AnimatePresence>
+    </WizardLinksContext.Provider>
     </PartnerShareContext.Provider>
   )
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
 } from 'lucide-react'
 import { useSettings, THEMES, TEXT_SIZES } from '../stores/useSettings'
@@ -16,6 +16,7 @@ import { useClinicSyncState } from './ClinicSettingsSync'
 import { WORK_TYPE_PALETTE, sortedTiers, type WorkType, type PriceMode, type WorkTypeCost } from '../config/workTypes'
 import { workTypeImage, slugifyWorkType } from '../lib/workTypeImages'
 import { pictureChoice, workType3dImage } from '../lib/workType3d'
+import { teethKindOf } from '@shared/wizard/workTypeRules'
 import { WorkTypePicturePicker } from './Settings/WorkTypePicturePicker'
 import { WorkTypeArt } from './ui/WorkTypeArt'
 import { OptionLibrarySection, TypeOptionGroups } from './Settings/WorkOptionsEditor'
@@ -788,11 +789,18 @@ function ProfileSection({ auth }: { auth: ReturnType<typeof useAuth> }) {
 // icon; click the picture or "Change picture") first; then a file pinned on
 // the type (`pilt`), then the type's 3D illustration (lib/workType3dMap.ts) in
 // a larger box, then the photo found by its name, then the line icon.
-function WorkTypePriceCard({ type, onPatch }: {
+function WorkTypePriceCard({ type, onPatch, focused = false }: {
   type: WorkType
   onPatch: (patch: Partial<WorkType>) => void
+  /** Opened from the new job's "Not a bridge? Change type": shown and marked. */
+  focused?: boolean
 }) {
   const [picking, setPicking] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (focused) cardRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [focused])
+  const kind = teethKindOf(type)
   const chosen = pictureChoice(type.pildiValik)
   const pinned = !chosen && type.pilt?.trim() ? workTypeImage(type.nimi, type.pilt) : null
   const art3d = pinned ? null : workType3dImage(type)
@@ -821,7 +829,7 @@ function WorkTypePriceCard({ type, onPatch }: {
   const blockTitle = 'text-base font-bold text-ink'
 
   return (
-    <div className="card p-5 flex flex-col gap-5">
+    <div ref={cardRef} className={`card p-5 flex flex-col gap-5 ${focused ? 'ring-2 ring-accent' : ''}`}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3.5 min-w-0">
           <button
@@ -868,6 +876,35 @@ function WorkTypePriceCard({ type, onPatch }: {
               }`}
             >
               {m.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* What the work is on the teeth: the type's own setting (2.2.2), not
+          read from its name. Shown as the form reads it today until chosen. */}
+      <div className="flex flex-col gap-2.5 border-t border-ink-faint/15 pt-4">
+        <div>
+          <h4 className={blockTitle}>{t('settingsPage.teethKind')}</h4>
+          <p className="text-sm text-ink-muted">{t('settingsPage.teethKindSub')}</p>
+        </div>
+        <div role="group" aria-label={t('settingsPage.teethKind')} className="grid grid-cols-2 gap-2">
+          {([
+            { key: 'single', label: t('settingsPage.kindSingle') },
+            { key: 'bridge', label: t('settingsPage.kindBridge') },
+            { key: 'arch', label: t('settingsPage.kindArch') },
+            { key: 'none', label: t('settingsPage.kindNone') },
+          ] as const).map(k => (
+            <button
+              key={k.key}
+              type="button"
+              aria-pressed={kind === k.key}
+              onClick={() => type.liik !== k.key && onPatch({ liik: k.key })}
+              className={`min-h-[44px] px-3 rounded-xl text-sm border transition-colors ${
+                kind === k.key ? 'bg-accent text-white font-bold border-accent' : 'border-ink-faint/40 text-ink-soft hover:text-ink hover:border-accent'
+              }`}
+            >
+              {k.label}
             </button>
           ))}
         </div>
@@ -1267,8 +1304,10 @@ function LanguageSection() {
 }
 
 /** `initialGroup`: where to open (a security notification opens Security). */
-export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView }: {
+export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPatient, onOpenView }: {
   initialGroup?: GroupKey
+  /** The Prices card to show and mark (the new job's "Not a bridge? Change type"). */
+  initialWorkType?: string
   onOpenPatient?: (patientId: string) => void
   /** For the home page's tiles that open another page (Team, Payroll). */
   onOpenView?: (v: ViewMode) => void
@@ -2091,6 +2130,7 @@ export function SettingsPage({ initialGroup = 'home', onOpenPatient, onOpenView 
                         <WorkTypePriceCard
                           key={workType.nimi}
                           type={workType}
+                          focused={workType.nimi === initialWorkType}
                           onPatch={patch => updateWorkType(workType.nimi, patch)}
                         />
                       ))}

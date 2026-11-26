@@ -9,6 +9,7 @@
  */
 import { AlertCircle, AlertTriangle } from 'lucide-react'
 import type { ValidationError } from '@shared/wizard'
+import { ChangeTypeLink } from './ChangeTypeLink'
 
 export interface WizardErrorsProps {
   errors: ValidationError[]
@@ -35,7 +36,7 @@ export function WizardErrors({
           {blocking.map((e, i) => (
             <li key={`e${i}`} className="flex items-start gap-2 text-base font-medium text-rose-500">
               <AlertCircle size={16} aria-hidden="true" className="flex-shrink-0 mt-0.5" />
-              <span>{e.message}</span>
+              <span>{e.message}<ChangeTypeLink error={e} /></span>
             </li>
           ))}
         </ul>

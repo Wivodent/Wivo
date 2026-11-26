@@ -11,12 +11,17 @@
  * correctly through its synonyms; a type with neither gets the permissive
  * default rather than a wrong hard rule.
  *
- * The real fix is a `kategooria` field on WorkType in Seaded. Until then, this
- * is the only signal the data carries.
+ * Since 2.2.2 the kind is the type's own setting (WorkType.liik, Settings →
+ * Prices → "Type"): when the owner has set it, it decides and the words do
+ * not. Absent, the words decide as before, except that design work is never
+ * a bridge by its words: a type renamed from "Bridge" to "Crown design" keeps
+ * "sild" among its synonyms, and that made a single crown's design demand two
+ * teeth (Dentiks, 2.2.2).
  */
 import { catalogueEntry } from '../pricing/workTypeCatalogue'
-import type { WorkType } from '../pricing/workTypes'
+import type { TeethKind, WorkType } from '../pricing/workTypes'
 import { resolveWorkType, UNKNOWN_WORK_TYPE } from '../pricing/workTypes'
+import { baseTypeName } from './types'
 
 /** How this work type picks its teeth.
  *   'tooth' — individual FDI numbers (Kroon, Sild, Viniir, Inlay…)
@@ -94,6 +99,12 @@ const IMPLANT_BASED_WORDS = [
   'overdenture', 'katteprotees', 'покрывн',
 ]
 const SINGLE_WORDS = ['kroon', 'crown']
+/**
+ * Design work: a file, drawn per tooth or per case, never a bridge by its
+ * words. Read from the type's OWN name only (and the catalogue entry it came
+ * from), never from its synonyms, which may be left over from an old name.
+ */
+const DESIGN_WORDS = ['design', 'disain', 'dizain', 'дизайн']
 /** A shade is meaningless on a clear appliance, a surgical guide or a model. */
 const NO_SHADE_WORDS = [...APPLIANCE_WORDS, 'kirurg', 'surgic', 'mudel', 'model', 'ibt']
 
@@ -123,7 +134,11 @@ const hits = (tokens: readonly string[], words: readonly string[]): boolean =>
 export function workTypeRules(too: string, types: readonly WorkType[]): WorkTypeRules {
   // resolveWorkType takes a mutable array in the pricing module; the wizard
   // only ever reads, so the cast is safe and keeps callers on readonly props.
-  const resolved = resolveWorkType(too, types as WorkType[])
+  //
+  // A second copy of a type on one job is keyed "Sild§2" (makeTypeKey): it is
+  // the same type, resolved by its base name. As a substring it could land on
+  // another type that merely keeps "sild" among old synonyms.
+  const resolved = resolveWorkType(baseTypeName(too), types as WorkType[])
   const unknown = resolved.nimi === UNKNOWN_WORK_TYPE.nimi
 
   // An unrecognised type must not acquire rules nobody asked for: let the user
@@ -155,11 +170,17 @@ export function workTypeRules(too: string, types: readonly WorkType[]): WorkType
   // Arch wins over appliance so "Proteez" asks for a jaw instead of asking
   // nothing — it is a full-arch piece of work, not a nightguard.
   const isAppliance = !isArch && hits(tokens, APPLIANCE_WORDS)
-  // A type that says which teeth it wants (one added from the catalogue whose
-  // words cannot tell, such as a digital scan) is taken at its word.
-  const toothMode: ToothMode = resolved.hambaviis ?? (isArch ? 'arch' : isAppliance ? 'none' : 'tooth')
+  // The owner's own setting decides. Without it, a type that says which teeth
+  // it wants (one added from the catalogue whose words cannot tell, such as a
+  // digital scan) is taken at its word; then the words.
+  const own = resolved.liik
+  const toothMode: ToothMode = own
+    ? (own === 'arch' ? 'arch' : own === 'none' ? 'none' : 'tooth')
+    : resolved.hambaviis ?? (isArch ? 'arch' : isAppliance ? 'none' : 'tooth')
 
-  const isBridge = toothMode === 'tooth' && hits(tokens, BRIDGE_WORDS)
+  const isBridge = own
+    ? own === 'bridge'
+    : toothMode === 'tooth' && !isDesignWork(resolved, too) && hits(tokens, BRIDGE_WORDS)
   const noShade = hits(tokens, NO_SHADE_WORDS)
 
   return {
@@ -182,6 +203,27 @@ export function workTypeRules(too: string, types: readonly WorkType[]): WorkType
     implantBased: toothMode !== 'none'
       && (catalogueEntry(resolved.katalog)?.implantBased ?? hits(tokens, IMPLANT_BASED_WORDS)),
   }
+}
+
+/**
+ * Design work (Crown design, Smile design, Krooni disain, Дизайн коронки):
+ * its own name says design, or it came from the catalogue's digital work.
+ */
+export function isDesignWork(type: Pick<WorkType, 'nimi' | 'katalog'>, asked?: string): boolean {
+  if (catalogueEntry(type.katalog)?.kind === 'digital') return true
+  const own = [type.nimi.toLowerCase(), ...(asked ? [asked.toLowerCase()] : [])]
+  return hits(own, DESIGN_WORDS)
+}
+
+/**
+ * A type's kind as the Prices card shows it: the owner's setting, or what the
+ * new-job form reads from the words when there is none. Choosing the shown
+ * value stores it, and the form then behaves exactly as it did.
+ */
+export function teethKindOf(type: WorkType): TeethKind {
+  if (type.liik) return type.liik
+  const r = workTypeRules(type.nimi, [type])
+  return r.toothMode === 'arch' ? 'arch' : r.toothMode === 'none' ? 'none' : r.isBridge ? 'bridge' : 'single'
 }
 
 export interface JobRules {

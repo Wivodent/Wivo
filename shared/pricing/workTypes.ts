@@ -113,6 +113,23 @@ export interface WorkType {
    * (a digital scan asks for none). Absent: read from the words, as always.
    */
   hambaviis?: 'tooth' | 'arch' | 'none'
+  /**
+   * What the work is on the teeth, as the owner set it (Settings → Prices →
+   * "Type", from 2.2.2): one tooth at a time, a bridge over two or more teeth,
+   * a whole arch, or per job with no teeth. Wins over `hambaviis` and over the
+   * words. Absent: read from the type's words, as before (workTypeRules), so
+   * a type nobody has touched keeps the kind it had.
+   */
+  liik?: TeethKind
+}
+
+/** A work type's kind on the new-job form (WorkType.liik). */
+export type TeethKind = 'single' | 'bridge' | 'arch' | 'none'
+export const TEETH_KINDS: readonly TeethKind[] = ['single', 'bridge', 'arch', 'none']
+
+/** A stored kind as it may be kept, else undefined (the jsonb can be edited by hand). */
+export function storedTeethKind(v: unknown): TeethKind | undefined {
+  return TEETH_KINDS.includes(v as TeethKind) ? v as TeethKind : undefined
 }
 
 // Order matters: the first match wins, so the more specific terms sit above the

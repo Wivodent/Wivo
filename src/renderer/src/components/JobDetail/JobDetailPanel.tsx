@@ -1210,7 +1210,8 @@ export function JobDetailPanel({ job, onClose, onSave, onDelete, saving, positio
                             const next = form.work_items.filter(i => i.too !== type.nimi)
                             setForm(f => ({ ...f, work_items: next, too: next[0]?.too ?? '' }))
                           } else {
-                            const isBridge = /sild|bridge/i.test(type.nimi)
+                            // The type's own kind (Settings → Prices → Type), else its words.
+                            const isBridge = workTypeRules(type.nimi, settings.tooTuubid).isBridge
                             const item = { id: crypto.randomUUID(), too: type.nimi, hambad: '', ...(isBridge ? { bridge: true } : {}) }
                             const next = [...form.work_items, item]
                             setForm(f => ({ ...f, work_items: next, too: next[0]?.too ?? type.nimi }))

@@ -71,8 +71,6 @@ const TYPE_GRID_COLS: Record<3 | 4 | 5 | 6, string> = {
   3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-6',
 }
 
-/** Auto-mark as a bridge when the type says so, so nobody has to click twice. */
-const looksLikeBridge = (nimi: string): boolean => /sild|bridge/i.test(nimi)
 
 export function WorkItemsField({
   value, onChange, activeId, onActiveChange,
@@ -127,7 +125,9 @@ export function WorkItemsField({
       id: crypto.randomUUID(),
       too: nimi,
       hambad: '',
-      ...(looksLikeBridge(nimi) ? { bridge: true } : {}),
+      // Auto-marked as a bridge when the type is one (its own kind in Settings →
+      // Prices, else its words), so nobody has to click twice.
+      ...(workTypeRules(nimi, wt.types).isBridge ? { bridge: true } : {}),
     }
     onChange([...value, item])
     onActiveChange(item.id)

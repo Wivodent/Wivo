@@ -26,7 +26,7 @@ export {
 import { workTypeImageFile } from '../lib/workTypeImages'
 import { workTypePriceFor } from '@shared/pricing/priceBook'
 import { normaliseGroups, normaliseOptionPrices, normaliseOptions, type WorkOption } from '@shared/pricing/workOptions'
-import { storedPictureChoice } from '@shared/pricing/workTypes'
+import { storedPictureChoice, storedTeethKind } from '@shared/pricing/workTypes'
 import type { MailPolicy } from '@shared/billing/sendGuard'
 import { DEFAULT_MAIL_TEMPLATE, type MailTemplate } from '@shared/billing/mailTemplate'
 import type { MaterialPricing, FixedCost, ExtraService, Overhead, PriceBook } from '@shared/pricing/priceBook'
@@ -407,6 +407,8 @@ function workTypeList(v: unknown, fallback: WorkType[], repairColours: boolean):
         pilt: typeof type.pilt === 'string' && type.pilt.trim() ? type.pilt.trim() : undefined,
         // The owner's choice of picture: a 3D picture's id or icon:<kind> (lib/workType3d pictureChoice).
         pildiValik: storedPictureChoice(type.pildiValik),
+        // The owner's choice of kind: single tooth, bridge, full arch, per job (workTypeRules).
+        liik: storedTeethKind(type.liik),
         kulud: Array.isArray(type.kulud)
           ? type.kulud
               .filter(k => k && typeof k === 'object')

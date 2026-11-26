@@ -36,6 +36,12 @@ export interface ValidationError {
   message: string
   /** 'error' blocks Continue. 'warning' never blocks. */
   severity: 'error' | 'warning'
+  /**
+   * The work type (its WorkType.nimi in Settings → Prices) whose kind may be
+   * wrong: a bridge with one tooth. Step 2 offers the owner "Not a bridge?
+   * Change type" beside the message.
+   */
+  changeType?: string
 }
 
 const err = (field: WizardField, message: string, workType?: string): ValidationError =>
@@ -81,7 +87,7 @@ export function validateStep(
           if (check.reason === 'empty') {
             out.push(err('teeth', t('wizardRules.chooseTeethFor', { name }), name))
           } else if (check.reason === 'too-few') {
-            out.push(err('teeth', t('wizardRules.isABridgeChooseAtLeast', { name }), name))
+            out.push({ ...err('teeth', t('wizardRules.isABridgeChooseAtLeast', { name }), name), changeType: r.nimi })
           } else if (check.reason === 'mixed-arch') {
             out.push(err('teeth', t('wizardRules.isABridgeTheTeethMust', { name }), name))
           } else {

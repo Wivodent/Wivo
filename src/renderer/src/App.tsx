@@ -63,7 +63,8 @@ const queryClient = new QueryClient({
 function AppContent() {
   const [view, setView] = useState<ViewMode>('overview')
   // Which settings tab to open; `n` remounts the page when it is already open.
-  const [settingsAt, setSettingsAt] = useState<{ group?: GroupKey; n: number }>({ n: 0 })
+  // `workType`: the Prices card to show (the new job's "Not a bridge? Change type").
+  const [settingsAt, setSettingsAt] = useState<{ group?: GroupKey; workType?: string; n: number }>({ n: 0 })
   // Only for that one opening: Settings from the sidebar opens where it always does.
   useEffect(() => { if (view !== 'settings') setSettingsAt(a => (a.group ? { n: a.n } : a)) }, [view])
   // The 'new' member is now UNREACHABLE from the UI — creating a job goes
@@ -174,6 +175,14 @@ function AppContent() {
   const closeWizard = useCallback(() => {
     // The wizard has already cleared the unsaved-changes dialog by this point.
     setWizardOpen(false); setWizardDate(undefined)
+  }, [])
+
+  // "Not a bridge? Change type": the wizard has kept the job as a draft; open
+  // the work type's card in Settings → Prices.
+  const openWorkTypeSettings = useCallback((nimi: string) => {
+    setWizardOpen(false); setWizardDate(undefined)
+    setSettingsAt(a => ({ group: 'hinnad', workType: nimi, n: a.n + 1 }))
+    setView('settings')
   }, [])
 
   // Created → hand straight over to the existing Edit page, on the real row.
@@ -471,7 +480,7 @@ function AppContent() {
           {view === 'tootasud' && <PayrollView jobs={jobs} onOpenJob={openEdit} />}
           {view === 'stats' && <Dashboard jobs={jobs} />}
           {view === 'taotlused' && <RequestsInbox />}
-          {view === 'settings' && <SettingsPage key={settingsAt.n} initialGroup={settingsAt.group} onOpenPatient={openPatient} onOpenView={setView} />}
+          {view === 'settings' && <SettingsPage key={settingsAt.n} initialGroup={settingsAt.group} initialWorkType={settingsAt.workType} onOpenPatient={openPatient} onOpenView={setView} />}
           {view === 'workers' && <WorkersPage />}
           {view === 'partner' && <PartnerJobsView />}
           {view === 'unsorted' && <UnsortedView />}
@@ -507,6 +516,7 @@ function AppContent() {
             initialDate={wizardDate}
             onClose={closeWizard}
             onCreated={handleWizardCreated}
+            onOpenWorkType={openWorkTypeSettings}
           />
         )}
       </AnimatePresence>
