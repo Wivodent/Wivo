@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2190.
+-- Expected rows: 2193.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -758,6 +758,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.restore_job(p_job uuid)', 'security definer, volatile, search_path=public, body md5 9e86dd8f5519f5b9efa3c89f026b9067'),
     ('function', 'public.return_stock(p_item uuid, p_qty integer, p_reason text)', 'security definer, volatile, search_path=public, body md5 3214d694aba554847f5a96682d23ed13'),
     ('function', 'public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text)', 'security definer, volatile, search_path=public, body md5 80cb15daf71cf8c5188fb59aedcdb9f7'),
+    ('function', 'public.save_workflow_template(p_id uuid, p_name text, p_stages jsonb, p_expected_updated_at timestamp with time zone)', 'security invoker, volatile, search_path=public, body md5 830f9796b6e3202ce62f9a35fdd2fea9'),
     ('function', 'public.set_app_min_version(p_version text, p_required boolean, p_note text, p_org uuid)', 'security invoker, volatile, search_path=public, body md5 3afdcbebab8516121bc6619aec20e386'),
     ('function', 'public.set_code_prefix()', 'security definer, volatile, search_path=public, body md5 4d8008fad96b8eab77dcebfb78b5dc77'),
     ('function', 'public.set_inventory_schedule(p_interval_months integer, p_next_due date)', 'security definer, volatile, search_path=public, body md5 58858abe6ec8e2b703d645355c226806'),
@@ -1329,6 +1330,8 @@ with expected(kind, key, def) as (values
     ('grant', 'public.return_stock(p_item uuid, p_qty integer, p_reason text) to service_role', 'EXECUTE'),
     ('grant', 'public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text) to authenticated', 'EXECUTE'),
     ('grant', 'public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text, p_user_agent text) to service_role', 'EXECUTE'),
+    ('grant', 'public.save_workflow_template(p_id uuid, p_name text, p_stages jsonb, p_expected_updated_at timestamp with time zone) to authenticated', 'EXECUTE'),
+    ('grant', 'public.save_workflow_template(p_id uuid, p_name text, p_stages jsonb, p_expected_updated_at timestamp with time zone) to service_role', 'EXECUTE'),
     ('grant', 'public.set_code_prefix() to PUBLIC', 'EXECUTE'),
     ('grant', 'public.set_code_prefix() to anon', 'EXECUTE'),
     ('grant', 'public.set_code_prefix() to authenticated', 'EXECUTE'),

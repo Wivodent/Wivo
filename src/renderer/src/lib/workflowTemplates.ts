@@ -137,58 +137,46 @@ export function normaliseStages(stages: readonly TemplateStage[]): TemplateStage
 
 export type SaveProblem = TemplateProblem[]
 
+/** The stages as save_workflow_template (sql/133) takes them: in order, each with its people. Pure. */
+export function stagesPayload(stages: readonly TemplateStage[]): Record<string, unknown>[] {
+  return stages.map(s => ({
+    stage_key: s.stageKey, task: s.task, optional: s.optional, default_on: s.defaultOn,
+    only_if: [...s.onlyIf], orderer: s.orderer, pay_role: s.payRole, people: [...s.people],
+  }))
+}
+
 /**
  * Save one template: its name and its stages with their people. Stages are
  * replaced as a whole (a job made from the template already copied its own,
  * §2.3, so nothing already made changes).
  *
  * Checked first: whatever validateTemplate finds is returned and nothing is
- * written. The writes themselves are separate requests, in the order that
- * leaves the old stages in place until the new ones are ready to go in; if one
- * fails the error is thrown and the screen reloads what the database holds.
+ * written. Then ONE call (save_workflow_template, sql/133), one transaction:
+ * a lost connection leaves the template as it was, never without its stages
+ * (before 2.2.4 it was four requests, and a break after the delete did).
+ * Over the version the form was filled from only: somebody else's save in
+ * between is a ConflictError (WV003) and nothing is written. `orgId` is the
+ * clinic the screen is in; the database takes the person's own.
  */
 export async function saveTemplate(
-  orgId: string,
+  _orgId: string,
   template: { id: string | null; name: string; stages: readonly TemplateStage[]; updatedAt?: string | null },
 ): Promise<{ id: string } | { problems: SaveProblem }> {
   const stages = normaliseStages(template.stages)
   const problems = validateTemplate(stages)
   if (problems.length > 0) return { problems }
 
-  let id = template.id
-  if (id) {
-    // Only over the version this person opened (2.2.3): when somebody else
-    // saved the template meanwhile, nothing is written and the form says so.
-    // The row's updated_at is the lock; every save of a template stamps it.
-    const q = supabase.from('workflow_template')
-      .update({ name: template.name.trim(), updated_at: new Date().toISOString() }).eq('id', id)
-    const expected = template.updatedAt
-    const { data, error } = await (expected === undefined ? q : expected === null ? q.is('updated_at', null) : q.eq('updated_at', expected))
-      .select('id')
-    if (error) throw error
-    if (!data || data.length === 0) throw new ConflictError([], null)
-    const { error: delErr } = await supabase.from('workflow_template_stage').delete().eq('template_id', id)
-    if (delErr) throw delErr
-  } else {
-    const { data, error } = await supabase.from('workflow_template')
-      .insert({ org_id: orgId, name: template.name.trim() }).select('id').single()
-    if (error) throw error
-    id = (data as { id: string }).id
+  const { data, error } = await supabase.rpc('save_workflow_template', {
+    p_id: template.id,
+    p_name: template.name.trim(),
+    p_stages: stagesPayload(stages),
+    p_expected_updated_at: template.id ? (template.updatedAt ?? null) : null,
+  })
+  if (error) {
+    if (error.code === 'WV003') throw new ConflictError([], null)
+    throw error
   }
-  if (stages.length === 0) return { id }
-
-  const ids = stages.map(() => crypto.randomUUID())
-  const { error: insErr } = await supabase.from('workflow_template_stage').insert(stages.map((s, i) => ({
-    id: ids[i], org_id: orgId, template_id: id, stage_key: s.stageKey, position: s.position, task: s.task,
-    optional: s.optional, default_on: s.defaultOn, only_if: [...s.onlyIf], orderer: s.orderer, pay_role: s.payRole,
-  })))
-  if (insErr) throw insErr
-  const people = stages.flatMap((s, i) => s.people.map(p => ({ template_stage_id: ids[i], profile_id: p, org_id: orgId })))
-  if (people.length > 0) {
-    const { error } = await supabase.from('workflow_template_stage_person').insert(people)
-    if (error) throw error
-  }
-  return { id }
+  return { id: (data as { id: string }).id }
 }
 
 /** Take a template out of use. Jobs made from it keep their own stages. The default one cannot go. */
