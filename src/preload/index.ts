@@ -1,5 +1,4 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 import type { ReleaseMinimum, UpdateInfo, UpdateState, UpdaterSplashState } from '../types/update'
 
 /**
@@ -128,17 +127,17 @@ interface WatchedFile { path: string; name: string; size: number; modifiedAt: nu
 
 export type WivoAPI = typeof wivoAPI
 
-// Expose minimal electron API to renderer
+// Only Wivo's own API reaches the page (2.2.5, docs/SECURITY-REVIEW-2026-11.md
+// A1). `@electron-toolkit/preload`'s electronAPI used to be exposed as
+// window.electron: the whole process.env and every IPC channel, to any script
+// on the page. Nothing used it.
 if (process.contextIsolated) {
   try {
-    contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('wivo', wivoAPI)
   } catch (error) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
   // @ts-ignore (define in dts)
   window.wivo = wivoAPI
 }

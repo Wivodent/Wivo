@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { pathToFileURL } from 'url'
 import { execSync } from 'child_process'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import {
@@ -15,6 +16,7 @@ import { registerWatchFolder } from './watchFolder'
 import { trackDownloads, mainBusy } from './busy'
 import { initSentryMain } from './sentry'
 import { chromiumLocaleFor, rememberedLanguage, rememberLanguage } from './uiLanguage'
+import { externalAllowed, isAppUrl } from './navigation'
 
 // Force 24-hour clock in all Chromium form controls (datetime-local, time)
 // Test mode (`npm run dev:test`) keeps everything in its own folder: the
@@ -76,10 +78,26 @@ function createWindow(): void {
     closeSplash()
   })
 
+  const appUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
+    ? process.env['ELECTRON_RENDERER_URL']
+    : pathToFileURL(join(__dirname, '../renderer/index.html')).href
+
+  // A new window never opens inside Wivo: https, mailto and tel go to the
+  // system's own app, anything else is dropped (navigation.ts, 2.2.5).
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
+    if (externalAllowed(details.url)) void shell.openExternal(details.url)
     return { action: 'deny' }
   })
+  // The window stays on Wivo's own page: a link or a redirect elsewhere is
+  // stopped (a page loaded here would get Wivo's preload), and opened outside
+  // when it is an address that may be.
+  const stayHome = (event: Electron.Event, url: string) => {
+    if (isAppUrl(url, appUrl)) return
+    event.preventDefault()
+    if (externalAllowed(url)) void shell.openExternal(url)
+  }
+  mainWindow.webContents.on('will-navigate', stayHome)
+  mainWindow.webContents.on('will-redirect', stayHome)
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
@@ -144,6 +162,16 @@ function readTeethModel(): Buffer | null {
 if (!app.requestSingleInstanceLock()) {
   app.quit()
 }
+
+// Every window Wivo makes (the updater's too): no window of its own from a
+// page, and no <webview> (2.2.5).
+app.on('web-contents-created', (_event, contents) => {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (externalAllowed(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
+  contents.on('will-attach-webview', event => event.preventDefault())
+})
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows().find(w => !w.isDestroyed())
@@ -246,8 +274,9 @@ app.whenReady().then(async () => {
 
   // Pull latest code from origin. Returns the new version or null on failure.
   ipcMain.handle('wivo:git-pull', () => {
-    // Test mode: never merge main into the branch under test.
-    if (import.meta.env.MODE === 'test') return null
+    // A developer's helper: never in an installed Wivo (2.2.5, A6), and in
+    // test mode never merge main into the branch under test.
+    if (app.isPackaged || import.meta.env.MODE === 'test') return null
     try {
       const cwd = app.getAppPath()
       execSync('git pull origin main --quiet', { cwd, timeout: 30_000, stdio: 'ignore' })
