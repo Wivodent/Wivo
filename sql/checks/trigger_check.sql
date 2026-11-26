@@ -169,6 +169,10 @@ select 'grant', g.target || ' to ' || g.grantee, string_agg(g.privilege, ',' ord
   ) g
  where g.grantee in ('anon', 'authenticated', 'service_role', 'PUBLIC')
  group by g.target, g.grantee
+union all
+select 'realtime', pt.schemaname || '.' || pt.tablename, 'in publication supabase_realtime'
+  from pg_publication_tables pt
+ where pt.pubname = 'supabase_realtime'
 ) catalog where kind in ('trigger')),
 norm as (
   select coalesce(e.kind, a.kind) as kind, coalesce(e.key, a.key) as key,

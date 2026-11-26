@@ -69,7 +69,7 @@ describe('the schema check', () => {
   })
 
   it('covers every kind it says it does', () => {
-    for (const kind of ['trigger', 'index', 'constraint', 'not null', 'default', 'identity', 'sequence owner', 'view', 'row security', 'policy', 'function', 'grant']) {
+    for (const kind of ['trigger', 'index', 'constraint', 'not null', 'default', 'identity', 'sequence owner', 'view', 'row security', 'policy', 'function', 'grant', 'realtime']) {
       expect(check, kind).toContain(`('${kind}', '`)
     }
   })
@@ -117,6 +117,7 @@ describe('the schema check', () => {
       create index extra_idx on public.jobs (patsient);
       alter function public.can_manage_payroll() security invoker;
       revoke delete on public.jobs from authenticated;
+      alter publication supabase_realtime drop table public.jobs;
     `)
     const found = (await differences(d)).map(r => `${r.status} ${r.kind} ${r.key}`)
     expect(found).toEqual(expect.arrayContaining([
@@ -132,6 +133,7 @@ describe('the schema check', () => {
       'extra index public.extra_idx',
       'differs function public.can_manage_payroll()',
       'differs grant public.jobs to authenticated',
+      'missing realtime public.jobs',
     ]))
     // The trigger check: the trigger alone.
     expect((await differences(d, TRIGGER_FILE)).map(r => `${r.status} ${r.kind} ${r.key}`))

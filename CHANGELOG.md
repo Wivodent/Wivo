@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased] — for 2.2.4
+
+- **Realtime publication** (sql/131, run on its own): every table the app
+  listens to (the fifteen subscribed tables and `messages`) is put in
+  `supabase_realtime` if it is not there; the publication is made if a
+  database has none. A table missing there is silent: the other computer's
+  change never arrives (the test copy had none). Replica identity stays the
+  primary key: no handler reads the old row.
+- **schema_check.sql** names a table missing from the publication (kind
+  `realtime`); regenerated with production_check.sql and trigger_check.sql.
+- **Tests:** sql/test/realtimePublication.test.ts — every postgres_changes
+  table in the app is in the publication; 131 fills an empty copy and is
+  idempotent.
+
+**Database:** sql/131.
+
 ## [2.2.3] — 2026-11-26
 
 **Two people at once: nothing overwritten (docs/STATUS-2026-11-26.md §2, block A)**

@@ -5,7 +5,9 @@
  * (settings and a fingerprint of the body: prosrc is the text as written, the
  * same on every Postgres; a body pasted with Windows line endings is the same
  * body, so CR LF counts as LF) and what anon, authenticated, service_role and
- * PUBLIC may do with each table, column and function.
+ * PUBLIC may do with each table, column and function, and which tables are in
+ * the realtime publication (sql/131: one missing there is silent: the app
+ * just never hears that table's changes).
  *
  * The same query builds two things (schemaCheck.test.ts keeps them current):
  *  - the expected list, run on a database built from the migrations (PGlite);
@@ -106,6 +108,10 @@ select 'grant', g.target || ' to ' || g.grantee, string_agg(g.privilege, ',' ord
   ) g
  where g.grantee in ('anon', 'authenticated', 'service_role', 'PUBLIC')
  group by g.target, g.grantee
+union all
+select 'realtime', pt.schemaname || '.' || pt.tablename, 'in publication supabase_realtime'
+  from pg_publication_tables pt
+ where pt.pubname = 'supabase_realtime'
 `
 
 export interface CatalogRow { kind: string; key: string; def: string }
@@ -167,7 +173,7 @@ ${absentNote}-- No rows: this database matches the migrations in all of it.
 -- their options), row security, policies (public and storage), our functions
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
--- functions`}.
+-- functions, and the tables in the realtime publication supabase_realtime`}.
 -- Expected rows: ${expected.length}.
 -- ============================================================================
 

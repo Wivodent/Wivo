@@ -25,8 +25,8 @@
 -- their options), row security, policies (public and storage), our functions
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
--- functions.
--- Expected rows: 1467.
+-- functions, and the tables in the realtime publication supabase_realtime.
+-- Expected rows: 1483.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -1475,6 +1475,22 @@ with expected(kind, key, def) as (values
    FROM file_download_grant g
   WHERE ((g.storage_path = objects.name) AND (g.user_id = auth.uid()) AND (g.expires_at > now())))))) check ()'),
     ('policy', 'storage.objects.mfa_required', 'RESTRICTIVE ALL to authenticated using (( SELECT has_mfa() AS has_mfa)) check (( SELECT has_mfa() AS has_mfa))'),
+    ('realtime', 'public.clinic_settings', 'in publication supabase_realtime'),
+    ('realtime', 'public.customers', 'in publication supabase_realtime'),
+    ('realtime', 'public.invoice_lines', 'in publication supabase_realtime'),
+    ('realtime', 'public.invoices', 'in publication supabase_realtime'),
+    ('realtime', 'public.jobs', 'in publication supabase_realtime'),
+    ('realtime', 'public.messages', 'in publication supabase_realtime'),
+    ('realtime', 'public.notification', 'in publication supabase_realtime'),
+    ('realtime', 'public.patient_teeth', 'in publication supabase_realtime'),
+    ('realtime', 'public.patients', 'in publication supabase_realtime'),
+    ('realtime', 'public.payment_plans', 'in publication supabase_realtime'),
+    ('realtime', 'public.payments', 'in publication supabase_realtime'),
+    ('realtime', 'public.visit_requests', 'in publication supabase_realtime'),
+    ('realtime', 'public.visits', 'in publication supabase_realtime'),
+    ('realtime', 'public.work_hours', 'in publication supabase_realtime'),
+    ('realtime', 'public.worker_payouts', 'in publication supabase_realtime'),
+    ('realtime', 'public.worker_rates', 'in publication supabase_realtime'),
     ('row security', 'public.audit_log', 'on'),
     ('row security', 'public.bug_report', 'on'),
     ('row security', 'public.channel_members', 'on'),
@@ -1673,6 +1689,10 @@ select 'grant', g.target || ' to ' || g.grantee, string_agg(g.privilege, ',' ord
   ) g
  where g.grantee in ('anon', 'authenticated', 'service_role', 'PUBLIC')
  group by g.target, g.grantee
+union all
+select 'realtime', pt.schemaname || '.' || pt.tablename, 'in publication supabase_realtime'
+  from pg_publication_tables pt
+ where pt.pubname = 'supabase_realtime'
 ) catalog),
 norm as (
   select coalesce(e.kind, a.kind) as kind, coalesce(e.key, a.key) as key,
