@@ -1,20 +1,37 @@
 # Changelog
 
-## [Unreleased] — for 2.2.4
+## [2.2.4] — 2026-11-26
 
-- **Realtime publication** (sql/131, run on its own): every table the app
-  listens to (the fifteen subscribed tables and `messages`) is put in
-  `supabase_realtime` if it is not there; the publication is made if a
-  database has none. A table missing there is silent: the other computer's
-  change never arrives (the test copy had none). Replica identity stays the
-  primary key: no handler reads the old row.
+**Realtime everywhere it is listened to; saves that are one step**
+
+"What's new": release-notes/2.2.4. Details: docs/REPORT-2.2.4.md.
+
+- **Realtime publication** (sql/131): every table the app listens to is put
+  in `supabase_realtime` if missing (the test copy had none: every
+  subscription was silent); the publication is made if there is none.
+  Replica identity stays the primary key: no handler reads the old row.
+- **A job's files and stage people at once** (sql/132): realtime on
+  `job_file` and `job_stage_person` (useRealtimeInvalidate, a channel of
+  their own); a jobs event also reloads the stage bar.
+- **A template in one step** (sql/133, `save_workflow_template`): name,
+  stages and people in one transaction, over the version opened (WV003 →
+  the conflict banner); the four separate requests are gone.
+- **Notes in one step** (sql/134, `add_job_note`, `remove_job_note`): the
+  database appends or removes the one note; the list is not read and
+  written back.
+- **Stage defaults in one step** (sql/134, `save_stage_default`), refused
+  outright without "Manage stages".
+- **A job keeps its template** (J5, sql/134, `guard_job_template`).
+- **Online booking hours** merged with another owner's save, under the
+  row's updated_at; the same day changed by both: the banner.
 - **schema_check.sql** names a table missing from the publication (kind
-  `realtime`); regenerated with production_check.sql and trigger_check.sql.
-- **Tests:** sql/test/realtimePublication.test.ts — every postgres_changes
-  table in the app is in the publication; 131 fills an empty copy and is
-  idempotent.
+  `realtime`).
+- **Tests:** realtimePublication, saveTemplate, oneStepSaves (sql/test),
+  lib/saveTemplate, merge3 on booking hours.
 
-**Database:** sql/131.
+**Database:** sql/131, 132, 133, 134, in order; 131 and 132 each on its own.
+A 2.2.4 app on a database without 133 and 134 cannot save a template, a
+stage's default people or a note ("not available yet"): the database first.
 
 ## [2.2.3] — 2026-11-26
 
