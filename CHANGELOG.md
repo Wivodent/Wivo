@@ -1,5 +1,33 @@
 # Changelog
 
+## [2.2.2] — 2026-11-26
+
+**A work type's kind is its own setting (Dentiks: "Crown design" asked for a bridge)**
+
+"What's new": release-notes/2.2.2.
+
+- **Cause:** the new job read "bridge" from the type's name AND its synonyms.
+  Dentiks renamed the English default "Bridge" to "Crown design"; the type kept
+  the synonym "sild", so one crown's design demanded two teeth and showed the
+  bridge icon.
+- **Settings → Prices → Type:** Single tooth / Bridge (2+ teeth) / Full arch /
+  Per job (no teeth), kept on the type (work_types[].liik, no migration). It
+  wins over the words and over the catalogue's hambaviis. Without it the kind
+  is read from the words as before, so nothing changes until the owner
+  chooses; the card shows that kind as selected.
+- **Design work is never a bridge by its words:** its own name says
+  design/disain/dizain/дизайн, or it came from the catalogue's digital work.
+- **New job, step 2:** a bridge with one tooth shows the owner "Not a bridge?
+  Change type", which keeps the job as a draft and opens that type's card.
+- **Also:** a second copy of a type on one job ("Sild§2") resolves by its base
+  name, no longer by substring (in Dentiks's list it landed on "Crown design");
+  the job page marks a bridge by the same rule instead of /sild|bridge/ on the
+  name.
+- **Tests:** shared/wizard/teethKind.test.ts: Crown design, smile design,
+  implant surgical guide, titanium mesh, Kroon, Sild, Implantaadisild.
+
+**Database:** no migration.
+
 ## [2.2.1] — 2026-11-25
 
 **A work type's picture chosen by the owner, better automatic pictures; the minimum version and ending a contract**
