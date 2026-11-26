@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.2.3] — 2026-11-26
+
+**Two people at once: nothing overwritten (docs/STATUS-2026-11-26.md §2, block A)**
+
+"What's new": release-notes/2.2.3.
+
+- **Rule** (shared/concurrency): a save sends only the fields changed, and
+  only where the row's `updated_at` is still the one the person started from.
+  When somebody saved first, the row is read again: a field only they changed
+  stays theirs; a list both changed is merged item by item (`merge3`: by
+  `id`, `key` or `nimi`; plain lists as sets); the same field changed by both
+  is a conflict, and nothing is written. "Someone else changed this while
+  you were editing" + Reload (ConflictBanner), with the fields named.
+  A write refused with no change in between reads as no permission.
+- **Job form** (#1): filled from the latest job when Edit is pressed (was:
+  when the job was opened); sends only changed fields (`saveJobChanges`), so
+  a stage, a doer or a price set meanwhile is not put back. Reload keeps this
+  person's other changes in the form.
+- **Revision save** (#2), **option doer** (#3), **notes** (#4), **cost
+  overrides**, **revision stage on an old database** (#5): `useUpdateJob`
+  with `base`, the list merged by id.
+- **Clinic settings** (#6, #7; lib/settingsSync): per column, merged with
+  what is known to be stored, under the lock; another work type or another
+  price changed at once both stay; the same value: theirs stays, the banner
+  names it. The two-second blindness after one's own save is gone. Read
+  again on waking up and when the connection is back; a failed save is tried
+  again by itself and kept over a restart (`wivo_clinic_unsent_v1:<clinic>`).
+- **Pay rules** (#8): only the amount is sent, over the rule as it was when
+  editing began.
+- **Workflow templates** (#9): the save goes only over the version opened
+  (else the banner), and a refetch no longer resets the form. Still four
+  requests, not one transaction: that is 2.2.4.
+- **Duplicate** on a job made the copy by saving over the ORIGINAL (stage to
+  the first, revisions and payment wiped). It now creates a new job.
+- Not in this release: stage defaults (#10) and booking hours (#11) stay
+  last-write-wins; atomic saves are 2.2.4.
+- **Tests:** shared/concurrency/merge.test.ts, guardedSave.test.ts, and
+  src/renderer/src/lib/settingsSync.test.ts — two people on one row.
+
+**Database:** no migration (jobs and clinic_settings have an updated_at
+trigger; worker_rates and workflow_template are stamped by every writer).
+
 ## [2.2.2] — 2026-11-26
 
 **A work type's kind is its own setting (Dentiks: "Crown design" asked for a bridge)**
