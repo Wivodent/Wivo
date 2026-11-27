@@ -13,6 +13,11 @@ import { format, addDays, parseISO } from 'date-fns'
 import type { Job } from '../../types/job'
 import { useSettings, priceBookOf } from '../../stores/useSettings'
 import { billedKeys, unbilledCandidates, candidateMonths, monthOf, type Candidate } from '../../lib/invoiceCandidates'
+import { buyerDetailsMissing } from '../../lib/invoiceBuyer'
+import { docLanguageFor } from '@shared/billing/countryInvoice'
+import { invoiceLabels } from '@shared/billing/invoiceDoc'
+import { clinicCountry } from '../../lib/country'
+import { useAuth } from '../../context/AuthContext'
 import { useCreateInvoice, useInvoices, type CreateInvoiceInput } from '../../hooks/useInvoices'
 import { PatientPicker } from '../Patients/PatientPicker'
 import { describeError } from '../Patients/errors'
@@ -58,7 +63,13 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
   const [billTo, setBillTo] = useState<BillToKind>(initialCustomerId ? 'customer' : 'patient')
   const [customerId, setCustomerId] = useState<string | null>(initialCustomerId ?? null)
   const [issueDate, setIssueDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
-  const [vatRate, setVatRate] = useState(settings.kmMaar)
+  // VAT exempt (sql/148): rate 0 and the reason, printed on the invoice; from the clinic's setting, changeable here.
+  const [exempt, setExempt] = useState(settings.kmVaba)
+  const [exemptNote, setExemptNote] = useState(settings.kmVabaViide)
+  const [vatRate, setVatRate] = useState(settings.kmVaba ? 0 : settings.kmMaar)
+  // The date of the service, only when it differs from the invoice date.
+  const [serviceDate, setServiceDate] = useState('')
+  const { clinic } = useAuth()
   const [note, setNote] = useState('')
   const [lines, setLines] = useState<DraftLine[]>([])
   // Split into equal monthly instalments. Generated up front as real documents
@@ -81,13 +92,15 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
   // Work already on an invoice (not cancelled) is not offered: billing a job twice is
   // the mistake this screen most needs to prevent (lib/invoiceCandidates).
   const billed = useMemo(() => billedKeys(invoices), [invoices])
+  // The lines' own words ("teeth", "remake") in the invoice's language (sql/148).
+  const words = invoiceLabels(docLanguageFor(clinicCountry(clinic), settings.arveKeel)).line
   const patientKey = patsient.trim().toLowerCase()
   const addresseeChosen = billTo === 'customer' ? !!customerId : !!patientKey
   // WHOSE work depends on the addressee: a client invoice covers everything that
   // client ordered (a Network order's job too), whoever the patients were.
   const candidates = useMemo(
-    () => unbilledCandidates(jobs, { billTo, customerId, patientId, patientName: patsient }, billed, priceBookOf(settings), settings.tooValikud),
-    [jobs, billTo, customerId, patientId, patsient, billed, settings],
+    () => unbilledCandidates(jobs, { billTo, customerId, patientId, patientName: patsient }, billed, priceBookOf(settings), settings.tooValikud, words),
+    [jobs, billTo, customerId, patientId, patsient, billed, settings, words],
   )
   const months = useMemo(() => candidateMonths(candidates), [candidates])
   const [month, setMonth] = useState<string>('')
@@ -103,7 +116,7 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
   const pickAll = () => setLines(prev => [...prev, ...shownCandidates.filter(c => !prev.some(l => l.key.startsWith(`${c.key}#`))).flatMap(linesOf)])
 
   const net = Math.round(lines.reduce((s, l) => s + l.qty * l.unit_price, 0) * 100) / 100
-  const vat = Math.round(net * vatRate) / 100
+  const vat = exempt ? 0 : Math.round(net * vatRate) / 100
   const gross = Math.round((net + vat) * 100) / 100
 
   // The plan, laid out exactly as the generator will write it. One source for
@@ -134,11 +147,16 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
   const removeLine = (key: string) => setLines(prev => prev.filter(l => l.key !== key))
 
   const addresseeOk = billTo === 'customer' ? !!customerId : patsient.trim().length > 0
+  const chosenCustomer = billTo === 'customer' ? customers.find(c => c.id === customerId) ?? null : null
+  // A company client without its registry code, VAT number or address: said, not refused.
+  const buyerMissing = chosenCustomer ? buyerDetailsMissing(chosenCustomer) : []
+  // VAT exempt needs its reason: an exempt invoice must say why.
+  const exemptOk = !exempt || exemptNote.trim().length > 0
   // An invoice with no issue date has no period, no due date and no place in a
   // sequence. Blocked here rather than left to Postgres, because the instalment
   // path formats this date and would throw before the insert was even attempted.
   const canSave =
-    addresseeOk && lines.length > 0 && !!toDate(issueDate)
+    addresseeOk && lines.length > 0 && !!toDate(issueDate) && exemptOk
     // Both mutations, not just the single-invoice one: a plan is a LOOP of
     // inserts, so a second click during it would write a second plan and a
     // second run of documents.
@@ -159,12 +177,19 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
       bill_to_kind: billTo,
       issue_date: issueDate,
       due_date: dueDate || null,
-      vat_rate: vatRate,
+      vat_rate: exempt ? 0 : vatRate,
       note: note.trim() || null,
+      // Kept on the invoice (sql/148): its language, the service date, why no VAT, the client's details.
+      language: docLanguageFor(clinicCountry(clinic), settings.arveKeel),
+      service_date: serviceDate && serviceDate !== issueDate ? serviceDate : null,
+      vat_exempt_note: exempt ? exemptNote.trim().slice(0, 500) || null : null,
+      buyer_reg_code: billTo === 'customer' ? chosenCustomer?.reg_code?.trim() || null : null,
+      buyer_vat_number: billTo === 'customer' ? chosenCustomer?.vat_number?.trim() || null : null,
+      buyer_address: billTo === 'customer' ? chosenCustomer?.address?.trim() || null : null,
       lines: lines.map((l, i) => ({
         job_id: l.job_id,
         revision_id: l.revision_id,
-        description: l.description.trim() || 'Töö',
+        description: l.description.trim() || words.work,
         qty: l.qty,
         unit_price: l.unit_price,
         sort_order: i,
@@ -206,6 +231,12 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
           bill_to_kind: input.bill_to_kind,
           vat_rate: input.vat_rate,
           note: input.note,
+          language: input.language,
+          service_date: input.service_date,
+          vat_exempt_note: input.vat_exempt_note,
+          buyer_reg_code: input.buyer_reg_code,
+          buyer_vat_number: input.buyer_vat_number,
+          buyer_address: input.buyer_address,
         },
         lines: input.lines,
       })
@@ -298,8 +329,19 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
                 <label className="label">{t('invoices.paymentDue')}</label>
                 <input type="date" value={dueDate} readOnly className="input opacity-70" />
               </div>
+              <div className="col-span-2">
+                <label className="label">{t('invoices.serviceDate')}</label>
+                <input type="date" value={serviceDate} onChange={e => setServiceDate(e.target.value)} className="input" aria-describedby="service-date-hint" />
+                <p id="service-date-hint" className="text-[11px] text-ink-faint mt-0.5">{t('invoices.serviceDateHint')}</p>
+              </div>
             </div>
           </div>
+
+          {buyerMissing.length > 0 && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5" role="status">
+              {t('invoices.buyerMissing', { fields: buyerMissing.map(f => t(`invoices.buyerField_${f}` as 'invoices.buyerField_reg')).join(', ') })}
+            </p>
+          )}
 
           {/* ── Unbilled work ── */}
           <div>
@@ -487,6 +529,20 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
             )}
           </div>
 
+          <div className="space-y-1">
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" className="h-4 w-4" checked={exempt} onChange={e => setExempt(e.target.checked)} />
+              {t('invoices.vatExempt')}
+            </label>
+            {exempt && (
+              <>
+                <textarea value={exemptNote} onChange={e => setExemptNote(e.target.value)} rows={2} maxLength={500}
+                  placeholder={t('invoices.vatExemptNoteHint')} aria-label={t('invoices.vatExemptNote')} className="input resize-none" />
+                {!exemptOk && <p className="text-[11px] text-red-700">{t('invoices.vatExemptNoteNeeded')}</p>}
+              </>
+            )}
+          </div>
+
           <div>
             <label className="label">{t('invoices.noteOnInvoice')}</label>
             <textarea
@@ -508,7 +564,7 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
               <div>
                 <label className="label">{t('invoices.vAT')}</label>
                 <input
-                  type="number" min="0" max="30" step="0.5" value={vatRate}
+                  type="number" min="0" max="30" step="0.5" value={exempt ? 0 : vatRate} disabled={exempt}
                   onChange={e => setVatRate(parseFloat(e.target.value) || 0)}
                   className="input py-1.5 text-sm w-20 text-right"
                 />

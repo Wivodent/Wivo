@@ -42,6 +42,7 @@ import { WorkflowTemplatesSection } from './Settings/WorkflowTemplatesSection'
 import { SoundSection } from './Settings/SoundSection'
 import { SecuritySection } from './Settings/SecuritySection'
 import { DeletedJobsSection } from './Settings/DeletedJobsSection'
+import { InvoiceSettingsSection } from './Settings/InvoiceSettingsSection'
 import { DraftNumberInput, DraftTextInput } from './ui/DraftInput'
 import { InfoButton } from './ui/InfoButton'
 import { SectionCard } from './ui/SectionCard'
@@ -1358,7 +1359,7 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
   const groupInLicence = (k: GroupKey): boolean => {
     switch (k) {
       case 'avalik': return settings.kliinilineRezhiim && moduleOn('patients')
-      // The e-mail here sends invoices only, and invoices are Estonian documents.
+      // The e-mail here sends invoices: every country with Wivo's invoices (Latvia too).
       case 'epost': return moduleOn('invoices') && invoicesAvailable(clinicCountry(auth.clinic))
       case 'partnerlused': return moduleOn('partners')
       case 'etapid': case 'valikud': case 'masinad': return moduleOn('jobs')
@@ -2272,6 +2273,8 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
               />
             </div>
           </section>
+          {/* Invoices (sql/148): language, numbering, VAT exempt, the clinic's details. */}
+          {moduleOn('invoices') && invoicesAvailable(clinicCountry(auth.clinic)) && <InvoiceSettingsSection onOpenClinic={() => setGroup('kliinik')} />}
                   <section>
             <div className="flex items-center gap-2 mb-3">
               <Pencil size={14} className="text-accent" />

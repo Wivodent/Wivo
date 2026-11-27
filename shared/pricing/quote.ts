@@ -77,6 +77,9 @@ export interface QuoteInput {
 
 export type QuoteSource = 'tüüp' | 'materjal' | 'hambad' | 'valik' | 'kiirtöö' | 'mudel' | 'disain' | 'lisateenus'
 
+/** The sources of a work item's own line: how the work itself was priced (the rest ride on top). */
+export const ITEM_SOURCES: readonly QuoteSource[] = ['tüüp', 'materjal', 'hambad']
+
 export interface QuoteLine {
   source: QuoteSource
   label: string

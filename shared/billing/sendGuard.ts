@@ -185,3 +185,47 @@ export function maySendInvoice(
  */
 export const remainingToday = (policy: MailPolicy, sentToday: number): number =>
   Math.max(0, (Number.isFinite(policy.paevaLimiit) ? policy.paevaLimiit : 0) - sentToday)
+
+// ── One invoice, sent by hand (sql/148) ─────────────────────────────────────
+
+export type HandSendBlockCode = 'saatja-puudub' | 'tuhistatud' | 'paevalimiit' | 'saajad-puuduvad' | 'saaja-vigane' | 'liiga-palju-saajaid' | 'teema-puudub'
+
+export type HandSendVerdict =
+  | { send: true; to: string[]; redirected: boolean }
+  | { send: false; code: HandSendBlockCode }
+
+/** How many addresses one hand-sent invoice may go to. */
+export const HAND_SEND_MAX_RECIPIENTS = 10
+
+/**
+ * May a person send this invoice now, to these addresses? A person's own
+ * deliberate act, so neither the automatic sender's switches nor "already
+ * sent" or "a draft" stop it (sending a draft makes it Sent). What still
+ * does: no From address set up, a cancelled invoice, the daily cap (the same
+ * count as the automatic sender's), and addresses that are missing or not
+ * addresses. The test address, when set, takes every copy, as it does for the
+ * automatic sender: nothing reaches a client while it is set.
+ */
+export function mayHandSendInvoice(
+  invoice: Pick<SendableInvoice, 'status'>,
+  policy: Pick<MailPolicy, 'saatjaAadress' | 'paevaLimiit' | 'testAadress'>,
+  recipients: readonly string[],
+  subject: string,
+  sentToday: number,
+): HandSendVerdict {
+  if (!looksLikeEmail(policy.saatjaAadress)) return { send: false, code: 'saatja-puudub' }
+  if (invoice.status === 'tuhistatud') return { send: false, code: 'tuhistatud' }
+  const to = [...new Set(recipients.map(r => r.trim()).filter(Boolean))]
+  if (to.length === 0) return { send: false, code: 'saajad-puuduvad' }
+  if (to.length > HAND_SEND_MAX_RECIPIENTS) return { send: false, code: 'liiga-palju-saajaid' }
+  if (to.some(r => !looksLikeEmail(r))) return { send: false, code: 'saaja-vigane' }
+  if (!subject.trim()) return { send: false, code: 'teema-puudub' }
+  if (!Number.isFinite(policy.paevaLimiit) || sentToday >= policy.paevaLimiit) return { send: false, code: 'paevalimiit' }
+  if (policy.testAadress) {
+    return looksLikeEmail(policy.testAadress) ? { send: true, to: [policy.testAadress.trim()], redirected: true } : { send: false, code: 'saaja-vigane' }
+  }
+  return { send: true, to, redirected: false }
+}
+
+/** The addresses a person typed, one string: commas, semicolons, spaces or new lines between them. */
+export const splitAddresses = (raw: string): string[] => raw.split(/[\s,;]+/).map(s => s.trim()).filter(Boolean)

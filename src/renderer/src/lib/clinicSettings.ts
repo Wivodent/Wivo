@@ -42,6 +42,11 @@ export interface ClinicSettingsRow {
     kiirtooKordaja: number
     kmMaar: number
     makseTahtaegPaevades: number
+    /** Invoices (sql/148): next_invoice_number reads arvePrefiks. Absent before it. */
+    arvePrefiks?: string
+    arveKeel?: '' | 'et' | 'lv' | 'en'
+    kmVaba?: boolean
+    kmVabaViide?: string
     fixedCostsPerJob: import('../stores/useSettings').FixedCost[]
     lisateenused: import('../stores/useSettings').ExtraService[]
     yldkulud: import('../stores/useSettings').Overhead[]
@@ -129,6 +134,10 @@ export function toRow(s: WivoSettings, stages: PipelineStage[]): Omit<ClinicSett
       kiirtooKordaja: s.kiirtooKordaja,
       kmMaar: s.kmMaar,
       makseTahtaegPaevades: s.makseTahtaegPaevades,
+      arvePrefiks: s.arvePrefiks,
+      arveKeel: s.arveKeel,
+      kmVaba: s.kmVaba,
+      kmVabaViide: s.kmVabaViide,
       // Both were added to WivoSettings and to COLUMN_OF, but never here, so a
       // setter declared `['pricing']`, pushed the pricing column, and wrote it
       // WITHOUT these two fields — the write path silently dropped them while
@@ -188,6 +197,10 @@ export const COLUMN_OF: Record<string, ClinicColumn> = {
   kiirtooKordaja: 'pricing',
   kmMaar: 'pricing',
   makseTahtaegPaevades: 'pricing',
+  arvePrefiks: 'pricing',
+  arveKeel: 'pricing',
+  kmVaba: 'pricing',
+  kmVabaViide: 'pricing',
   tooandjaMaksudProtsent: 'payroll',
   tulumaksProtsent: 'payroll',
   maksuvabaTuluKuus: 'payroll',

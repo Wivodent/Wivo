@@ -14,6 +14,8 @@
  * one line at its own price: an invoice never says a job cost something other
  * than what the job says. A client's reference (a Network order's TF-…) leads
  * every line of its job. A remake with a price is its own line, as before.
+ * The words a line is written with ("teeth", "remake") are the invoice's
+ * language (sql/148: Estonian, Latvian, English), Estonian unless told.
  *
  * Copied, not joined: once issued, editing the job must not restate the
  * invoice (InvoiceForm).
@@ -21,7 +23,8 @@
 import type { Job } from '../types/job'
 import { revisionReasonLabel, jobWorkItems } from '../types/job'
 import { jobTotalValue } from './jobPayments'
-import { quoteJob } from '@shared/pricing/quote'
+import { quoteJob, ITEM_SOURCES } from '@shared/pricing/quote'
+import { invoiceLabels, type InvoiceLabels } from '@shared/billing/invoiceDoc'
 import type { PriceBook } from '@shared/pricing/priceBook'
 import { workWithOptionsLabel, type WorkOption } from '@shared/pricing/workOptions'
 
@@ -52,7 +55,10 @@ export function billedKeys(invoices: readonly { status: string; lines: readonly 
 }
 
 /** The lines of one job (its remakes are separate candidates). */
-export function jobLines(job: Job, book: PriceBook, library: readonly WorkOption[] | undefined, prefix: string | null): CandidateLine[] {
+type LineWords = InvoiceLabels['line']
+const ESTONIAN: LineWords = invoiceLabels('et').line
+
+export function jobLines(job: Job, book: PriceBook, library: readonly WorkOption[] | undefined, prefix: string | null, words: LineWords = ESTONIAN): CandidateLine[] {
   const items = jobWorkItems(job)
   const lead = (s: string) => [prefix, s].filter(Boolean).join(' · ')
   const total = jobTotalValue(job)
@@ -68,10 +74,10 @@ export function jobLines(job: Job, book: PriceBook, library: readonly WorkOption
     const out: CandidateLine[] = []
     let item = -1
     for (const l of quote.lines) {
-      if (l.source === 'tüüp' || l.source === 'materjal' || l.source === 'hambad') {
+      if (ITEM_SOURCES.includes(l.source)) {
         item++
         const teeth = items[item]?.hambad?.trim()
-        out.push({ description: lead([l.label, teeth ? `hambad ${teeth}` : null].filter(Boolean).join(' · ')), unit_price: l.amount })
+        out.push({ description: lead([l.label, teeth ? words.teeth(teeth) : null].filter(Boolean).join(' · ')), unit_price: l.amount })
       } else {
         out.push({ description: lead(l.label), unit_price: l.amount })
       }
@@ -79,20 +85,20 @@ export function jobLines(job: Job, book: PriceBook, library: readonly WorkOption
     return out
   }
   // One line at the job's own price, its design fee and extras apart as before.
-  const work = workWithOptionsLabel(items, library) || job.too?.trim() || 'Töö'
+  const work = workWithOptionsLabel(items, library) || job.too?.trim() || words.work
   const out: CandidateLine[] = [{
-    description: lead([work, job.hambad ? `hambad ${job.hambad}` : null].filter(Boolean).join(' · ')),
+    description: lead([work, job.hambad ? words.teeth(job.hambad) : null].filter(Boolean).join(' · ')),
     unit_price: round2(Number(job.hind ?? 0)),
   }]
-  if (Number(job.disain_hind ?? 0) > 0) out.push({ description: lead('Disain'), unit_price: round2(Number(job.disain_hind)) })
+  if (Number(job.disain_hind ?? 0) > 0) out.push({ description: lead(words.design), unit_price: round2(Number(job.disain_hind)) })
   for (const e of job.extras ?? []) {
-    if (Number(e.hind ?? 0) !== 0) out.push({ description: lead(e.nimi || 'Lisateenus'), unit_price: round2(Number(e.hind)) })
+    if (Number(e.hind ?? 0) !== 0) out.push({ description: lead(e.nimi || words.extraService), unit_price: round2(Number(e.hind)) })
   }
   return out
 }
 
 export function unbilledCandidates(jobs: readonly Job[], who: { billTo: 'customer' | 'patient'; customerId: string | null; patientId: string | null; patientName: string },
-  billed: ReadonlySet<string>, book: PriceBook, library: readonly WorkOption[] | undefined): Candidate[] {
+  billed: ReadonlySet<string>, book: PriceBook, library: readonly WorkOption[] | undefined, words: LineWords = ESTONIAN): Candidate[] {
   const name = who.patientName.trim().toLowerCase()
   if (who.billTo === 'customer' ? !who.customerId : !name && !who.patientId) return []
   const out: Candidate[] = []
@@ -103,15 +109,15 @@ export function unbilledCandidates(jobs: readonly Job[], who: { billTo: 'custome
     if (!mine) continue
     const ref = who.billTo === 'customer' ? (j.customer_ref?.trim() || j.patsient?.trim() || null) : null
     const date = j.valmis_kuupaev ?? j.kuupaev ?? null
-    const title = workWithOptionsLabel(jobWorkItems(j), library) || j.too?.trim() || 'Töö'
+    const title = workWithOptionsLabel(jobWorkItems(j), library) || j.too?.trim() || words.work
     if (!billed.has(`${j.id}:`)) {
-      const lines = jobLines(j, book, library, ref)
+      const lines = jobLines(j, book, library, ref, words)
       out.push({ key: `${j.id}:`, job_id: j.id, revision_id: null, date, title, ref, lines, total: round2(lines.reduce((s, l) => s + l.unit_price, 0)) })
     }
     for (const [i, r] of (j.revisions ?? []).entries()) {
       const key = `${j.id}:${r.id}`
       if (billed.has(key) || !r.price) continue
-      const description = [ref, `${j.too?.trim() || 'Töö'} — muudatus #${i + 1}${revisionReasonLabel(r) ? ` (${revisionReasonLabel(r)})` : ''}`].filter(Boolean).join(' · ')
+      const description = [ref, `${j.too?.trim() || words.work} — ${words.remake(i + 1)}${revisionReasonLabel(r) ? ` (${revisionReasonLabel(r)})` : ''}`].filter(Boolean).join(' · ')
       out.push({ key, job_id: j.id, revision_id: r.id, date, title: description, ref, lines: [{ description, unit_price: Number(r.price) }], total: Number(r.price) })
     }
   }

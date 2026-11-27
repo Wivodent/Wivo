@@ -63,8 +63,6 @@ const DATA_NOT_LANGUAGE: Record<string, string> = {
     'Matches free-text work type names (Estonian, English, Russian) to their icon.',
   'src/renderer/src/lib/workType3dMap.ts':
     'Matches free-text work type names (Estonian, English, Russian) to their 3D picture.',
-  'src/renderer/src/components/Invoices/InvoiceForm.tsx':
-    'Writes invoice line text, and an invoice is Estonian by spec — see InvoicePrintView DOC_LANG.',
 }
 
 /**

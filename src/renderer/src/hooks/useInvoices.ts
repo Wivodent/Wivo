@@ -71,7 +71,31 @@ export interface CreateInvoiceInput {
   due_date: string | null
   vat_rate: number
   note?: string | null
+  /** sql/148 (see types/invoice). */
+  language?: 'et' | 'lv' | 'en' | null
+  service_date?: string | null
+  vat_exempt_note?: string | null
+  buyer_reg_code?: string | null
+  buyer_vat_number?: string | null
+  buyer_address?: string | null
   lines: Omit<InvoiceLineInput, 'invoice_id'>[]
+}
+
+/** The invoice columns sql/148 added: left out when the database does not have them yet. */
+export const COUNTRY_INVOICE_COLUMNS = ['language', 'service_date', 'vat_exempt_note', 'buyer_reg_code', 'buyer_vat_number', 'buyer_address'] as const
+
+/**
+ * Insert one invoice row. A database before sql/148 refuses the new columns:
+ * the same row without them (an Estonian invoice loses nothing by it).
+ */
+export async function insertInvoiceRow(row: Record<string, unknown>): Promise<Invoice> {
+  const first = await supabase.from('invoices').insert(row).select().single()
+  if (!first.error) return first.data as Invoice
+  if (first.error.code !== 'PGRST204' && first.error.code !== '42703') throw first.error
+  const plain = Object.fromEntries(Object.entries(row).filter(([k]) => !(COUNTRY_INVOICE_COLUMNS as readonly string[]).includes(k)))
+  const again = await supabase.from('invoices').insert(plain).select().single()
+  if (again.error) throw again.error
+  return again.data as Invoice
 }
 
 export function useCreateInvoice() {
@@ -89,26 +113,27 @@ export function useCreateInvoice() {
 
       const { data: userData } = await supabase.auth.getUser()
 
-      const { data: invoice, error } = await supabase
-        .from('invoices')
-        .insert({
-          clinic_id: clinicId,
-          number: numberData as string,
-          patient_id: input.patient_id,
-          patsient: input.patsient,
-          customer_id: input.customer_id ?? null,
-          bill_to_kind: input.bill_to_kind ?? 'patient',
-          period_start: input.period_start ?? null,
-          period_end: input.period_end ?? null,
-          issue_date: input.issue_date,
-          due_date: input.due_date,
-          vat_rate: input.vat_rate,
-          note: input.note ?? null,
-          created_by: userData?.user?.id ?? null,
-        })
-        .select()
-        .single()
-      if (error) throw error
+      const invoice = await insertInvoiceRow({
+        clinic_id: clinicId,
+        number: numberData as string,
+        patient_id: input.patient_id,
+        patsient: input.patsient,
+        customer_id: input.customer_id ?? null,
+        bill_to_kind: input.bill_to_kind ?? 'patient',
+        period_start: input.period_start ?? null,
+        period_end: input.period_end ?? null,
+        issue_date: input.issue_date,
+        due_date: input.due_date,
+        vat_rate: input.vat_rate,
+        note: input.note ?? null,
+        language: input.language ?? null,
+        service_date: input.service_date ?? null,
+        vat_exempt_note: input.vat_exempt_note ?? null,
+        buyer_reg_code: input.buyer_reg_code ?? null,
+        buyer_vat_number: input.buyer_vat_number ?? null,
+        buyer_address: input.buyer_address ?? null,
+        created_by: userData?.user?.id ?? null,
+      })
 
       if (input.lines.length > 0) {
         const { error: lineError } = await supabase.from('invoice_lines').insert(

@@ -101,11 +101,17 @@ Module `invoices`.
 - The invoice goes to the customer's **saved representative**, either
   straight away or after an admin confirms it on the Invoices page. Which of
   the two is a per-customer setting.
-- **Latvia's invoice requirements have to be researched first.** Wivo's
-  invoice is an Estonian document today: `invoicesAvailable()` in
-  `src/renderer/src/lib/country.ts` returns true only for `EE`, so invoices
-  are **switched off for a Latvian clinic**. That gate opens when the Latvian
-  requirements are known and built — not before.
+- **Latvia (done, sql/148, 27.11.2026):** invoices by country from
+  `shared/billing/countryInvoice.ts` (Estonia, Latvia); the document in
+  Estonian, Latvian or English; the number's prefix; VAT exempt with the
+  reason printed; the buyer's registry code, VAT number and address; the
+  service date; the EU directive's fields. Sending one invoice by e-mail by
+  hand from the invoice panel (Edge Function `send-invoice`).
+- **E-invoice (EN 16931 / Peppol BIS 3.0 XML): by the end of 2027.** In
+  Latvia structured e-invoices between businesses are mandatory from
+  1 January 2028; Estonia has its own e-invoice plans. Build the XML from the
+  same `InvoiceDoc`, and sending through a Peppol access point (an operator,
+  not our own). Not now.
 
 ## Step 4 — the calendar, and the rest
 

@@ -2,8 +2,7 @@ import { useMemo, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import {
   FileText, Plus, Loader2, AlertTriangle, Euro, Clock, CheckCircle2,
-  Trash2, X, Search, Printer, Building2, User, Download
-} from 'lucide-react'
+  Trash2, X, Search, Printer, Building2, User, Download, Mail } from 'lucide-react'
 import { format, parseISO, isValid } from 'date-fns'
 import { t, dateLocale } from '@/lib/i18n'
 import type { Job } from '../../types/job'
@@ -22,6 +21,8 @@ import { clinicCountry, invoicesAvailable } from '../../lib/country'
 import { stageChipStyle } from '../../config/pipeline'
 import { describeError } from '../Patients/errors'
 import { InvoiceForm } from './InvoiceForm'
+import { SendInvoiceDialog, InvoiceSendHistory } from './SendInvoiceDialog'
+import { useClinicProfiles } from '../../hooks/useClinicProfiles'
 import { PaymentPlansPanel } from './PaymentPlansPanel'
 import { InvoicePrintView } from './InvoicePrintView'
 import { INVOICE_COLUMNS } from '../../lib/exports'
@@ -328,6 +329,10 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint
 
   const due = outstanding(invoice)
   const paid = paidAmount(invoice)
+  // "Send by e-mail" (sql/148): by hand, now, from the clinic's mailbox.
+  const [sending, setSending] = useState(false)
+  const people = useClinicProfiles().data ?? []
+  const nameOf = (id: string | null) => people.find(p => p.id === id)?.full_name || t('workers.noNameYet')
 
   async function submitPayment(e: React.FormEvent) {
     e.preventDefault()
@@ -373,6 +378,11 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint
             </p>
           </div>
           <div className="flex items-center gap-1">
+            {canWrite && invoice.status !== 'tuhistatud' && (
+              <button onClick={() => setSending(true)} className="btn-ghost text-xs border border-ink-faint/25" title={t('sendInvoice.button')}>
+                <Mail size={13} /> {t('sendInvoice.button')}
+              </button>
+            )}
             <button onClick={onPrint} className="btn-ghost p-1.5" title={t('invoices.printSavePDF')}>
               <Printer size={14} />
             </button>
@@ -408,6 +418,12 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint
         {invoice.note && (
           <p className="text-xs text-ink-muted italic bg-bg-sidebar rounded-lg px-2.5 py-2">{invoice.note}</p>
         )}
+
+        {invoice.send_error && (
+          <p className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">{t('sendInvoice.lastError', { error: invoice.send_error })}</p>
+        )}
+        <InvoiceSendHistory invoiceId={invoice.id} nameOf={nameOf} />
+        {sending && <SendInvoiceDialog invoice={invoice} onClose={() => setSending(false)} />}
 
         {/* Status */}
         {canWrite && (

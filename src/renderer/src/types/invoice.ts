@@ -130,6 +130,17 @@ export interface Invoice {
   sent_at: string | null
   /** What the mail server said when sending last failed. Cleared on success. */
   send_error: string | null
+  /**
+   * sql/148, kept when the invoice was made so later changes never restate it:
+   * the document's language, the date of the service (when it differs), why no
+   * VAT is charged, the client's details. Absent on older invoices.
+   */
+  language?: 'et' | 'lv' | 'en' | null
+  service_date?: string | null
+  vat_exempt_note?: string | null
+  buyer_reg_code?: string | null
+  buyer_vat_number?: string | null
+  buyer_address?: string | null
   created_by: string | null
   created_at: string
   updated_at: string

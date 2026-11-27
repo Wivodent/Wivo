@@ -71,27 +71,31 @@ const paragraphs = (text: string): string =>
 export function invoiceText(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): string {
   const t = tplOf(tpl)
   const v = templateVars(doc)
+  const L = doc.labels
   const lines = [
     renderTemplate(t.sissejuhatus, v),
     '',
     '───────────────',
     '',
-    `ARVE ${doc.number}`,
-    `Kuupäev: ${doc.issueDate}`,
-    doc.hasDueDate ? `Maksetähtaeg: ${doc.dueDate}` : '',
+    `${L.invoice} ${doc.number}`,
+    `${L.date}: ${doc.issueDate}`,
+    doc.hasDueDate ? `${L.dueDate}: ${doc.dueDate}` : '',
+    doc.serviceDate ? `${L.serviceDate}: ${doc.serviceDate}` : '',
     '',
-    `Maksja: ${doc.buyer.name}`,
+    `${L.payer}: ${doc.buyer.name}`,
+    ...doc.buyer.lines,
     '',
     ...doc.lines.map(l => `${l.description} — ${l.qtyText} × ${l.unitPriceText} = ${l.totalText}`),
     '',
-    `Summa: ${doc.totals.netText}`,
+    `${doc.totals.netLabel}: ${doc.totals.netText}`,
     `${doc.totals.vatLabel}: ${doc.totals.vatText}`,
-    `Kokku tasuda: ${doc.totals.grossText}`,
-    doc.totals.showPaid ? `Laekunud: ${doc.totals.paidText}` : '',
-    doc.totals.showPaid ? `Tasumata: ${doc.totals.dueText}` : '',
+    `${L.totalDue}: ${doc.totals.grossText}`,
+    doc.totals.showPaid ? `${L.received}: ${doc.totals.paidText}` : '',
+    doc.totals.showPaid ? `${L.outstanding}: ${doc.totals.dueText}` : '',
+    doc.totals.vatExemptNote ?? '',
     '',
-    doc.payment ? `Makse: ${doc.payment.bankName ?? ''} ${doc.payment.iban ?? ''}`.trim() : '',
-    doc.payment ? `Selgitus: ${doc.payment.reference}` : '',
+    doc.payment ? `${L.payment}: ${doc.payment.bankName ?? ''} ${doc.payment.iban ?? ''}`.trim() : '',
+    doc.payment ? L.reference(doc.payment.reference) : '',
     '',
     doc.note ?? '',
     '',
@@ -114,6 +118,7 @@ export function invoiceText(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): strin
 export function invoiceHtml(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): string {
   const t = tplOf(tpl)
   const v = templateVars(doc)
+  const L = doc.labels
   const rows = doc.lines.map(l => `
     <tr>
       <td style="${CELL}border-bottom:1px solid #ddd;">${esc(l.description)}</td>
@@ -124,16 +129,16 @@ export function invoiceHtml(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): strin
 
   const paidRows = doc.totals.showPaid ? `
     <tr>
-      <td style="${CELL}${MUTED}padding-right:24px;">Laekunud</td>
+      <td style="${CELL}${MUTED}padding-right:24px;">${esc(L.received)}</td>
       <td style="${CELL}text-align:right;">${esc(doc.totals.paidText)}</td>
     </tr>
     <tr>
-      <td style="${CELL}padding-right:24px;font-weight:600;">Tasumata</td>
+      <td style="${CELL}padding-right:24px;font-weight:600;">${esc(L.outstanding)}</td>
       <td style="${CELL}text-align:right;font-weight:600;">${esc(doc.totals.dueText)}</td>
     </tr>` : ''
 
   return tidy(`<!doctype html>
-<html lang="et">
+<html lang="${doc.language}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
 <body style="margin:0;padding:24px;background:#f5f7fa;font-family:Arial,Helvetica,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#fff;padding:32px;">
@@ -149,12 +154,13 @@ export function invoiceHtml(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): strin
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="vertical-align:top;">
-          <div style="font-size:22px;font-weight:bold;color:#111;">ARVE</div>
-          <div style="${CELL}"><span style="${MUTED}">Number </span><strong>${esc(doc.number)}</strong></div>
-          <div style="${CELL}"><span style="${MUTED}">Kuupäev </span>${esc(doc.issueDate)}</div>
+          <div style="font-size:22px;font-weight:bold;color:#111;">${esc(L.invoice)}</div>
+          <div style="${CELL}"><span style="${MUTED}">${esc(L.number)} </span><strong>${esc(doc.number)}</strong></div>
+          <div style="${CELL}"><span style="${MUTED}">${esc(L.date)} </span>${esc(doc.issueDate)}</div>
           ${doc.hasDueDate
-            ? `<div style="${CELL}"><span style="${MUTED}">Maksetähtaeg </span><strong>${esc(doc.dueDate)}</strong></div>`
+            ? `<div style="${CELL}"><span style="${MUTED}">${esc(L.dueDate)} </span><strong>${esc(doc.dueDate)}</strong></div>`
             : ''}
+          ${doc.serviceDate ? `<div style="${CELL}"><span style="${MUTED}">${esc(L.serviceDate)} </span>${esc(doc.serviceDate)}</div>` : ''}
         </td>
         <td style="vertical-align:top;text-align:right;">
           <div style="font-size:15px;font-weight:bold;color:#111;">${esc(doc.seller.name)}</div>
@@ -164,23 +170,24 @@ export function invoiceHtml(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): strin
     </table>
 
     <div style="margin-top:28px;">
-      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;${MUTED}">Maksja</div>
+      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;${MUTED}">${esc(L.payer)}</div>
       <div style="font-size:15px;font-weight:600;color:#111;">${esc(doc.buyer.name)}</div>
+      ${doc.buyer.lines.map(l => `<div style="font-size:13px;${MUTED}">${esc(l)}</div>`).join('')}
     </div>
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;">
       <tr>
-        <th align="left"   style="${CELL}border-bottom:2px solid #111;">Kirjeldus</th>
-        <th align="right"  style="${CELL}border-bottom:2px solid #111;">Kogus</th>
-        <th align="right"  style="${CELL}border-bottom:2px solid #111;">Ühiku hind</th>
-        <th align="right"  style="${CELL}border-bottom:2px solid #111;">Summa</th>
+        <th align="left"   style="${CELL}border-bottom:2px solid #111;">${esc(L.description)}</th>
+        <th align="right"  style="${CELL}border-bottom:2px solid #111;">${esc(L.quantity)}</th>
+        <th align="right"  style="${CELL}border-bottom:2px solid #111;">${esc(L.unitPrice)}</th>
+        <th align="right"  style="${CELL}border-bottom:2px solid #111;">${esc(L.amount)}</th>
       </tr>
       ${rows}
     </table>
 
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0 0 auto;">
       <tr>
-        <td style="${CELL}${MUTED}padding-right:24px;">Summa</td>
+        <td style="${CELL}${MUTED}padding-right:24px;">${esc(doc.totals.netLabel)}</td>
         <td style="${CELL}text-align:right;">${esc(doc.totals.netText)}</td>
       </tr>
       <tr>
@@ -188,18 +195,20 @@ export function invoiceHtml(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): strin
         <td style="${CELL}text-align:right;">${esc(doc.totals.vatText)}</td>
       </tr>
       <tr>
-        <td style="${CELL}border-top:2px solid #111;font-weight:bold;padding-right:24px;">Kokku tasuda</td>
+        <td style="${CELL}border-top:2px solid #111;font-weight:bold;padding-right:24px;">${esc(L.totalDue)}</td>
         <td style="${CELL}border-top:2px solid #111;text-align:right;font-weight:bold;font-size:16px;">${esc(doc.totals.grossText)}</td>
       </tr>
       ${paidRows}
     </table>
 
+    ${doc.totals.vatExemptNote ? `<div style="margin-top:20px;${CELL}white-space:pre-wrap;">${esc(doc.totals.vatExemptNote)}</div>` : ''}
+
     ${doc.payment ? `
     <div style="margin-top:28px;">
-      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;${MUTED}">Makse</div>
+      <div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;${MUTED}">${esc(L.payment)}</div>
       ${doc.payment.bankName ? `<div style="${CELL}">${esc(doc.payment.bankName)}</div>` : ''}
       ${doc.payment.iban ? `<div style="${CELL}">IBAN ${esc(doc.payment.iban)}</div>` : ''}
-      <div style="${CELL}${MUTED}">Selgitus: ${esc(doc.payment.reference)}</div>
+      <div style="${CELL}${MUTED}">${esc(L.reference(doc.payment.reference))}</div>
     </div>` : ''}
 
     ${doc.note ? `

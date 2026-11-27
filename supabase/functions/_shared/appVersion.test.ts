@@ -48,6 +48,6 @@ describe('the version headers and the Edge Functions', () => {
   })
 
   it('the app calls exactly these functions today', () => {
-    expect(invokedByTheApp()).toEqual(['account-security', 'file-link', 'network-directory', 'team-account', 'wivo-update'])
+    expect(invokedByTheApp()).toEqual(['account-security', 'file-link', 'network-directory', 'send-invoice', 'team-account', 'wivo-update'])
   })
 })

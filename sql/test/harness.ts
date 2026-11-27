@@ -287,6 +287,8 @@ const SAMPLE_OVERRIDE: Record<string, unknown> = {
   'job_rating.direction': 'work',
   'job_rating.score': 3,
   'client_order_message.from_client': true,
+  // sql/148: at least one recipient.
+  'invoice_send_log.recipients': ['someone@example.com'],
 }
 
 /**

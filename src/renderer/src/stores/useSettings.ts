@@ -235,6 +235,11 @@ export interface WivoSettings {
   // Default only. Each invoice stores the rate it was issued with, so changing
   // this never restates a document that has already gone out.
   kmMaar: number          // Käibemaksumäär %
+  /** Invoices (sql/148): the number's prefix ("DEN-": no spaces), the document's language ('' = the country's), VAT exempt and why. */
+  arvePrefiks: string
+  arveKeel: '' | 'et' | 'lv' | 'en'
+  kmVaba: boolean
+  kmVabaViide: string
   makseTahtaegPaevades: number  // Maksetähtaeg päevades
   // ─── Palgamaksud ───────────────────────────────────────────────────────────
   // Kõik määrad on vaikimisi 0 — vale maksumäär, mille rakendus ise välja
@@ -347,6 +352,10 @@ function defaultSettings(): WivoSettings {
     // start issuing invoices with tax on them because the app guessed a rate.
     // Set it in Seaded → Hinnad once, and confirm the rate that applies to you.
     kmMaar: 0,
+    arvePrefiks: '',
+    arveKeel: '',
+    kmVaba: false,
+    kmVabaViide: '',
     kliinilineRezhiim: false,
     laboriRezhiim: true,
     automaatneViide: true,
@@ -560,6 +569,10 @@ function loadSettings(): WivoSettings {
       kiirtooKordaja: stored.kiirtooKordaja ?? 2,
       mudeliHind: stored.mudeliHind ?? 0,
       kmMaar: stored.kmMaar ?? 0,
+      arvePrefiks: stored.arvePrefiks ?? '',
+      arveKeel: stored.arveKeel ?? '',
+      kmVaba: stored.kmVaba ?? false,
+      kmVabaViide: stored.kmVabaViide ?? '',
       makseTahtaegPaevades: stored.makseTahtaegPaevades ?? 14,
       tooandjaMaksudProtsent: stored.tooandjaMaksudProtsent ?? 0,
       tulumaksProtsent: stored.tulumaksProtsent ?? 0,
@@ -927,6 +940,12 @@ export function useSettings() {
     setSettings(prev => ({ ...prev, [key]: value } as WivoSettings), col ? [col] : undefined)
   }, [setSettings])
 
+  // Same shape again, for a setting that is text (the invoice prefix, the VAT exemption's reference).
+  const setText = useCallback(<K extends keyof WivoSettings>(key: K, value: string) => {
+    const col = COLUMN_OF[key as string]
+    setSettings(prev => ({ ...prev, [key]: value } as WivoSettings), col ? [col] : undefined)
+  }, [setSettings])
+
   // Same shape as setNumber, for the feature flags. Goes through COLUMN_OF so
   // the flag lands in the right jsonb column and syncs to the clinic.
   const setFlag = useCallback(<K extends keyof WivoSettings>(key: K, value: boolean) => {
@@ -1131,7 +1150,7 @@ export function useSettings() {
 
   return {
     settings, save, setMaterialPrice, setMaterialCost, setDesignFee, setDefaultMachine, setKasutajaNimi,
-    setTeema, setOmaTeema, setOmaTeemaToken, toggleRiba, setNumber, setFlag, setTekstiSuurus, setFixedCosts, setLisateenused, setYldkulud, setKapslimasinad, setTooValikud, addCatalogueType, setPaneeliSuund,
+    setTeema, setOmaTeema, setOmaTeemaToken, toggleRiba, setNumber, setFlag, setText, setTekstiSuurus, setFixedCosts, setLisateenused, setYldkulud, setKapslimasinad, setTooValikud, addCatalogueType, setPaneeliSuund,
     addOption, removeOption, renameOption, resetOptions,
     setEpost,
     addWorkType, removeWorkType, updateWorkType, moveWorkType, resetWorkTypes,

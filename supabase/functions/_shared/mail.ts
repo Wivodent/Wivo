@@ -27,7 +27,12 @@ export interface MailAttachment {
 }
 
 export interface MailMessage {
-  to: string
+  /** One address, or several (a hand-sent invoice, sql/148). */
+  to: string | string[]
+  /** A hidden copy ("Send me a copy"). */
+  bcc?: string[]
+  /** Where an answer goes: the person who sent it by hand. */
+  replyTo?: string
   subject: string
   html: string
   text: string
@@ -93,6 +98,8 @@ export function openSmtp(fromAddress: string, fromName: string): MailSender {
       await client.send({
         from,
         to: msg.to,
+        ...(msg.bcc?.length ? { bcc: msg.bcc } : {}),
+        ...(msg.replyTo ? { replyTo: msg.replyTo } : {}),
         subject: msg.subject,
         content: msg.text,
         html: msg.html,

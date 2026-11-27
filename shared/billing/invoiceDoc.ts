@@ -17,7 +17,81 @@
  * formatting below is hand-rolled, and it includes the renderer's own `Clinic`
  * and `InvoiceFull` types, so the inputs are declared structurally here and the
  * caller's objects satisfy them by shape.
+ *
+ * The words come in the document's language (et, lv, en; sql/148): Estonian
+ * unless the invoice says otherwise, so an Estonian invoice reads exactly as
+ * it always has. Latvian exists only here; Estonian and English equal the
+ * app's own `invoiceDoc.*` texts (invoiceLabels.test.ts).
  */
+import type { DocLanguage } from './countryInvoice.ts'
+
+// ── The words, in the document's language ───────────────────────────────────
+export interface InvoiceLabels {
+  invoice: string
+  number: string
+  date: string
+  dueDate: string
+  serviceDate: string
+  payer: string
+  description: string
+  quantity: string
+  unitPrice: string
+  amount: string
+  /** The amount before VAT, at one rate (or exempt). Estonian keeps "Summa", as its invoices always said. */
+  net: (rate: number, exempt: boolean) => string
+  vat: (rate: number) => string
+  vatExempt: string
+  totalDue: string
+  received: string
+  outstanding: string
+  payment: string
+  reference: (reference: string) => string
+  /** "arve 2026-0007": the payment reference's word. */
+  referenceOf: (number: string) => string
+  cancelled: string
+  regNo: (code: string) => string
+  vatNo: (code: string) => string
+  /** The words an invoice line is written with (lib/invoiceCandidates), so a line reads in the invoice's language too. */
+  line: { work: string; teeth: (list: string) => string; remake: (n: number) => string; design: string; extraService: string }
+}
+
+const ET: InvoiceLabels = {
+  invoice: 'ARVE', number: 'Number', date: 'Kuupäev', dueDate: 'Maksetähtaeg', serviceDate: 'Teenuse osutamise kuupäev',
+  payer: 'Maksja', description: 'Kirjeldus', quantity: 'Kogus', unitPrice: 'Ühiku hind', amount: 'Summa',
+  net: () => 'Summa',
+  vat: rate => `Käibemaks ${rate}%`, vatExempt: 'Käibemaksuta',
+  totalDue: 'Kokku tasuda', received: 'Laekunud', outstanding: 'Tasumata', payment: 'Makse',
+  reference: r => `Selgitus: ${r}`, referenceOf: n => `arve ${n}`, cancelled: 'Tühistatud',
+  regNo: c => `Reg nr ${c}`, vatNo: c => `KMKR ${c}`,
+  line: { work: 'Töö', teeth: l => `hambad ${l}`, remake: n => `muudatus #${n}`, design: 'Disain', extraService: 'Lisateenus' },
+}
+
+const EN: InvoiceLabels = {
+  invoice: 'INVOICE', number: 'Number', date: 'Date', dueDate: 'Due date', serviceDate: 'Date of service',
+  payer: 'Payer', description: 'Description', quantity: 'Quantity', unitPrice: 'Unit price', amount: 'Amount',
+  net: (rate, exempt) => (exempt ? 'Amount (VAT exempt)' : `Taxable amount at ${rate}%`),
+  vat: rate => `VAT ${rate}%`, vatExempt: 'VAT exempt',
+  totalDue: 'Total due', received: 'Received', outstanding: 'Outstanding', payment: 'Payment',
+  reference: r => `Reference: ${r}`, referenceOf: n => `invoice ${n}`, cancelled: 'Cancelled',
+  regNo: c => `Reg. no. ${c}`, vatNo: c => `VAT no. ${c}`,
+  line: { work: 'Work', teeth: l => `teeth ${l}`, remake: n => `remake #${n}`, design: 'Design', extraService: 'Extra service' },
+}
+
+const LV: InvoiceLabels = {
+  invoice: 'RĒĶINS', number: 'Numurs', date: 'Datums', dueDate: 'Apmaksas termiņš', serviceDate: 'Pakalpojuma sniegšanas datums',
+  payer: 'Maksātājs', description: 'Apraksts', quantity: 'Daudzums', unitPrice: 'Vienības cena', amount: 'Summa',
+  net: (rate, exempt) => (exempt ? 'Summa (atbrīvots no PVN)' : `Ar PVN ${rate}% apliekamā summa`),
+  vat: rate => `PVN ${rate}%`, vatExempt: 'Atbrīvots no PVN',
+  totalDue: 'Kopā apmaksai', received: 'Saņemts', outstanding: 'Neapmaksāts', payment: 'Maksājums',
+  reference: r => `Maksājuma mērķis: ${r}`, referenceOf: n => `rēķins ${n}`, cancelled: 'Anulēts',
+  regNo: c => `Reģ. Nr. ${c}`, vatNo: c => `PVN reģ. Nr. ${c}`,
+  line: { work: 'Darbs', teeth: l => `zobi ${l}`, remake: n => `labojums #${n}`, design: 'Dizains', extraService: 'Papildpakalpojums' },
+}
+
+const ALL: Record<DocLanguage, InvoiceLabels> = { et: ET, en: EN, lv: LV }
+
+export const invoiceLabels = (lang: DocLanguage): InvoiceLabels => ALL[lang] ?? ET
+
 
 /** The subset of an invoice line this document needs. */
 export interface DocInvoiceLine {
@@ -40,6 +114,13 @@ export interface DocInvoice {
   note: string | null
   lines: DocInvoiceLine[]
   payments?: { amount: number | string }[]
+  /** sql/148: kept on the invoice when it was made. Absent on older invoices. */
+  language?: string | null
+  service_date?: string | null
+  vat_exempt_note?: string | null
+  buyer_reg_code?: string | null
+  buyer_vat_number?: string | null
+  buyer_address?: string | null
 }
 
 /** The subset of the clinic that appears on the document. */
@@ -67,11 +148,15 @@ export interface DocLine {
 }
 
 export interface InvoiceDoc {
+  language: DocLanguage
+  labels: InvoiceLabels
   number: string
   /** 'dd.MM.yyyy', or '—' when the date is missing or unreadable. */
   issueDate: string
   dueDate: string
   hasDueDate: boolean
+  /** The date of the service, only when it differs from the issue date (else null). */
+  serviceDate: string | null
   cancelled: boolean
 
   seller: {
@@ -80,13 +165,18 @@ export interface InvoiceDoc {
      *  dropped. A renderer just prints the lines it is given. */
     lines: string[]
   }
-  buyer: { name: string }
+  /** The buyer's address, reg code and VAT number as kept on the invoice (sql/148); none on older ones. */
+  buyer: { name: string; lines: string[] }
 
   lines: DocLine[]
 
   totals: {
     net: number; netText: string
     vatRate: number; vatLabel: string
+    /** The amount before VAT, named for its rate (or exempt). */
+    netLabel: string
+    /** No VAT charged, and why (printed on the invoice). */
+    vatExempt: boolean; vatExemptNote: string | null
     vat: number; vatText: string
     gross: number; grossText: string
     paid: number; paidText: string
@@ -137,8 +227,11 @@ const trimmed = (v: string | null | undefined): string | null => {
 }
 
 /** Everything the document says, derived once. */
-export function invoiceDoc(invoice: DocInvoice, clinic: DocClinic | null): InvoiceDoc {
+export function invoiceDoc(invoice: DocInvoice, clinic: DocClinic | null, language?: DocLanguage): InvoiceDoc {
   const c = clinic ?? {}
+  const kept = invoice.language
+  const lang: DocLanguage = kept === 'et' || kept === 'lv' || kept === 'en' ? kept : (language ?? 'et')
+  const L = invoiceLabels(lang)
 
   const missing: string[] = []
   if (!trimmed(c.name)) missing.push('nimi')
@@ -151,8 +244,8 @@ export function invoiceDoc(invoice: DocInvoice, clinic: DocClinic | null): Invoi
   if (addr) sellerLines.push(addr)
   const town = [trimmed(c.postal_code), trimmed(c.city)].filter(Boolean).join(' ')
   if (town) sellerLines.push(town)
-  if (trimmed(c.reg_code)) sellerLines.push(`Reg nr ${trimmed(c.reg_code)}`)
-  if (trimmed(c.vat_number)) sellerLines.push(`KMKR ${trimmed(c.vat_number)}`)
+  if (trimmed(c.reg_code)) sellerLines.push(L.regNo(trimmed(c.reg_code) as string))
+  if (trimmed(c.vat_number)) sellerLines.push(L.vatNo(trimmed(c.vat_number) as string))
   if (trimmed(c.phone)) sellerLines.push(trimmed(c.phone) as string)
   if (trimmed(c.email)) sellerLines.push(trimmed(c.email) as string)
 
@@ -181,22 +274,35 @@ export function invoiceDoc(invoice: DocInvoice, clinic: DocClinic | null): Invoi
   const cancelled = invoice.status === 'tuhistatud'
   const due = cancelled ? 0 : round2(Math.max(0, gross - paid))
   const vatRate = num(invoice.vat_rate)
+  const exemptNote = trimmed(invoice.vat_exempt_note)
+  const vatExempt = !!exemptNote && vatRate === 0
+  const buyerLines: string[] = []
+  if (trimmed(invoice.buyer_address)) buyerLines.push(trimmed(invoice.buyer_address) as string)
+  if (trimmed(invoice.buyer_reg_code)) buyerLines.push(L.regNo(trimmed(invoice.buyer_reg_code) as string))
+  if (trimmed(invoice.buyer_vat_number)) buyerLines.push(L.vatNo(trimmed(invoice.buyer_vat_number) as string))
+  const service = docDate(invoice.service_date)
+  const serviceDate = service !== '—' && service !== docDate(invoice.issue_date) ? service : null
 
   const bankName = trimmed(c.bank_name)
   const iban = trimmed(c.bank_account)
 
   return {
+    language: lang,
+    labels: L,
     number: invoice.number,
     issueDate: docDate(invoice.issue_date),
     dueDate: docDate(invoice.due_date),
     hasDueDate: docDate(invoice.due_date) !== '—',
+    serviceDate,
     cancelled,
     seller: { name: trimmed(c.name) ?? '—', lines: sellerLines },
-    buyer: { name: invoice.patsient },
+    buyer: { name: invoice.patsient, lines: buyerLines },
     lines,
     totals: {
       net: round2(num(invoice.net_total)), netText: money(invoice.net_total),
-      vatRate, vatLabel: `Käibemaks ${vatRate}%`,
+      vatRate, vatLabel: vatExempt ? L.vatExempt : L.vat(vatRate),
+      netLabel: L.net(vatRate, vatExempt),
+      vatExempt, vatExemptNote: vatExempt ? exemptNote : null,
       vat: round2(num(invoice.vat_total)), vatText: money(invoice.vat_total),
       gross, grossText: money(gross),
       paid, paidText: money(paid),
@@ -204,7 +310,7 @@ export function invoiceDoc(invoice: DocInvoice, clinic: DocClinic | null): Invoi
       showPaid: paid > 0,
     },
     payment: (bankName || iban)
-      ? { bankName, iban, reference: `arve ${invoice.number}` }
+      ? { bankName, iban, reference: L.referenceOf(invoice.number) }
       : null,
     note: trimmed(invoice.note),
     missing,

@@ -5,6 +5,7 @@ import type { PaymentPlan, PaymentPlanInput } from '../types/paymentPlan'
 import { planShape } from '../types/paymentPlan'
 import { instalmentSchedule, scheduleProblems, splitAmount } from '@shared/billing/instalments'
 import type { CreateInvoiceInput } from './useInvoices'
+import { insertInvoiceRow } from './useInvoices'
 import { t } from '@/lib/i18n'
 
 const QUERY_KEY = ['payment_plans']
@@ -106,23 +107,18 @@ export function useCreatePaymentPlan() {
           await supabase.rpc('next_invoice_number', { p_clinic: clinicId })
         if (numErr) throw numErr
 
-        const { data: inv, error: invErr } = await supabase
-          .from('invoices')
-          .insert({
-            ...invoice,
-            clinic_id: clinicId,
-            number: numberData as string,
-            issue_date: part.issueDate,
-            due_date: part.dueDate,
-            payment_plan_id: row.id,
-            instalment_no: part.no,
-            note: [invoice.note, `Osamakse ${part.no}/${plan.osamakseid}`]
-              .filter(Boolean).join(' · '),
-            created_by: userData?.user?.id ?? null,
-          })
-          .select()
-          .single()
-        if (invErr) throw invErr
+        const inv = await insertInvoiceRow({
+          ...invoice,
+          clinic_id: clinicId,
+          number: numberData as string,
+          issue_date: part.issueDate,
+          due_date: part.dueDate,
+          payment_plan_id: row.id,
+          instalment_no: part.no,
+          note: [invoice.note, `Osamakse ${part.no}/${plan.osamakseid}`]
+            .filter(Boolean).join(' · '),
+          created_by: userData?.user?.id ?? null,
+        })
 
         const { error: lineErr } = await supabase.from('invoice_lines').insert(
           lines.map((l, i) => ({

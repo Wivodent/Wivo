@@ -1,4 +1,5 @@
 import { taxSystemOf, latviaRulesFor } from '@shared/payroll/countryTax'
+import { countryInvoicing } from '@shared/billing/countryInvoice'
 /**
  * The clinic's country (`clinics.country`, sql/070) and what follows from it
  * (docs/ARCHITECTURE-INSTANCES.md §9, "Riga's workers and pay", option a).
@@ -15,8 +16,8 @@ export const clinicCountry = (clinic: { country?: string | null } | null | undef
 /** The payslip estimate, net agreements and the employee's tax settings. */
 export const hasEstonianTax = (country: string): boolean => country === 'EE'
 
-/** Wivo's invoices are Estonian documents; another country's are not built yet. */
-export const invoicesAvailable = (country: string): boolean => country === 'EE'
+/** Invoices: the countries in shared/billing/countryInvoice (Estonia, Latvia). */
+export const invoicesAvailable = (country: string): boolean => countryInvoicing(country).invoices
 
 /**
  * The grey sample text in the clinic's own fields (city, phone, VAT, bank),

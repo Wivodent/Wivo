@@ -47,7 +47,7 @@ export const DEFAULT_MAIL_TEMPLATE: MailTemplate = {
  * The same plain letter in each language the app speaks. A new clinic gets the
  * one in its own language; the Estonian one above stays the sender's fallback.
  */
-export const MAIL_TEMPLATES: Record<'en' | 'et' | 'ru', MailTemplate> = {
+export const MAIL_TEMPLATES: Record<'en' | 'et' | 'ru' | 'lv', MailTemplate> = {
   et: DEFAULT_MAIL_TEMPLATE,
   en: {
     pealkiri: 'Invoice {arve} — due {tahtaeg}',
@@ -69,11 +69,38 @@ export const MAIL_TEMPLATES: Record<'en' | 'et' | 'ru', MailTemplate> = {
       'Если у вас есть вопросы, просто ответьте на это письмо.\n\n'
       + 'С уважением,\n{kliinik}',
   },
+  // Latvian: for a Latvian invoice's letter (sql/148); the app itself has no Latvian yet.
+  lv: {
+    pealkiri: 'Rēķins {arve} — apmaksas termiņš {tahtaeg}',
+    sissejuhatus:
+      'Labdien, {saaja}!\n\n'
+      + 'Nosūtām rēķinu {arve} par summu {summa}. Rēķins ir pievienots šai vēstulei.\n\n'
+      + 'Lūdzam apmaksāt līdz {tahtaeg} un maksājuma mērķī norādīt rēķina numuru.',
+    lopp:
+      'Ja jums ir jautājumi, vienkārši atbildiet uz šo vēstuli.\n\n'
+      + 'Ar cieņu,\n{kliinik}',
+  },
 }
 
 /** The letter in this language; Estonian for anything else. */
 export function defaultMailTemplateFor(language: string | null | undefined): MailTemplate {
-  return MAIL_TEMPLATES[language as 'en' | 'et' | 'ru'] ?? DEFAULT_MAIL_TEMPLATE
+  return MAIL_TEMPLATES[language as 'en' | 'et' | 'ru' | 'lv'] ?? DEFAULT_MAIL_TEMPLATE
+}
+
+/**
+ * The letter for one invoice: the clinic's own (Settings → Email) when it
+ * wrote one, else the plain letter in the invoice's language (sql/148). A
+ * blank field falls back to that same default, never to nothing.
+ */
+export function mailTemplateForInvoice(clinic: Partial<MailTemplate> | null | undefined, invoiceLanguage: string): MailTemplate {
+  const def = defaultMailTemplateFor(invoiceLanguage)
+  const own: MailTemplate = { pealkiri: clinic?.pealkiri ?? '', sissejuhatus: clinic?.sissejuhatus ?? '', lopp: clinic?.lopp ?? '' }
+  if (isUntouchedDefaultTemplate(own) || (!own.pealkiri.trim() && !own.sissejuhatus.trim() && !own.lopp.trim())) return def
+  return {
+    pealkiri: own.pealkiri.trim() || def.pealkiri,
+    sissejuhatus: own.sissejuhatus.trim() ? own.sissejuhatus : def.sissejuhatus,
+    lopp: own.lopp.trim() ? own.lopp : def.lopp,
+  }
 }
 
 /** Whether a clinic's letter is still exactly one of the defaults (never edited). */

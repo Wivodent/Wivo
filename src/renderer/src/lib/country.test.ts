@@ -9,13 +9,12 @@ describe("the clinic's country", () => {
     expect(clinicCountry({ country: 'lv' })).toBe('LV')
   })
 
-  it('Estonian tax and invoices only in Estonia; Latvia, or any other country, gets neither', () => {
+  it('Estonian tax only in Estonia; invoices in Estonia and Latvia (shared/billing/countryInvoice), not elsewhere', () => {
     expect(hasEstonianTax('EE')).toBe(true)
     expect(invoicesAvailable('EE')).toBe(true)
-    for (const c of ['LV', 'LT', 'FI']) {
-      expect(hasEstonianTax(c)).toBe(false)
-      expect(invoicesAvailable(c)).toBe(false)
-    }
+    expect(invoicesAvailable('LV')).toBe(true)
+    for (const c of ['LV', 'LT', 'FI']) expect(hasEstonianTax(c)).toBe(false)
+    for (const c of ['LT', 'FI']) expect(invoicesAvailable(c)).toBe(false)
   })
 })
 

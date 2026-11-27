@@ -18,14 +18,16 @@ import type { Clinic } from '../../context/AuthContext'
 import type { InvoiceFull } from '../../types/invoice'
 import { invoiceDoc } from '@shared/billing/invoiceDoc'
 import { t } from '@/lib/i18n'
-import { translate } from '@shared/i18n'
+import { docLanguageFor } from '@shared/billing/countryInvoice'
+import { clinicCountry } from '../../lib/country'
+import { useSettings } from '../../stores/useSettings'
 
-/**
- * The document's language, not the interface's. The invoice goes to the
- * client, and spec ("Language") keeps language and country rules apart: an
- * English interface does not change what an Estonian invoice must say.
+/*
+ * The document's language, not the interface's: the one kept on the invoice
+ * (sql/148), else the clinic's choice, else its country's (Estonian for an
+ * Estonian clinic, as always). An English interface does not change what an
+ * Estonian or a Latvian invoice says.
  */
-const DOC_LANG = 'et'
 
 interface InvoicePrintViewProps {
   invoice: InvoiceFull
@@ -45,8 +47,9 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
   // Every number and every formatted string comes from the shared document, so
   // this page and the emailed copy cannot say different things. What is left
   // here is layout and nothing else.
-  const doc = invoiceDoc(invoice, clinic)
-  const { missing, totals } = doc
+  const { settings } = useSettings()
+  const doc = invoiceDoc(invoice, clinic, docLanguageFor(clinicCountry(clinic), settings.arveKeel))
+  const { missing, totals, labels: L } = doc
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/50 overflow-y-auto print:bg-white print:static print:overflow-visible">
@@ -81,25 +84,31 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
 
         <div className="flex justify-between items-start gap-8 mb-8">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight mb-1">{translate(DOC_LANG, 'invoiceDoc.invoice')}</h1>
+            <h1 className="text-2xl font-bold tracking-tight mb-1">{L.invoice}</h1>
             <p className="text-sm">
-              <span className="text-[#666]">{translate(DOC_LANG, 'invoiceDoc.number')} </span>
+              <span className="text-[#666]">{L.number} </span>
               <strong className="tabular-nums">{doc.number}</strong>
             </p>
             <p className="text-sm">
-              <span className="text-[#666]">{translate(DOC_LANG, 'invoiceDoc.date')} </span>
+              <span className="text-[#666]">{L.date} </span>
               <span className="tabular-nums">{doc.issueDate}</span>
             </p>
             {doc.hasDueDate && (
               <p className="text-sm">
-                <span className="text-[#666]">{translate(DOC_LANG, 'invoiceDoc.dueDate')} </span>
+                <span className="text-[#666]">{L.dueDate} </span>
                 <strong className="tabular-nums">{doc.dueDate}</strong>
+              </p>
+            )}
+            {doc.serviceDate && (
+              <p className="text-sm">
+                <span className="text-[#666]">{L.serviceDate} </span>
+                <span className="tabular-nums">{doc.serviceDate}</span>
               </p>
             )}
             {doc.cancelled && (
               <p className="mt-1 inline-block text-xs font-bold uppercase tracking-wider text-red-600 border border-red-400 rounded px-1.5 py-0.5">
                 {/* Not INVOICE_STATUS_LABEL: that label follows the UI language, the document does not. */}
-                {translate(DOC_LANG, 'invoiceDoc.cancelled')}
+                {L.cancelled}
               </p>
             )}
           </div>
@@ -115,17 +124,18 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
         </div>
 
         <div className="mb-8">
-          <p className="text-[11px] uppercase tracking-wider text-[#666] mb-1">{translate(DOC_LANG, 'invoiceDoc.payer')}</p>
+          <p className="text-[11px] uppercase tracking-wider text-[#666] mb-1">{L.payer}</p>
           <p className="text-base font-semibold">{doc.buyer.name}</p>
+          {doc.buyer.lines.map((line, i) => <p key={i} className="text-sm text-[#666]">{line}</p>)}
         </div>
 
         <table className="w-full text-sm mb-6">
           <thead>
             <tr className="border-b-2 border-[#111]">
-              <th className="text-left py-1.5 font-semibold">{translate(DOC_LANG, 'invoiceDoc.description')}</th>
-              <th className="text-right py-1.5 font-semibold w-20">{translate(DOC_LANG, 'invoiceDoc.quantity')}</th>
-              <th className="text-right py-1.5 font-semibold w-28">{translate(DOC_LANG, 'invoiceDoc.unitPrice')}</th>
-              <th className="text-right py-1.5 font-semibold w-28">{translate(DOC_LANG, 'invoiceDoc.amount')}</th>
+              <th className="text-left py-1.5 font-semibold">{L.description}</th>
+              <th className="text-right py-1.5 font-semibold w-20">{L.quantity}</th>
+              <th className="text-right py-1.5 font-semibold w-28">{L.unitPrice}</th>
+              <th className="text-right py-1.5 font-semibold w-28">{L.amount}</th>
             </tr>
           </thead>
           <tbody>
@@ -144,7 +154,7 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
           <table className="text-sm min-w-[280px]">
             <tbody>
               <tr>
-                <td className="py-1 pr-6 text-[#666]">{translate(DOC_LANG, 'invoiceDoc.subtotal')}</td>
+                <td className="py-1 pr-6 text-[#666]">{totals.netLabel}</td>
                 <td className="py-1 text-right tabular-nums">{totals.netText}</td>
               </tr>
               <tr>
@@ -152,7 +162,7 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
                 <td className="py-1 text-right tabular-nums">{totals.vatText}</td>
               </tr>
               <tr className="border-t-2 border-[#111]">
-                <td className="py-1.5 pr-6 font-bold">{translate(DOC_LANG, 'invoiceDoc.totalDue')}</td>
+                <td className="py-1.5 pr-6 font-bold">{L.totalDue}</td>
                 <td className="py-1.5 text-right tabular-nums font-bold text-base">
                   {totals.grossText}
                 </td>
@@ -160,11 +170,11 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
               {totals.showPaid && (
                 <>
                   <tr>
-                    <td className="py-1 pr-6 text-[#666]">{translate(DOC_LANG, 'invoiceDoc.received')}</td>
+                    <td className="py-1 pr-6 text-[#666]">{L.received}</td>
                     <td className="py-1 text-right tabular-nums">{totals.paidText}</td>
                   </tr>
                   <tr>
-                    <td className="py-1 pr-6 font-semibold">{translate(DOC_LANG, 'invoiceDoc.outstanding')}</td>
+                    <td className="py-1 pr-6 font-semibold">{L.outstanding}</td>
                     <td className="py-1 text-right tabular-nums font-semibold">{totals.dueText}</td>
                   </tr>
                 </>
@@ -173,12 +183,17 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
           </table>
         </div>
 
+        {/* No VAT charged: the reason, as the law asks (sql/148). */}
+        {totals.vatExemptNote && (
+          <p className="text-sm mb-6 whitespace-pre-wrap">{totals.vatExemptNote}</p>
+        )}
+
         {doc.payment && (
           <div className="text-sm mb-6">
-            <p className="text-[11px] uppercase tracking-wider text-[#666] mb-1">{translate(DOC_LANG, 'invoiceDoc.payment')}</p>
+            <p className="text-[11px] uppercase tracking-wider text-[#666] mb-1">{L.payment}</p>
             {doc.payment.bankName && <p>{doc.payment.bankName}</p>}
             {doc.payment.iban && <p className="tabular-nums">IBAN {doc.payment.iban}</p>}
-            <p className="text-[#666]">{translate(DOC_LANG, 'invoiceDoc.reference', { reference: doc.payment.reference })}</p>
+            <p className="text-[#666]">{L.reference(doc.payment.reference)}</p>
           </div>
         )}
 

@@ -3,6 +3,7 @@ import type { Job } from '../types/job'
 import type { PriceBook } from '@shared/pricing/priceBook'
 import type { WorkOption } from '@shared/pricing/workOptions'
 import { billedKeys, unbilledCandidates, jobLines, candidateMonths, monthOf } from './invoiceCandidates'
+import { invoiceLabels } from '@shared/billing/invoiceDoc'
 
 const options: WorkOption[] = [{ id: 'metal-bar', nimi: 'Metal bar', lisahind: 300 }]
 const book: PriceBook = {
@@ -40,6 +41,12 @@ describe('unbilled work on an invoice', () => {
     expect(lines.map(l => l.unit_price)).toEqual([2000, 300, 200, 50, 60])
     expect(lines[2].description).toBe('TF-1 · Kroon · hambad 11,21')
     expect(lines.reduce((s, l) => s + l.unit_price, 0)).toBe(2610)
+  })
+
+  it('a Latvian invoice’s lines in Latvian (sql/148); Estonian as before when not told', () => {
+    const j = job({ hind: 2500, work_items: [{ id: 'w1', too: 'All-on-4', hambad: '', valikud: { bar: ['metal-bar'] } }, { id: 'w2', too: 'Kroon', hambad: '11,21' }] as Job['work_items'] })
+    expect(jobLines(j, book, options, null, invoiceLabels('lv').line)[2].description).toBe('Kroon · zobi 11,21')
+    expect(jobLines(j, book, options, null)[2].description).toBe('Kroon · hambad 11,21')
   })
 
   it('a price set by hand: one line at the job’s own price, never something else', () => {
