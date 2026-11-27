@@ -16,6 +16,8 @@ import { ClinicSettingsSync } from '../components/ClinicSettingsSync'
 import { LanguageSync } from '../components/LanguageSync'
 import { MobileAuthGuard } from './MobileAuthGuard'
 import { MobileApp } from './MobileApp'
+import { NetworkApp } from './network/NetworkApp'
+import { isNetworkPath } from './route'
 import { AuthConfirmPage } from '../components/Auth/AuthConfirmPage'
 import { isConfirmPath } from '../lib/authConfirm'
 import { ConfirmHost } from '../components/ui/ConfirmHost'
@@ -44,7 +46,10 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <AuthProvider>
           <ConfirmHost />
           {/* The e-mails' links (invite, new password, new address): before sign-in. */}
-          {isConfirmPath(location.pathname) ? <AuthConfirmPage /> : (
+          {isConfirmPath(location.pathname) ? <AuthConfirmPage /> : isNetworkPath(location.pathname) ? (
+            // The Wivo Network mode: an outside account, not a clinic member (docs/PLAN-NETWORK-1.md).
+            <><LanguageSync /><NetworkApp /></>
+          ) : (
             <MobileAuthGuard>
               <PipelineProvider>
                 <ClinicSettingsSync />

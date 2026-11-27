@@ -12,6 +12,7 @@ import { useRunningVersion } from '../providers/UpdateProvider'
 import { useNewRequestCount } from '../hooks/useVisitRequests'
 import { usePartnerOrgs } from '../hooks/usePartners'
 import { useStockAlerts } from '../hooks/useStockAlerts'
+import { useNewOrderCount, usePortalLive } from '../hooks/useNetworkPortal'
 import { BugReportButton } from './BugReportButton'
 import { useWhatsNew } from './WhatsNew'
 import { t } from '@/lib/i18n'
@@ -50,7 +51,12 @@ const SETTINGS_ITEM = { key: 'settings', label: t('sidebar.settings'), icon: Set
 export function Sidebar({ view, onViewChange }: SidebarProps) {
   const { settings, toggleRiba } = useSettings()
   const { role } = useAuth()
-  const { sees, moduleOn } = usePermissions()
+  const { sees, moduleOn, can } = usePermissions()
+  // Orders from outside, through the Wivo Network (sql/138): the licence's
+  // `portal`, for whoever handles jobs; its mark counts new orders and requests.
+  const showOrders = moduleOn('portal') && (can('jobs.read') || can('jobs.write'))
+  usePortalLive(showOrders)
+  const newOrders = useNewOrderCount(showOrders)
   const running = useRunningVersion()
   // Opens by itself once per person per version; the footer button reopens it.
   const whatsNew = useWhatsNew(running)
@@ -139,6 +145,19 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
           <button onClick={() => onViewChange('unsorted')} title={t('unsorted.unsorted')} className={itemClass(view === 'unsorted')}>
             <FolderInput size={wide ? 15 : 17} className="flex-shrink-0" />
             <span className={wide ? 'truncate' : 'text-[10px] leading-none tracking-tight'}>{t('unsorted.unsorted')}</span>
+          </button>
+        )}
+
+        {showOrders && (
+          <button onClick={() => onViewChange('orders')} title={t('orders.title')} className={`${itemClass(view === 'orders')} relative`}>
+            <Inbox size={wide ? 15 : 17} className="flex-shrink-0" />
+            <span className={wide ? 'truncate' : 'text-[10px] leading-none tracking-tight'}>{t('orders.menu')}</span>
+            {newOrders > 0 && (
+              <span aria-label={t('orders.newCount', { n: newOrders })}
+                className={`text-[10px] font-bold rounded-full bg-sky-500 text-white min-w-[17px] h-[17px] px-1 flex items-center justify-center ${wide ? 'ml-auto' : 'absolute top-0.5 right-0.5'}`}>
+                {newOrders > 99 ? '99+' : newOrders}
+              </span>
+            )}
           </button>
         )}
 

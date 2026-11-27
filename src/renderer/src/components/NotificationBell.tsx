@@ -43,6 +43,9 @@ export const text = (n: AppNotification, stageLabel: (key: string) => string): s
     const stage = stages[0] ?? ''
     return n.detail.new ? t('notifications.newJobOnStage', { code, stage }) : t('notifications.putOnStage', { code, stage })
   }
+  // sql/138: an order or a request to connect from outside (Wivo Network). Nothing about the patient.
+  if (n.kind === 'client_order') return t('notifications.clientOrder')
+  if (n.kind === 'client_request') return t('notifications.clientRequest')
   // sql/130: made the one who makes an option of the job ("Metal bar").
   if (n.kind === 'option_assigned') {
     const options = Array.isArray(n.detail.options) ? n.detail.options.filter((o): o is string => typeof o === 'string').join(', ') : ''

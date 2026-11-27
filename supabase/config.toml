@@ -446,3 +446,11 @@ verify_jwt = false
 # database decides who approves: _shared/wivoUpdate.ts, sql/120.
 [functions.wivo-update]
 verify_jwt = false
+
+# network-client: the one door for a Wivo Network client into this clinic
+# (docs/PLAN-NETWORK-1.md). Called from the phone app's Network mode with no
+# key of this project; the caller proves itself with a Network token (checked
+# with the Network's public key) or this clinic's session, checked by the
+# database on every call: _shared/networkClient.ts, sql/138.
+[functions.network-client]
+verify_jwt = false

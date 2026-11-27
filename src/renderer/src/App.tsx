@@ -16,6 +16,7 @@ import { CalendarView, type CalendarMode, type CalendarScale } from './component
 import { CalendarTopControls } from './components/CalendarView/CalendarTopControls'
 import { PatientsView } from './components/Patients/PatientsView'
 import { UnsortedView } from './components/Unsorted/UnsortedView'
+import { OrdersView } from './components/Network/OrdersView'
 import { LanguageSync } from './components/LanguageSync'
 import { supabase } from './lib/supabase'
 import { PartnerJobsView } from './components/Partners/PartnerJobsView'
@@ -154,6 +155,7 @@ function AppContent() {
     isMenuPlace(view) ? sees(view)
     : view === 'unsorted' ? moduleOn('jobs')
     : view === 'partner' ? moduleOn('partners')
+    : view === 'orders' ? moduleOn('portal') && (can('jobs.read') || can('jobs.write'))
     : true
   useEffect(() => {
     if (!viewAllowed) setView(home ?? 'settings')
@@ -534,6 +536,7 @@ function AppContent() {
           {view === 'workers' && <WorkersPage />}
           {view === 'partner' && <PartnerJobsView />}
           {view === 'unsorted' && <UnsortedView />}
+          {view === 'orders' && <OrdersView />}
           {view === 'stock' && <StockView jobs={jobs} />}
         </main>
       </div>

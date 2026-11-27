@@ -48,6 +48,8 @@ export const PLAN_LABEL: Record<LicencePlan, string> = {
  */
 export const MODULE_KEYS = [
   'jobs', 'payroll', 'stock', 'invoices', 'patients', 'stats', 'partners', 'ratings',
+  // Orders from outside through the Wivo Network (docs/PLAN-NETWORK-1.md). Off unless the licence names it.
+  'portal',
 ] as const
 
 export type LicenceModule = (typeof MODULE_KEYS)[number]

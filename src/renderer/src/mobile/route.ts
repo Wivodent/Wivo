@@ -15,6 +15,9 @@ export function parseRoute(pathname: string): Route {
   return { name: 'home' }
 }
 
+/** The Network mode (mobile/network): /network and below, before and without a clinic sign-in. */
+export const isNetworkPath = (pathname: string): boolean => pathname === '/network' || pathname.startsWith('/network/')
+
 export function routePath(r: Route): string {
   return r.name === 'job' ? `/job/${r.id}` : r.name === 'settings' ? '/settings' : r.name === 'new' ? '/new' : '/'
 }

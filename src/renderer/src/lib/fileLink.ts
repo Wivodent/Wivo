@@ -57,3 +57,13 @@ export async function filePdfObjectUrl(fileId: string, fileName: string): Promis
   if (!res.ok) throw new Error(`${res.status}`)
   return URL.createObjectURL(new Blob([await res.arrayBuffer()], { type: 'application/pdf' }))
 }
+
+/** A file a Network client sent with an order (sql/138): the clinic's rights, the audit entry, a 60-second link. */
+export async function saveOrderFile(fileId: string, fileName: string): Promise<void> {
+  const data = await invokeFileLink<{ url?: unknown }>({ orderFileId: fileId })
+  if (typeof data?.url !== 'string') throw notAvailable()
+  const a = document.createElement('a')
+  a.href = data.url
+  a.download = fileName
+  a.click()
+}

@@ -21,6 +21,8 @@ export interface AppNotification {
     | 'mail_quota'
     // sql/130: made the one who makes an option of a job (the bell only).
     | 'option_assigned'
+    // sql/138: a Network order or a request to connect.
+    | 'client_order' | 'client_request'
   detail: Record<string, unknown>
   created_at: string
   read_at: string | null

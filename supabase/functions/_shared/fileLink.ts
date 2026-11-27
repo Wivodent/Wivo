@@ -3,6 +3,7 @@
  *
  *   { fileId }                → { url, expiresIn }               a download, 60 s
  *   { jobId, previews: true } → { previews: [{ fileId, url }], expiresIn }   300 s
+ *   { orderFileId }           → { url, expiresIn }               a file sent with a Network order, 60 s (sql/138)
  *
  * First the database, AS THE USER: the second factor (sql/098), then
  * `request_file_download` / `request_job_previews`, which check the person's
@@ -35,12 +36,14 @@ export interface FileLinkDeps {
 export type FileLinkRequest =
   | { kind: 'download'; fileId: string }
   | { kind: 'previews'; jobId: string }
+  | { kind: 'order_file'; fileId: string }
 
 export function parseFileLinkRequest(body: unknown): FileLinkRequest | null {
   if (!body || typeof body !== 'object') return null
   const b = body as Record<string, unknown>
   if (typeof b.fileId === 'string' && UUID.test(b.fileId)) return { kind: 'download', fileId: b.fileId }
   if (b.previews === true && typeof b.jobId === 'string' && UUID.test(b.jobId)) return { kind: 'previews', jobId: b.jobId }
+  if (typeof b.orderFileId === 'string' && UUID.test(b.orderFileId)) return { kind: 'order_file', fileId: b.orderFileId }
   return null
 }
 
@@ -58,6 +61,14 @@ export async function handleFileLink(body: unknown, deps: FileLinkDeps): Promise
     if (error || typeof path !== 'string') return notAllowed
     const { data: name } = await deps.rpcAsUser('job_file_name', { p_file: request.fileId })
     const url = await deps.sign(path, DOWNLOAD_SECONDS, typeof name === 'string' ? name : undefined)
+    if (!url) return { status: 500, body: { error: 'could not sign' } }
+    return { status: 200, body: { url, expiresIn: DOWNLOAD_SECONDS } }
+  }
+
+  if (request.kind === 'order_file') {
+    const { data: path, error } = await deps.rpcAsUser('request_order_file_download', { p_file: request.fileId })
+    if (error || typeof path !== 'string') return notAllowed
+    const url = await deps.sign(path, DOWNLOAD_SECONDS)
     if (!url) return { status: 500, body: { error: 'could not sign' } }
     return { status: 200, body: { url, expiresIn: DOWNLOAD_SECONDS } }
   }

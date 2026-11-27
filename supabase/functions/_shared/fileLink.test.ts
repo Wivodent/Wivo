@@ -58,6 +58,11 @@ describe('file-link', () => {
     expect(d.sign).not.toHaveBeenCalled()
   })
 
+  it('a file sent with a Network order: the rights of the clinic first (sql/138), then a 60-second link', async () => {
+    const d = deps({ rpcAsUser: async (fn) => (fn === 'request_order_file_download' ? { data: 'client-orders/o/f', error: null } : { data: null, error: { message: 'no' } }) })
+    expect(await handleFileLink({ orderFileId: FILE }, d)).toEqual({ status: 200, body: { url: 'https://signed/client-orders/o/f?s=60', expiresIn: 60 } })
+  })
+
   it('the caller cannot choose a lifetime, a path or a bucket', async () => {
     expect(parseFileLinkRequest({ fileId: FILE, expiresIn: 31_536_000 })).toEqual({ kind: 'download', fileId: FILE })
     expect(parseFileLinkRequest({ path: 'org/job/file.stl' })).toBeNull()

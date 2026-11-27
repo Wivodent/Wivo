@@ -15,6 +15,7 @@ export const MODULE_LABEL: Record<LicenceModule, () => string> = {
   patients: () => t('settings.modulePatients'),
   stats:    () => t('settings.moduleStats'),
   partners: () => t('settings.modulePartners'),
+  portal: () => t('settings.modulePortal'),
   ratings:  () => t('settings.moduleRatings'),
 }
 

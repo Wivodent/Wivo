@@ -19,6 +19,13 @@ interface ImportMetaEnv {
   readonly VITE_PHONE_URL?: string
   /** Wivo's own address for "Request a feature" and "Ask Wivo" (config/contact.ts). Without it those buttons are hidden. */
   readonly VITE_WIVO_CONTACT_EMAIL?: string
+  /**
+   * The Wivo Network project (docs/NETWORK-SETUP.md), for the phone app's
+   * Network mode at /network. Both public. Without them the mode says it is
+   * not set up.
+   */
+  readonly VITE_NETWORK_URL?: string
+  readonly VITE_NETWORK_ANON_KEY?: string
 }
 
 // Preload bridge (src/preload/index.ts). Optional: during `dev` the renderer can

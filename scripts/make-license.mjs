@@ -78,7 +78,7 @@ const YUBIKEYS = {
 
 /** Must equal MODULE_KEYS in shared/license/token.ts (the test checks). */
 const MODULES = [
-  'jobs', 'payroll', 'stock', 'invoices', 'patients', 'stats', 'partners', 'ratings',
+  'jobs', 'payroll', 'stock', 'invoices', 'patients', 'stats', 'partners', 'ratings', 'portal',
 ]
 
 /** Must equal MODULE_REQUIRES there. A rating is given on a job. */
