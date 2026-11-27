@@ -8,7 +8,7 @@
  * factor, a profile, a connection to that clinic that is not ended); only then
  * is the token signed with the Network's private key.
  */
-import { NETWORK_ISSUER, NETWORK_TOKEN_SECONDS, signNetworkToken, type AccountKind, type AccountRole } from './generated/token.ts'
+import { ACCOUNT_LANGS, NETWORK_ISSUER, NETWORK_TOKEN_SECONDS, signNetworkToken, type AccountKind, type AccountLang, type AccountRole } from './generated/token.ts'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -34,6 +34,8 @@ export interface NetworkTokenDeps {
   contact?: (clinicId: string) => Promise<{ email: string | null; email_notifications: boolean } | null>
   /** token_billing(p_clinic) (Network 004), AS THE ACCOUNT; undefined when the Network does not have it yet. */
   billing?: (clinicId: string) => Promise<string | null | undefined>
+  /** token_language(p_clinic) (Network 006), AS THE ACCOUNT; undefined when the Network does not have it yet. */
+  language?: (clinicId: string) => Promise<string | null | undefined>
   key: CryptoKey
   nowSeconds: () => number
 }
@@ -47,12 +49,17 @@ export async function handleNetworkToken(body: unknown, deps: NetworkTokenDeps):
   const row: ClaimsRow = contact ? { ...claims, email: contact.email, email_notifications: contact.email_notifications } : claims
   // Network 004: the billing e-mail, when the Network has the column (null: the account gave none).
   const billing = deps.billing ? await deps.billing(clinicId).catch(() => undefined) : undefined
+  // Network 006: the account's language (null: not chosen; anything else unknown counts as not chosen).
+  const chosen = deps.language ? await deps.language(clinicId).catch(() => undefined) : undefined
+  const lang: AccountLang | null | undefined = chosen === undefined ? undefined
+    : ACCOUNT_LANGS.includes(chosen as AccountLang) ? chosen as AccountLang : null
   const iat = deps.nowSeconds()
   const token = await signNetworkToken({
     v: 1, iss: NETWORK_ISSUER, aud: row.clinic_id, sub: row.account_id, conn: row.connection_id,
     name: row.name, kind: row.kind, role: row.role, company: row.company ?? null, country: row.country ?? null,
     ...(row.email !== undefined ? { email: row.email ?? null, mail: row.email_notifications ?? true } : {}),
     ...(billing !== undefined ? { billing } : {}),
+    ...(lang !== undefined ? { lang } : {}),
     iat, exp: iat + NETWORK_TOKEN_SECONDS,
   }, deps.key)
   return { status: 200, body: { token, expiresIn: NETWORK_TOKEN_SECONDS, apiUrl: row.api_url } }

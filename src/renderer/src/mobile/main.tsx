@@ -48,7 +48,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
           {/* The e-mails' links (invite, new password, new address): before sign-in. */}
           {isConfirmPath(location.pathname) ? <AuthConfirmPage /> : isNetworkPath(location.pathname) ? (
             // The Wivo Network mode: an outside account, not a clinic member (docs/PLAN-NETWORK-1.md).
-            <><LanguageSync /><NetworkApp /></>
+            // Its language is its own (shared/i18n NETWORK_LANG_KEY), never the staff's: no LanguageSync
+            // here, which would set the staff app's language and reload this page for nothing.
+            <NetworkApp />
           ) : (
             <MobileAuthGuard>
               <PipelineProvider>

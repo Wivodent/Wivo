@@ -4,8 +4,12 @@
  * Spec, open questions: launch in English, the Russian translation within the
  * first month. Translate by adding keys from `en.ts`; nothing else changes.
  */
-import type { Message } from './types'
+import type { Message, Params } from './types'
 import type { MessageKey } from './en'
+
+/** Russian plural: 1 зуб, 2 зуба, 5 зубов (21 зуб, 22 зуба, 11 зубов). */
+const ruPlural = (n: number, one: string, few: string, many: string): string =>
+  n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? few : many
 
 export const ru: Partial<Record<MessageKey, Message>> = {
   'testCopy.fakeLabel': "ТЕСТОВЫЕ ДАННЫЕ",
@@ -1660,7 +1664,7 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'network.verify': "Продолжить",
   'network.signOut': "Выйти",
   'network.profile': "Ваш профиль",
-  'network.profileInfo': "Клиника видит ваше имя, компанию, роль и страну, когда вы просите подключения. Больше ничего.",
+  'network.profileInfo': "Клиника видит ваше имя, компанию, роль, страну и адреса e-mail, когда вы просите подключения. Больше ничего.",
   'network.kindPerson': "Человек",
   'network.kindCompany': "Компания",
   'network.roleTechnician': "Техник",
@@ -1839,6 +1843,44 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'network.legalUpdatedTitle': "Условия использования",
   'network.legalUpdatedIntro': "Чтобы продолжить пользоваться Wivo Network, прочитайте и примите Условия использования и Уведомление о конфиденциальности.",
   'network.legalContinue': "Продолжить",
+  'network.language': "Язык",
+  'network.legalTranslationComing': "Пока этот текст на английском. Перевод скоро появится.",
+  'errorBoundary.error': "Ошибка",
+  'errorBoundary.unknown': "неизвестно",
+  'errorBoundary.components': "Компоненты:",
+  'errorBoundary.none': "(нет)",
+  'errorBoundary.somethingWentWrong': "Что-то пошло не так",
+  'errorBoundary.wivoCouldNotDisplayThisView': "Wivo не смог показать этот экран. Нажмите «Скопировать отчёт об ошибке» и отправьте его — в нём видно, какая часть приложения сломалась.",
+  'errorBoundary.whereItHappened': "Где это произошло",
+  'errorBoundary.tryAgain': "Попробовать снова",
+  'errorBoundary.copied': "Скопировано",
+  'errorBoundary.copyErrorReport': "Скопировать отчёт об ошибке",
+  'confirm.confirm': "Подтвердить",
+  'confirm.cancel': "Отмена",
+  'pricing.cost': "Стоимость",
+  'pricing.part': "Часть",
+  'jobDetail.toothSelectedTeethSelected': ({ totalTeeth }: Params) => ruPlural(totalTeeth, 'зуб выбран', 'зуба выбрано', 'зубов выбрано'),
+  'job.reasonWrongDesign': "Неверный дизайн",
+  'job.reasonWrongShade': "Не тот цвет",
+  'job.reasonWrongMaterial': "Не тот материал",
+  'job.reasonWrongTooth': "Не тот зуб",
+  'job.reasonPoorFit': "Плохая посадка",
+  'job.reasonBreakage': "Поломка",
+  'job.reasonPatientRequest': "По просьбе пациента",
+  'job.reasonDentistRequest': "По просьбе врача",
+  'job.reasonOther': "Другое",
+  'customer.perJob': "За каждую работу",
+  'customer.monthlyStatement': "Ежемесячный счёт",
+  'customer.eachJobIsInvoicedSeparatelyWhen': "Каждая работа выставляется отдельным счётом, когда она готова.",
+  'customer.oneInvoiceAMonthCoveringEvery': "Один счёт в месяц за все работы, законченные в этом месяце.",
+  'customer.inTheLab': "В лаборатории",
+  'customer.inTransit': "В пути",
+  'customer.delivered': "Доставлено",
+  'exports.deliveryLab': "В лаборатории",
+  'exports.deliveryOnWay': "В пути",
+  'exports.deliveryHandedOver': "Передано",
+  'wizard.toothTeeth2': ({ sorted }: Params) => `${sorted.length} ${ruPlural(sorted.length, 'зуб', 'зуба', 'зубов')}`,
+  'wizard.differsDiffer': ({ overrides }: Params) => `${overrides} ${ruPlural(overrides, 'отличается', 'отличаются', 'отличаются')}`,
   "workflow.moveToNextStage": "Перейти к следующему этапу",
   "workflow.back": "Назад",
   // A push without its own words shows this as its title (sw.js); the sender's

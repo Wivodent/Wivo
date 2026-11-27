@@ -272,3 +272,43 @@ describe('the accepted Terms of Use (network/sql/005)', () => {
     expect((await terms(bob)).v).toBe('2027-02')
   })
 })
+
+describe('the account\'s language (network/sql/006)', () => {
+  it('the account sets its own; only the four languages; the token gives it for a live connection only', async () => {
+    const erin = await user('erin@fake.test')
+    await profile(erin, 'Erin Sample')
+    expect((await rowsAs<{ l: string | null }>(db, { id: erin }, `select preferred_language as l from public.account`))[0].l).toBeNull()
+    await rowsAs(db, { id: erin }, `update public.account set preferred_language = 'lv' where id = $1`, [erin])
+    expect(await errorAs(db, { id: erin }, `update public.account set preferred_language = 'de' where id = $1`, [erin])).toMatch(/preferred_language_valid/)
+    expect(await rowsAs(db, { id: erin }, `update public.account set preferred_language = 'ru' where id = $1 returning 1`, [alice])).toEqual([])
+
+    const lang = async (id: string, mfa = true) => (await rowsAs<{ l: string | null }>(db, { id, mfa },
+      `select public.token_language($1) as l`, [listed]).catch(() => [{ l: 'refused' }]))[0].l
+    expect(await lang(erin)).toBeNull()
+    const [c] = await rowsAs<{ id: string }>(db, { id: erin }, `select id from public.request_connection($1)`, [listed])
+    expect(await lang(erin)).toBe('lv')
+    expect(await lang(erin, false)).not.toBe('lv')
+    expect(await errorAs(db, 'anon', `select public.token_language($1)`, [listed])).toMatch(/permission denied/)
+    await rowsAs(db, { id: erin }, `select public.end_connection($1)`, [c.id])
+    expect(await lang(erin)).toBeNull()
+  })
+
+  it('network-token carries it when the Network has it; an unknown value counts as none', async () => {
+    const pair = await makeNetworkKeyPair()
+    const key = await importSigningKey(pair.privateKey)
+    const pub = await importPublicKey(pair.publicKey)
+    const row = { account_id: alice, connection_id: 'dddddddd-0000-4000-8000-000000000006', name: 'Alice Fake', kind: 'person' as const,
+      role: 'technician' as const, company: null, country: 'LV', clinic_id: listed, api_url: 'https://abcdefghijklmnopqrst.supabase.co' }
+    const payload = async (language?: () => Promise<string | null | undefined>) => {
+      const r = await handleNetworkToken({ clinicId: listed }, { key, nowSeconds: () => 1_800_000_000, claims: async () => row, ...(language ? { language } : {}) })
+      const v = await verifyNetworkToken(r.body.token as string, pub, listed, 1_800_000_000)
+      if (!v.ok) throw new Error('token did not verify')
+      return v.payload
+    }
+    expect((await payload(async () => 'lv')).lang).toBe('lv')
+    expect((await payload(async () => 'de')).lang).toBeNull()
+    expect((await payload(async () => null)).lang).toBeNull()
+    expect('lang' in (await payload(async () => undefined))).toBe(false)
+    expect('lang' in (await payload())).toBe(false)
+  })
+})

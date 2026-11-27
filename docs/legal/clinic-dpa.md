@@ -24,7 +24,7 @@ Wivo processes the clinic's personal data only in these activities, and only as 
 - **Setup and connection**: creating the clinic's project structure, deploying Wivo's server functions into the clinic's project, and connecting the clinic to Wivo Network (`network:connect`), during which Wivo has administrator access to the project.
 - **Updates**: signed database and function updates that the clinic installs, which run with full rights in the clinic's database.
 - **Support**: looking into a problem in the clinic's database when the clinic asks, with the clinic's access.
-- **Wivo Network**: issuing a 5-minute signed pass that tells the clinic who a Network user is (name, kind, role, company, country, e-mails) when that user opens the clinic. The pass is Wivo's own data about its user (Wivo is controller of the Network account); this agreement covers it as far as it becomes the clinic's data.
+- **Wivo Network**: issuing a 5-minute signed pass that tells the clinic who a Network user is (name, kind, role, company, country, e-mails, language) when that user opens the clinic. The pass is Wivo's own data about its user (Wivo is controller of the Network account); this agreement covers it as far as it becomes the clinic's data.
 - **Hosting of the phone web app**: serving the files of the clinic's phone and /network web app from Cloudflare Pages, under Wivo's Cloudflare account.
 
 Details are in Annex 1.
@@ -90,7 +90,7 @@ Liability follows the licence agreement and GDPR article 82. This agreement is g
 
 - patients: what the clinic keeps in Wivo (for jobs: job code, the client's patient reference, teeth, work, shade, dates; files such as scans, photos and X-rays);
 - staff: names, e-mail addresses, roles, activity in the audit log;
-- Network users: name, kind, role, company, country, sign-in e-mail, e-mail choice, billing e-mail; their orders, messages, files, notices, ratings and session records (only a hash of the session token).
+- Network users: name, kind, role, company, country, sign-in e-mail, e-mail choice, billing e-mail, language; their orders, messages, files, notices, ratings and session records (only a hash of the session token).
 
 **Special categories:** health data in patient files and job details (GDPR art. 9).
 

@@ -52,6 +52,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (error) return undefined
       return typeof data === 'string' && data.trim() ? data.trim() : null
     },
+    // Network 006: without it, the token simply carries no language.
+    language: async (clinicId) => {
+      const { data, error } = await asAccount.rpc('token_language', { p_clinic: clinicId })
+      if (error) return undefined
+      return typeof data === 'string' && data ? data : null
+    },
   })
   return json(answer.status, answer.body)
 })

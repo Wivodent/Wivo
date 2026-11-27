@@ -10,19 +10,19 @@
  * arrives after login, which would mean a second reload every time someone
  * signs in on a machine set to the other language.
  */
-import { et, enGB, ru } from 'date-fns/locale'
-import { lang, LANG_KEY, type Lang } from '@shared/i18n'
+import { et, enGB, ru, lv } from 'date-fns/locale'
+import { lang, uiLang, LANG_KEY, NETWORK_LANG_KEY, isNetworkLang, type Lang, type UiLang } from '@shared/i18n'
 
-export { t, lang, weekdays, decideLanguage, type Lang } from '@shared/i18n'
+export { t, lang, uiLang, weekdays, decideLanguage, NETWORK_LANGUAGES, networkLanguageDecision, type Lang, type UiLang } from '@shared/i18n'
 
-/** For date-fns `format(…, { locale })`: month and weekday names follow the UI. */
-export const dateLocale = lang === 'en' ? enGB : lang === 'ru' ? ru : et
+/** For date-fns `format(…, { locale })`: month and weekday names follow the UI (Latvian: Wivo Network only). */
+export const dateLocale = uiLang === 'lv' ? lv : lang === 'en' ? enGB : lang === 'ru' ? ru : et
 
 /**
  * For `toLocaleString` / `Intl`. en-GB rather than en-US: day before month and
  * a 24-hour clock, which is what an Estonian lab reads either way.
  */
-export const intlLocale = lang === 'en' ? 'en-GB' : lang === 'ru' ? 'ru-RU' : 'et-EE'
+export const intlLocale = uiLang === 'lv' ? 'lv-LV' : lang === 'en' ? 'en-GB' : lang === 'ru' ? 'ru-RU' : 'et-EE'
 
 /**
  * Save and reload. See shared/i18n/index.ts for why this does not switch live.
@@ -42,7 +42,7 @@ export function setLang(next: Lang): void {
 
 // Screen readers and the spellchecker go by this, not by the text. Guarded
 // because the tests import this file under Node, where there is no document.
-if (typeof document !== 'undefined') document.documentElement.lang = lang
+if (typeof document !== 'undefined') document.documentElement.lang = uiLang
 
 // Tell the main process, which starts Chromium's own controls — the date and
 // time pickers, the right-click menu — in a locale it has to know BEFORE the
@@ -75,6 +75,30 @@ export const LANGUAGES: { key: Lang; label: string }[] = [
 export function languageChosenHere(): boolean {
   try {
     return localStorage.getItem(LANG_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Wivo Network's own choice (NETWORK_LANG_KEY, never the staff app's): saved
+ * on this device, then the page reloads in it, as setLang does. The caller
+ * saves it on the Network account first, when signed in.
+ */
+export function setNetworkLang(next: UiLang): void {
+  if (!isNetworkLang(next)) return
+  try {
+    localStorage.setItem(NETWORK_LANG_KEY, next)
+  } catch {
+    return
+  }
+  if (next !== uiLang) window.location.reload()
+}
+
+/** Whether a Network language was chosen on this device (rather than taken from the browser). */
+export function networkLanguageChosenHere(): boolean {
+  try {
+    return isNetworkLang(localStorage.getItem(NETWORK_LANG_KEY))
   } catch {
     return false
   }

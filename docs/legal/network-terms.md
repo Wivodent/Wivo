@@ -17,7 +17,7 @@ Wivo Network is a tool for professionals. It is not for patients, and it is not 
 ## 2. Your account
 
 - You must be at least 18 and use Wivo Network for your professional work. If you register a company, you confirm that you may act for it.
-- Give true information in your profile (name, company, role, country) and keep it up to date. Each clinic you connect to sees your name, kind of account, role, company, country, sign-in e-mail and, if you give one, your billing e-mail.
+- Give true information in your profile (name, company, role, country) and keep it up to date. Each clinic you connect to sees your name, kind of account, role, company, country, sign-in e-mail, your language and, if you give one, your billing e-mail.
 - Signing in needs your password and a second factor (an authenticator app). Keep both to yourself. You are responsible for what is done with your account until you tell us it has been misused.
 - One account is for one person or one company. Do not share it.
 

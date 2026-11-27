@@ -105,6 +105,11 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
     if (p.billing !== undefined) {
       await deps.rpc('client_set_billing', { p_network_clinic: p.aud, p_account: p.sub, p_billing: p.billing }).catch(() => null)
     }
+    // The language the token carries (Network 006), for the clinic's e-mails to this client (sql/154).
+    // A database without 154 says no: that changes nothing about the connection.
+    if (p.lang !== undefined) {
+      await deps.rpc('client_set_language', { p_network_clinic: p.aud, p_account: p.sub, p_lang: p.lang }).catch(() => null)
+    }
     return { status: 200, body: r.data as Record<string, unknown> }
   }
 

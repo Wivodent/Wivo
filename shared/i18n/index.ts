@@ -1,5 +1,6 @@
 /**
- * Interface language: English is the source, Estonian and Russian translate it.
+ * Interface language: English is the source, Estonian and Russian translate it;
+ * Latvian exists for Wivo Network only (lv.ts, NETWORK_LANGUAGES).
  *
  * Spec, "Language": all interface text goes through i18n keys; English is the
  * source language; a missing translation shows the English text; the language
@@ -25,6 +26,7 @@
 import { en, type MessageKey } from './en'
 import { et } from './et'
 import { ru } from './ru'
+import { lv } from './lv'
 import type { Message, Params } from './types'
 
 export type { MessageKey } from './en'
@@ -32,6 +34,51 @@ export type { Message, Params } from './types'
 
 export type Lang = 'en' | 'et' | 'ru'
 export const LANGS: readonly Lang[] = ['en', 'et', 'ru']
+
+/**
+ * Every language there is a catalog for: the app's three, and Latvian, which
+ * only Wivo Network offers so far (lv.ts). App code that maps a language to
+ * something of its own (a date-fns locale, a stored profile value) uses `Lang`.
+ */
+export type UiLang = Lang | 'lv'
+
+/**
+ * Wivo Network's languages, in the order its picker shows them, each by its
+ * own name (someone who cannot read the current language must find theirs).
+ */
+export const NETWORK_LANGUAGES: readonly { key: UiLang; label: string }[] = [
+  { key: 'en', label: 'English' },
+  { key: 'lv', label: 'Latviešu' },
+  { key: 'ru', label: 'Русский' },
+  { key: 'et', label: 'Eesti' },
+]
+export const NETWORK_LANGS: readonly UiLang[] = NETWORK_LANGUAGES.map(l => l.key)
+
+/**
+ * The Network keeps its own choice, apart from the staff app's (LANG_KEY): on
+ * a clinic's phone address both live in the same browser storage, and neither
+ * may change the other.
+ */
+export const NETWORK_LANG_KEY = 'wivo_network_lang'
+
+/** /network and below: Wivo Network's pages (the same rule as mobile/route's isNetworkPath). */
+export const isNetworkPathname = (pathname: string): boolean => pathname === '/network' || pathname.startsWith('/network/')
+
+export const isNetworkLang = (v: unknown): v is UiLang => typeof v === 'string' && (NETWORK_LANGS as readonly string[]).includes(v)
+
+/** The first of the browser's languages the Network has, else English. */
+export function browserNetworkLang(languages: readonly string[] | undefined | null): UiLang {
+  for (const l of languages ?? []) {
+    const base = String(l).toLowerCase().split('-')[0]
+    if (isNetworkLang(base)) return base
+  }
+  return 'en'
+}
+
+/** A Network page's language: the choice made on this device, else the browser's. */
+export function networkLangFrom(stored: string | null | undefined, languages: readonly string[] | undefined | null): UiLang {
+  return isNetworkLang(stored) ? stored : browserNetworkLang(languages)
+}
 
 /** Machine-wide for now, like the theme — see the renderer's lib/i18n. */
 export const LANG_KEY = 'wivo_lang'
@@ -53,9 +100,24 @@ function readLang(): Lang {
   }
 }
 
-export const lang: Lang = readLang()
+function readUiLang(): UiLang {
+  const path = globalThis.location?.pathname
+  if (typeof path !== 'string' || !isNetworkPathname(path)) return readLang()
+  let stored: string | null = null
+  try { stored = globalThis.localStorage?.getItem(NETWORK_LANG_KEY) ?? null } catch { /* storage refused */ }
+  return networkLangFrom(stored, globalThis.navigator?.languages)
+}
 
-const CATALOGS: Record<Lang, Partial<Record<MessageKey, Message>>> = { en, et, ru }
+/** The language this page shows: on a Network page the Network's, everywhere else the app's. */
+export const uiLang: UiLang = readUiLang()
+
+/**
+ * The app's language, for code that knows only the app's three. Latvian (a
+ * Network page only) counts as English there; the text itself follows uiLang.
+ */
+export const lang: Lang = uiLang === 'lv' ? 'en' : uiLang
+
+const CATALOGS: Record<UiLang, Partial<Record<MessageKey, Message>>> = { en, et, ru, lv }
 
 function render(msg: Message, params: Params | undefined): string {
   if (typeof msg === 'function') return msg(params ?? {})
@@ -65,13 +127,13 @@ function render(msg: Message, params: Params | undefined): string {
 }
 
 /** The message for `key` in a given language, falling back to English. */
-export function translate(language: Lang, key: MessageKey, params?: Params): string {
+export function translate(language: UiLang, key: MessageKey, params?: Params): string {
   return render(CATALOGS[language][key] ?? en[key], params)
 }
 
 /** The message for `key` in the current language, falling back to English. */
 export function t(key: MessageKey, params?: Params): string {
-  return translate(lang, key, params)
+  return translate(uiLang, key, params)
 }
 
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
@@ -113,4 +175,18 @@ export function decideLanguage(s: LanguageSources): { lang: Lang; saveToProfile:
   if (s.chosenOnThisMachine) return { lang: s.current, saveToProfile: true }
   if (s.organisation && LANGS.includes(s.organisation)) return { lang: s.organisation, saveToProfile: false }
   return { lang: s.current, saveToProfile: false }
+}
+
+/**
+ * After a Network sign-in: which language to show, and whether to save it on
+ * the account (Network 006, `preferred_language`).
+ *   - chosen on this device: it wins, and the account gets it when different;
+ *   - not chosen here, the account has one: take the account's (it follows
+ *     the person from another device);
+ *   - neither: keep the browser's, and save it on the account.
+ */
+export function networkLanguageDecision(s: { account: string | null; current: UiLang; chosenHere: boolean }): { lang: UiLang; save: boolean } {
+  if (s.chosenHere) return { lang: s.current, save: s.account !== s.current }
+  if (isNetworkLang(s.account)) return { lang: s.account, save: false }
+  return { lang: s.current, save: true }
 }

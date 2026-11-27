@@ -26,6 +26,9 @@ export type AccountKind = 'person' | 'company'
 export type AccountRole = 'technician' | 'doctor' | 'clinic' | 'lab'
 export const ACCOUNT_KINDS: readonly AccountKind[] = ['person', 'company']
 export const ACCOUNT_ROLES: readonly AccountRole[] = ['technician', 'doctor', 'clinic', 'lab']
+/** Wivo Network's languages (shared/i18n NETWORK_LANGUAGES; a copy, as this file has no imports). */
+export type AccountLang = 'en' | 'lv' | 'ru' | 'et'
+export const ACCOUNT_LANGS: readonly AccountLang[] = ['en', 'lv', 'ru', 'et']
 
 export interface NetworkTokenPayload {
   v: 1
@@ -54,6 +57,12 @@ export interface NetworkTokenPayload {
    * (the clinic's sql/152). Absent from older tokens.
    */
   billing?: string | null
+  /**
+   * The language the account chose (Network 006): the clinic's e-mails about
+   * its orders are written in it (the clinic's sql/154). Absent from older
+   * tokens; null when not chosen yet.
+   */
+  lang?: AccountLang | null
   iat: number
   exp: number
 }
@@ -93,6 +102,7 @@ export function payloadProblem(p: unknown): string | null {
   if (x.mail !== undefined && typeof x.mail !== 'boolean') return 'mail'
   if (x.billing !== undefined && x.billing !== null
     && (typeof x.billing !== 'string' || x.billing.length > 254 || !/^[^@\s]+@[^@\s]+$/.test(x.billing))) return 'billing'
+  if (x.lang !== undefined && x.lang !== null && !ACCOUNT_LANGS.includes(x.lang as AccountLang)) return 'lang'
   if (!Number.isInteger(x.iat) || !Number.isInteger(x.exp)) return 'times'
   if ((x.exp as number) <= (x.iat as number) || (x.exp as number) - (x.iat as number) > NETWORK_TOKEN_SECONDS) return 'lifetime'
   return null

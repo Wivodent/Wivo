@@ -258,6 +258,21 @@ describe('the Network clients’ e-mails (sql/142)', () => {
     expect(r2.clients.error).toMatch(/broke/)
   })
 
+  it('in the client’s language when the clinic knows it (sql/154, Network 006)', async () => {
+    const h = harness({ env: { ...EMAIL, ...VAPID } })
+    const rpc = h.deps.rpc
+    h.deps.rpc = async (fn, args) => fn === 'pending_client_emails'
+      ? { data: [{ id: 'c2', email: 'anna@fake.test', kind: 'sent', ref: 'TF-DE-261127-002', clinic: 'Dentiks', language: 'lv' }], error: null }
+      : rpc(fn, args)
+    const bodies: string[] = []
+    const fetch = h.deps.fetch
+    h.deps.fetch = async (url, init) => { bodies.push(init.body); return fetch(url, init) }
+    await runSender(h.deps, false)
+    expect(h.mailed).toContainEqual({ to: 'anna@fake.test', subject: 'Jūsu pasūtījums TF-DE-261127-002 ir ceļā' })
+    const sent = JSON.parse(bodies.find(b => b.includes('anna@fake.test'))!) as { text: string }
+    expect(sent.text).toBe('Jūsu pasūtījums TF-DE-261127-002 ir ceļā\n\nAtvērt Wivo Network: https://app.wivodent.com/network\n')
+  })
+
   it('every kind has its subject; the order is "on its way" once sent', async () => {
     const { clientSubject } = await import('./notifySender')
     const n = (kind: string) => clientSubject({ kind: kind as never, ref: 'TF-DE-261127-001', clinic: 'Dentiks' })

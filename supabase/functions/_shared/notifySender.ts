@@ -25,6 +25,7 @@
 import { mayMail } from './mailAllow.ts'
 import { quotaLimit, QUOTA_WARNING, type QuotaKind } from './mailQuota.ts'
 import { pushText, pushLang } from './pushText.ts'
+import { clientMailSubject, clientMailText, type ClientMailKind } from './generated/clientMail.ts'
 
 export type PushResult = 'ok' | 'gone' | 'failed'
 
@@ -132,33 +133,17 @@ async function sendEmails(deps: SenderDeps, dry: boolean, key: string | undefine
 }
 
 // ── The Network clients' e-mails (sql/142) ──────────────────────────────────
-type ClientKind = 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined' | 'received_reminder' | 'problem_resolved' | 'cancelled' | 'reinstated' | 'quoted'
-interface ClientPending { id: string; email: string; kind: ClientKind; ref: string | null; clinic: string }
+type ClientKind = ClientMailKind
+/** sql/154 adds the client's language; before it there is none, and the e-mail is in English. */
+interface ClientPending { id: string; email: string; kind: ClientKind; ref: string | null; clinic: string; language?: string | null }
 
 /**
  * The subject, and nothing more: never the message, the reason, a name or
- * anything about the patient. In English: the client's language is not known
- * here (the Network keeps the account).
+ * anything about the patient. In the client's language (sql/154, Network 006;
+ * the words are in shared/network/clientMail.ts), English when not known.
  */
-export function clientSubject(n: Pick<ClientPending, 'kind' | 'ref' | 'clinic'>): string {
-  const ref = n.ref ?? 'your order'
-  switch (n.kind) {
-    case 'message': return `New message on ${ref} from ${n.clinic}`
-    case 'accepted': return `${n.clinic} accepted ${ref}`
-    case 'rejected': return `${n.clinic} could not take ${ref}`
-    case 'ready': return `${ref} is ready at ${n.clinic}`
-    case 'sent': return `Your order ${ref} is on its way`
-    case 'connected': return `${n.clinic} confirmed your connection`
-    case 'declined': return `${n.clinic} did not confirm your connection`
-    // sql/145
-    case 'received_reminder': return `Did your order ${ref} arrive?`
-    case 'problem_resolved': return `${n.clinic} resolved the delivery problem on ${ref}`
-    // sql/146: never the reason in the subject.
-    case 'cancelled': return `${n.clinic} cancelled ${ref}`
-    case 'reinstated': return `${ref} is back at ${n.clinic}`
-    // sql/153: never the amount in the subject.
-    case 'quoted': return `${n.clinic} sent a price for ${ref} to approve`
-  }
+export function clientSubject(n: Pick<ClientPending, 'kind' | 'ref' | 'clinic'> & { language?: string | null }): string {
+  return clientMailSubject(n.kind, n.ref, n.clinic, n.language)
 }
 
 async function sendClientEmails(deps: SenderDeps, dry: boolean, key: string | undefined, from: string | undefined): Promise<SenderResult['clients']> {
@@ -173,7 +158,7 @@ async function sendClientEmails(deps: SenderDeps, dry: boolean, key: string | un
     const res = await deps.fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to: n.email, subject, text: `${subject}\n\nOpen Wivo Network: ${link}\n` }),
+      body: JSON.stringify({ from, to: n.email, subject, text: clientMailText(subject, link, n.language) }),
     })
     if (res.ok) { sent.push(n.id); continue }
     limit = quotaLimit(res.status, await res.text())

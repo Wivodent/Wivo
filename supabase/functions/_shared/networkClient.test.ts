@@ -69,6 +69,17 @@ describe('network-client', () => {
     expect(again.calls.find(c => c.fn === 'client_set_billing')!.args).toMatchObject({ p_billing: null })
   })
 
+  it('connect: the language in the token goes onto the client here (Network 006, sql/154); an older token sends none', async () => {
+    const net = await makeNetworkKeyPair()
+    const { deps, calls } = await setup({ [CLINIC_A]: { key: net.publicKey } })
+    await handleNetworkClient({ action: 'connect', networkToken: await tokenFor(CLINIC_A, net.privateKey, { lang: 'lv' }) }, deps)
+    expect(calls.find(c => c.fn === 'client_set_language')!.args).toEqual({
+      p_network_clinic: CLINIC_A, p_account: 'cccccccc-0000-4000-8000-000000000003', p_lang: 'lv' })
+    const old = await setup({ [CLINIC_A]: { key: net.publicKey } })
+    await handleNetworkClient({ action: 'connect', networkToken: await tokenFor(CLINIC_A, net.privateKey) }, old.deps)
+    expect(old.calls.some(c => c.fn === 'client_set_language')).toBe(false)
+  })
+
   it('connect: the address and e-mail choice in the token are kept for the e-mails of the clinic (sql/142)', async () => {
     const net = await makeNetworkKeyPair()
     const { deps, calls } = await setup({ [CLINIC_A]: { key: net.publicKey } })

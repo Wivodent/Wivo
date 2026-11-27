@@ -41,6 +41,7 @@ message or note).
 | `about` | up to 1000; **no screen writes it today** | no | 001 |
 | `email_notifications` | whether clinics may e-mail notices about orders; on by default | yes | 003 |
 | `billing_email` | where invoices should go, if not the sign-in address | no | 004 |
+| `preferred_language` | `en`, `lv`, `ru` or `et`: the language of Wivo Network and of the clinics' e-mails to the user | no | 006 (new) |
 | `accepted_terms_version`, `accepted_terms_at` | the Terms version accepted and the server time it was accepted; written only by `accept_terms()` | no | 005 (new) |
 | `created_at`, `updated_at` | times | yes | 001 |
 
@@ -71,8 +72,9 @@ TOTP as the required second factor (docs/NETWORK-SETUP.md A2). Supabase Auth
 keeps: the e-mail address, a password hash, the TOTP factor's secret,
 sign-in and confirmation times, sessions and refresh tokens (with the
 browser's user agent and IP address), and an audit log of sign-ins with IP
-addresses. At sign-up the app also writes `terms_version` and
-`terms_accepted_at` into the user's metadata (005 flow, below).
+addresses. At sign-up the app also writes `terms_version`,
+`terms_accepted_at` (005 flow, below) and the chosen `lang` into the user's
+metadata.
 
 Auth e-mails (confirm the address) are sent by whatever the Network project's
 Auth settings use. docs/NETWORK-SETUP.md sets no custom SMTP, so today that is
@@ -92,13 +94,13 @@ The user's app asks the Network for a token for **one** clinic
 (`network-token`). It lives **5 minutes** (`NETWORK_TOKEN_SECONDS = 300`), is
 signed with the Network's Ed25519 key, and carries: account id, connection
 id, `name`, `kind`, `role`, `company`, `country`, the **sign-in e-mail** and
-the e-mail choice (003), and the **billing e-mail** if given (004). Not the
-city, not `about`. Only for a connection that is not ended, and only with
+the e-mail choice (003), the **billing e-mail** if given (004), and the
+chosen **language** (006). Not the city, not `about`. Only for a connection that is not ended, and only with
 the second factor (`token_claims`, `token_contact`, `token_billing`).
 
 The clinic checks the signature and keeps, in `network_client`: account id,
 connection id, state, kind, role, display name, company, country, `email`,
-`email_notifications` (142), `billing_email` (152), `can_see` (what the
+`email_notifications` (142), `billing_email` (152), `language` (154), `can_see` (what the
 clinic lets the user see: status, messages, files, prices), request /
 confirm / end times and who ended it. Its staff with job rights see it
 (`may_handle_orders`).
@@ -156,7 +158,7 @@ function (001, PLAN-NETWORK-1 N6). The anon key runs nothing in the Network.
 | E-mail | Sent by | Content | Source |
 |---|---|---|---|
 | Confirm the address (sign-up) | the Network project's Supabase Auth (built-in mailer, see 2) | the link | not in our code |
-| Notices to a Network user ("New message on TF-… from Dentiks", accepted, ready, on its way…) | the **clinic's** Resend account, from the clinic's `send-notifications` | subject and a link to /network only; never the message, the reason or anything about the patient; only if the user keeps e-mails on | sql/142, notifySender.ts |
+| Notices to a Network user ("New message on TF-… from Dentiks", accepted, ready, on its way…) | the **clinic's** Resend account, from the clinic's `send-notifications` | subject and a link to /network only, in the user's language (English when not known); never the message, the reason or anything about the patient; only if the user keeps e-mails on | sql/142, sql/154, notifySender.ts, shared/network/clientMail.ts |
 | Invoices to a Network user as a client | the **clinic's** own mailbox over SMTP (port 465, send only) | the invoice and its PDF | sql/148–152, mail.ts, sendInvoice.ts |
 
 Wivo sends no e-mail of its own to Network users from this code.

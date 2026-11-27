@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2888.
+-- Expected rows: 2891.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -290,6 +290,7 @@ with expected(kind, key, def) as (values
     ('constraint', 'public.network_client.network_client_ended_by_valid', 'CHECK (((ended_by IS NULL) OR (ended_by = ANY (ARRAY[''clinic''::text, ''client''::text]))))'),
     ('constraint', 'public.network_client.network_client_id_org', 'UNIQUE (id, org_id)'),
     ('constraint', 'public.network_client.network_client_kind_valid', 'CHECK ((kind = ANY (ARRAY[''person''::text, ''company''::text])))'),
+    ('constraint', 'public.network_client.network_client_language_valid', 'CHECK (((language IS NULL) OR (language = ANY (ARRAY[''en''::text, ''lv''::text, ''ru''::text, ''et''::text]))))'),
     ('constraint', 'public.network_client.network_client_name_valid', 'CHECK (((length(btrim(display_name)) >= 1) AND (length(btrim(display_name)) <= 120)))'),
     ('constraint', 'public.network_client.network_client_org_id_fkey', 'FOREIGN KEY (org_id) REFERENCES clinics(id) ON DELETE CASCADE'),
     ('constraint', 'public.network_client.network_client_pkey', 'PRIMARY KEY (id)'),
@@ -855,6 +856,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.client_sent_order(c network_client, p_order uuid)', 'security definer, stable, search_path=public, body md5 a5354e9e328ffc8bca95eb1b7a1919db'),
     ('function', 'public.client_set_billing(p_network_clinic uuid, p_account uuid, p_billing text)', 'security definer, volatile, search_path=public, body md5 432d558f768d9b69a6cabc74c5738df0'),
     ('function', 'public.client_set_contact(p_network_clinic uuid, p_account uuid, p_email text, p_mail boolean)', 'security definer, volatile, search_path=public, body md5 3ea284b13262b19790fd83acb08408b2'),
+    ('function', 'public.client_set_language(p_network_clinic uuid, p_account uuid, p_lang text)', 'security definer, volatile, search_path=public, body md5 e54b264dc2511f41dd6bd69dfb1dad44'),
     ('function', 'public.client_unit_price(wt jsonb, p_factor numeric, p_prices jsonb, p_qty integer)', 'security invoker, immutable, search_path=public, body md5 7909f81fbac0cee92e8c1cb8b0161a4d'),
     ('function', 'public.clinic_has_members(p_clinic uuid)', 'security definer, stable, search_path=public, body md5 489cb44e3fde6ae3e9369daf5b4f4b05'),
     ('function', 'public.clinic_settings_private()', 'security definer, stable, search_path=public, body md5 21f1d6f371094951d80c8793723f2934'),
@@ -1036,7 +1038,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.patient_export(p_patient uuid)', 'security definer, volatile, search_path=public, body md5 6379815bfd6cc5768198a9e8fc07712f'),
     ('function', 'public.pay_settings()', 'security definer, stable, search_path=public, body md5 c37dd7705689ddfb0560dadb249035bd'),
     ('function', 'public.pending_bug_reports(p_limit integer)', 'security definer, stable, search_path=public, body md5 0ffbd82011d46a08cdbc7bc18773ef63'),
-    ('function', 'public.pending_client_emails(p_limit integer)', 'security definer, stable, search_path=public, body md5 16c1340888fea86b3c0e4ce801396500'),
+    ('function', 'public.pending_client_emails(p_limit integer)', 'security definer, stable, search_path=public, body md5 3c541f25b99907ae9b51f8b6ef368e50'),
     ('function', 'public.pending_notification_emails(p_limit integer)', 'security definer, stable, search_path=public, body md5 bf21287de2b6521bc565b87686652ffd'),
     ('function', 'public.pending_pushes(p_limit integer)', 'security definer, stable, search_path=public, body md5 5ab133e18c3cfaae46e4bf978caac4f4'),
     ('function', 'public.personal_code_pattern()', 'security invoker, immutable, search_path=public, body md5 af5b58d1106153b02f61b20d2ca0e289'),
@@ -1304,6 +1306,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.client_sent_order(c network_client, p_order uuid) to service_role', 'EXECUTE'),
     ('grant', 'public.client_set_billing(p_network_clinic uuid, p_account uuid, p_billing text) to service_role', 'EXECUTE'),
     ('grant', 'public.client_set_contact(p_network_clinic uuid, p_account uuid, p_email text, p_mail boolean) to service_role', 'EXECUTE'),
+    ('grant', 'public.client_set_language(p_network_clinic uuid, p_account uuid, p_lang text) to service_role', 'EXECUTE'),
     ('grant', 'public.client_unit_price(wt jsonb, p_factor numeric, p_prices jsonb, p_qty integer) to service_role', 'EXECUTE'),
     ('grant', 'public.clinic_has_members(p_clinic uuid) to authenticated', 'EXECUTE'),
     ('grant', 'public.clinic_has_members(p_clinic uuid) to service_role', 'EXECUTE'),

@@ -13,6 +13,8 @@ export const COPIES = [
   // Wivo Network (docs/PLAN-NETWORK-1.md): the clinic's network-client and the Network's own functions.
   ['shared/network/token.ts', 'supabase/functions/_shared/generated/networkToken.ts'],
   ['shared/network/order.ts', 'supabase/functions/_shared/generated/order.ts'],
+  // The clinic's e-mails to a Network client, in the client's language (send-notifications, sql/154).
+  ['shared/network/clientMail.ts', 'supabase/functions/_shared/generated/clientMail.ts'],
   ['shared/network/token.ts', 'network/functions/_shared/generated/token.ts'],
   // A clinic's signed request to the Network (its directory entry): network-directory signs, network-clinic checks.
   ['shared/network/clinicRequest.ts', 'supabase/functions/_shared/generated/clinicRequest.ts'],

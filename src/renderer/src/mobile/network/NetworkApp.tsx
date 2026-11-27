@@ -24,11 +24,11 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
-import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X, Undo2, Bolt, Bell } from 'lucide-react'
+import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X, Undo2, Bolt, Bell, Globe } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   network, networkConfigured, myAccount, saveAccount, directory, clinicByInvite, myConnections,
-  requestConnection, endConnection, connect, clinicApi, NetworkError, acceptTerms, signInMetadata,
+  requestConnection, endConnection, connect, clinicApi, NetworkError, acceptTerms, signInMetadata, savePreferredLanguage,
   type Account, type Connection, type DirectoryClinic, type ClinicSession, type ClientOrderSummary, type ClientOrderDetail, type ClientNotice, type OrderFeedback,
 } from '../../lib/network'
 import { versionLine } from '../../lib/buildInfo'
@@ -55,7 +55,7 @@ import {
   UPPER_TEETH, LOWER_TEETH, type FormStep,
 } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
-import { t, dateLocale } from '@/lib/i18n'
+import { t, dateLocale, uiLang, NETWORK_LANGUAGES, setNetworkLang, networkLanguageChosenHere, networkLanguageDecision, type UiLang } from '@/lib/i18n'
 
 type Screen =
   | { name: 'home' }
@@ -100,7 +100,10 @@ function Shell({ children, onBack, title, right }: { children: React.ReactNode; 
           ? <button type="button" onClick={onBack} className="-ml-1 flex items-center gap-1 py-1 text-base text-accent"><ChevronLeft size={20} aria-hidden="true" /> {t('mobile.back')}</button>
           : <span className="text-base font-bold">{t('network.title')}</span>}
         {title && <span className="ml-2 truncate text-base font-semibold">{title}</span>}
-        {right && <span className="ml-auto">{right}</span>}
+        <span className="ml-auto flex items-center gap-2">
+          <LanguagePicker />
+          {right}
+        </span>
       </header>
       <main className="mx-auto max-w-2xl space-y-4 p-4">{children}</main>
       {/* Which build this is: shown only (lib/buildInfo). */}
@@ -149,7 +152,7 @@ function SignInForm() {
     // account (made after the second factor) takes it over (lib/legal).
     const r = mode === 'in'
       ? await n.auth.signInWithPassword({ email: email.trim(), password })
-      : await n.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: `${location.origin}/network`, data: signUpTermsMetadata() } })
+      : await n.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: `${location.origin}/network`, data: { ...signUpTermsMetadata(), lang: uiLang } } })
     setBusy(false)
     if (r.error) setNote(mode === 'in' ? t('network.signInFailed') : t('network.signUpFailed'))
     else if (mode === 'up') setNote(t('network.checkEmail'))
@@ -341,6 +344,8 @@ function Home() {
     void qc.invalidateQueries({ queryKey: ['network', 'overview'] })
   }
 
+  useAccountLanguage(account.data ?? null)
+
   if (account.isLoading) return <Shell><p className="py-10 text-center text-ink-muted">…</p></Shell>
   if (account.data && !editing && needsTermsAcceptance(account.data)) {
     return <Shell><TermsGate onAccepted={() => void qc.invalidateQueries({ queryKey: ['network', 'account'] })} /></Shell>
@@ -399,6 +404,7 @@ function Home() {
           <div className="relative flex items-center justify-between">
             <span className="text-base font-bold tracking-wide">{t('network.brand')}</span>
             <div className="flex items-center gap-2">
+              <LanguagePicker onDark />
               <button type="button" onClick={() => { setBell(b => !b); setMenu(false) }} aria-expanded={bell}
                 aria-label={unread > 0 ? t('network.noticesUnread', { n: unread }) : t('network.notices')}
                 className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
@@ -1691,6 +1697,7 @@ function LegalPage({ doc }: { doc: LegalDoc }) {
   const other: LegalDoc = doc === 'terms' ? 'privacy' : 'terms'
   return (
     <Shell onBack={() => location.assign('/network')}>
+      {uiLang !== 'en' && <p role="note" className="text-sm text-ink-muted">{t('network.legalTranslationComing')}</p>}
       {!LEGAL_PUBLISHED && (
         <p role="note" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm font-semibold text-ink">{t('network.legalDraft')}</p>
       )}
@@ -1712,4 +1719,46 @@ function LegalPage({ doc }: { doc: LegalDoc }) {
       </p>
     </Shell>
   )
+}
+
+// ── Language (shared/i18n NETWORK_LANGUAGES; Latvian is the Network's only) ──
+
+/**
+ * English, Latviešu, Русский, Eesti: each by its own name. A choice is saved
+ * on the account when signed in (Network 006), then on this device, and the
+ * page reloads in it (the language is fixed per page load, shared/i18n).
+ */
+function LanguagePicker({ onDark }: { onDark?: boolean }) {
+  const [busy, setBusy] = useState(false)
+  async function choose(next: UiLang) {
+    if (next === uiLang) return
+    setBusy(true)
+    await savePreferredLanguage(next).catch(() => undefined)
+    setNetworkLang(next)
+  }
+  return (
+    <label className={`flex items-center gap-1 rounded-full px-2 ${onDark ? 'bg-white/20' : 'bg-bg-sidebar'}`}>
+      <Globe size={14} aria-hidden="true" />
+      <select aria-label={t('network.language')} value={uiLang} disabled={busy} onChange={e => void choose(e.target.value as UiLang)}
+        className={`h-9 cursor-pointer appearance-none bg-transparent pr-1 text-sm font-semibold outline-none ${onDark ? 'text-white' : 'text-ink'}`}>
+        {NETWORK_LANGUAGES.map(l => <option key={l.key} value={l.key} className="text-ink">{l.label}</option>)}
+      </select>
+    </label>
+  )
+}
+
+/**
+ * Once the account is read: the language it keeps, or this device's choice
+ * onto it (networkLanguageDecision). A Network without 006 has no such field:
+ * nothing happens.
+ */
+function useAccountLanguage(account: Account | null) {
+  const pref = account?.preferred_language
+  const hasAccount = !!account
+  useEffect(() => {
+    if (!hasAccount || pref === undefined) return
+    const decision = networkLanguageDecision({ account: pref, current: uiLang, chosenHere: networkLanguageChosenHere() })
+    if (decision.save) void savePreferredLanguage(decision.lang).catch(() => undefined)
+    if (decision.lang !== uiLang) setNetworkLang(decision.lang)
+  }, [hasAccount, pref])
 }

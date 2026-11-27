@@ -21,6 +21,7 @@ There are two kinds of data in Wivo Network, with different people responsible f
 - Sign-in e-mail, password (stored only as a hash) and your second-factor setup. To let you sign in securely.
 - Name, kind of account (person or company), role, company name, country and city. To show the clinics you connect to who you are.
 - Whether clinics may e-mail you about your orders, and your billing e-mail if you give one. So clinics can send notices and invoices to the right address.
+- The language you chose for Wivo Network. So the app, and the clinics' e-mails to you, are in that language.
 - The version of these terms you accepted and when. To show that you accepted them.
 - Technical data kept by our hosting provider: sign-in times, sessions, IP address and browser. To keep the service secure and find misuse.
 
@@ -43,7 +44,7 @@ We do not hold orders, files, messages, prices, ratings or patient data in Wivo 
 
 ## 4. What a clinic receives when you connect
 
-When you open a clinic in Wivo Network, your browser gets a signed pass from us that lasts 5 minutes and works only for that clinic. It carries your name, kind of account, role, company, country, sign-in e-mail, your e-mail choice and your billing e-mail if you gave one. Not your city.
+When you open a clinic in Wivo Network, your browser gets a signed pass from us that lasts 5 minutes and works only for that clinic. It carries your name, kind of account, role, company, country, sign-in e-mail, your e-mail choice, your billing e-mail if you gave one, and your language. Not your city.
 
 The clinic keeps this in its own database, adds you to its client list when it accepts you, and keeps your orders, files, messages, notices and ratings there. From then on **the clinic is responsible for that data**, under its own privacy notice. Ask the clinic about it directly.
 

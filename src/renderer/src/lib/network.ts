@@ -44,6 +44,8 @@ export interface Account {
   /** Network 005: the Terms of Use version accepted and when (written only by accept_terms). Absent before it. */
   accepted_terms_version?: string | null
   accepted_terms_at?: string | null
+  /** Network 006: the language chosen for Wivo Network and its e-mails. Absent before it. */
+  preferred_language?: string | null
 }
 
 export interface DirectoryClinic { id: string; name: string; country: string; city: string | null; api_url: string }
@@ -153,6 +155,19 @@ export async function saveAccount(a: Omit<Account, 'id'>, isNew: boolean): Promi
 /** Network 005: the account accepts the Terms of Use and the Privacy Notice of this version, now (lib/legal). */
 export async function acceptTerms(version: string): Promise<void> {
   const { error } = await need().rpc('accept_terms', { p_version: version })
+  if (error) throw error
+}
+
+/**
+ * Network 006: the language goes on the signed-in account (and from there, in
+ * its token, to each clinic's e-mails). Signed out, before 006 or before a
+ * profile exists: nothing happens, and that is not an error for the caller.
+ */
+export async function savePreferredLanguage(language: string): Promise<void> {
+  const n = need()
+  const { data: u } = await n.auth.getUser()
+  if (!u.user) return
+  const { error } = await n.from('account').update({ preferred_language: language }).eq('id', u.user.id)
   if (error) throw error
 }
 
