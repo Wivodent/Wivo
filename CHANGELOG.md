@@ -1,5 +1,53 @@
 # Changelog
 
+## [2.2.7] — 2026-11-27
+
+**From testing: activity marks, skipped stages hidden, clearer refusals; the night's work of 2026-11-27**
+
+"What's new": release-notes/2.2.7. The night's work in detail, with the
+database steps: docs/NIGHT-REPORT-2026-11-27.md. Includes the 2.2.6 hotfix
+(cherry-picked).
+
+Database: migrations 136–139, each on its own, in order.
+- **136** `job_seen`, `mark_job_seen`, `job_activity`: applies with this version.
+- **137** files only through file-link: **only after every machine is on
+  2.2.7** (raise the minimum version first); an older build still reads files
+  from storage directly.
+- **138** Network orders: only when the Network project exists and the clinic
+  takes orders (licence module `portal`). Harmless otherwise.
+- **139** `job_skipped_stages`, `job_stage` in realtime: applies with this
+  version; without it the board reads job_stage directly.
+
+- **Activity mark on job cards** (sql/136, lib/jobActivity): notes, files,
+  messages and stage moves by others since the person last opened the job;
+  opening clears it on all their devices (realtime). Board, phone, job panel.
+- **Files only through file-link** (sql/137, F6): previews and downloads go
+  through the Edge Function in the Dentiks order; no direct storage fallback.
+- **Wivo Network 1 and orders** (sql/138, network/, network-client Edge
+  Function, docs/NETWORK-SETUP.md, docs/WIVO-ORDER-FORMAT.md): Orders view
+  behind the `portal` module; the phone's Network mode.
+- **Fake-data test project** (scripts/seed-fake-clinic.mjs, `npm run
+  dev:fake`, docs/TEST-PROJECT.md): no real names or data.
+- **Russian** for the most-used screens (1124 keys translated, 159 new).
+- **Skipped stages hidden** on the job's stage bar ("Show skipped" for whoever
+  edits stages); the 2.2.6 warning is gone, the stage the job is at shows as
+  an ordinary current stage.
+- **Board arrows** step over the stages switched off on the job; the board
+  reads them for all its cards in one call (sql/139) and greys them while a
+  card is dragged, with no drop there.
+- **Refusals told by their reason** (lib/refusal, lib/stageMoveError): a
+  stage switched off on the job ("Turn on and move" for whoever may edit the
+  job's stages), not on the job's stages, the clinic's stage rules, a job that
+  is gone, a paused partnership, sign-in or second factor, too many tries, a
+  permanent record; "no permission" only for a missing permission. A bulk
+  stage change in the table says how many jobs did not move and why.
+- **Team:** the owner changes a member's name; an empty name shows as "No
+  name yet". Settings → Your profile refreshes everyone's names at once, and
+  a profile save that row security refused says so instead of "Saved".
+- **Payroll:** "Add rule" is a solid button.
+- **Release tooling:** release and dist:clinic build from `hotfix-X.Y.Z`
+  under the four conditions in docs/RELEASE.md §1.
+
 ## [2.2.6] — 2026-11-27
 
 **Hotfix: a job in a skipped stage**
