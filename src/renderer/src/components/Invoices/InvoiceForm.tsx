@@ -1,5 +1,6 @@
 /**
- * Create an invoice from a patient's unbilled work.
+ * Create an invoice from a client's or a patient's unbilled work
+ * (lib/invoiceCandidates: whose work, and the lines each job becomes).
  *
  * The line list is built by COPYING description and price off the job at this
  * moment. It is not a live join: once this document is issued, editing the job's
@@ -10,17 +11,15 @@ import { motion } from 'framer-motion'
 import { X, Plus, Trash2, Loader2, FileText } from 'lucide-react'
 import { format, addDays, parseISO } from 'date-fns'
 import type { Job } from '../../types/job'
-import { revisionReasonLabel, jobWorkItems } from '../../types/job'
-import { useSettings } from '../../stores/useSettings'
+import { useSettings, priceBookOf } from '../../stores/useSettings'
+import { billedKeys, unbilledCandidates, candidateMonths, monthOf, type Candidate } from '../../lib/invoiceCandidates'
 import { useCreateInvoice, useInvoices, type CreateInvoiceInput } from '../../hooks/useInvoices'
 import { PatientPicker } from '../Patients/PatientPicker'
 import { describeError } from '../Patients/errors'
-import { jobTotalValue } from '../../lib/jobPayments'
 import { useCustomers } from '../../hooks/useCustomers'
 import type { BillToKind } from '../../types/customer'
 import { toDate } from '../../lib/dates'
 import { instalmentSchedule, scheduleProblems } from '@shared/billing/instalments'
-import { workWithOptionsLabel } from '@shared/pricing/workOptions'
 import { useCreatePaymentPlan } from '../../hooks/usePaymentPlans'
 import { t } from '@/lib/i18n'
 import { useHoldRestart } from '../../lib/restartGuard'
@@ -37,11 +36,13 @@ interface DraftLine {
 interface InvoiceFormProps {
   jobs: Job[]
   initialPatient?: { id: string | null; nimi: string }
+  /** Clients → "Invoice unbilled work": the form opens addressed to this client. */
+  initialCustomerId?: string | null
   onClose: () => void
   onCreated?: (invoiceId: string) => void
 }
 
-export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: InvoiceFormProps) {
+export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, onCreated }: InvoiceFormProps) {
   // An update restart waits while an invoice is being written (lib/restartGuard).
   useHoldRestart()
   const { settings } = useSettings()
@@ -54,8 +55,8 @@ export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: Invoic
   const [patientId, setPatientId] = useState<string | null>(initialPatient?.id ?? null)
   // Who this document is addressed to. A lab bills the ordering practice; the
   // patient route stays because clinic work and legacy documents both use it.
-  const [billTo, setBillTo] = useState<BillToKind>('patient')
-  const [customerId, setCustomerId] = useState<string | null>(null)
+  const [billTo, setBillTo] = useState<BillToKind>(initialCustomerId ? 'customer' : 'patient')
+  const [customerId, setCustomerId] = useState<string | null>(initialCustomerId ?? null)
   const [issueDate, setIssueDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [vatRate, setVatRate] = useState(settings.kmMaar)
   const [note, setNote] = useState('')
@@ -77,79 +78,29 @@ export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: Invoic
     return d ? format(addDays(d, settings.makseTahtaegPaevades), 'yyyy-MM-dd') : ''
   }, [issueDate, settings.makseTahtaegPaevades])
 
-  // Every job_id already on any invoice. Billing the same job twice is the
-  // mistake this screen most needs to prevent, so those jobs are not offered.
-  const billedJobIds = useMemo(() => {
-    const set = new Set<string>()
-    for (const inv of invoices) {
-      if (inv.status === 'tuhistatud') continue
-      for (const l of inv.lines) if (l.job_id) set.add(`${l.job_id}:${l.revision_id ?? ''}`)
-    }
-    return set
-  }, [invoices])
-
+  // Work already on an invoice (not cancelled) is not offered: billing a job twice is
+  // the mistake this screen most needs to prevent (lib/invoiceCandidates).
+  const billed = useMemo(() => billedKeys(invoices), [invoices])
   const patientKey = patsient.trim().toLowerCase()
-
-  // Candidate work, minus what is already billed and minus what is already on
-  // this draft. WHOSE work depends on the addressee: a customer invoice covers
-  // everything that practice ordered, whoever the patients were.
-  const candidates = useMemo(() => {
-    if (billTo === 'customer' ? !customerId : !patientKey) return []
-    const onDraft = new Set(lines.map(l => `${l.job_id}:${l.revision_id ?? ''}`))
-    const out: DraftLine[] = []
-
-    for (const j of jobs) {
-      const matches = billTo === 'customer'
-        ? j.customer_id === customerId
-        : (patientId && j.patient_id === patientId)
-          || (j.patsient ?? '').trim().toLowerCase() === patientKey
-      if (!matches) continue
-
-      const jobKey = `${j.id}:`
-      if (!billedJobIds.has(jobKey) && !onDraft.has(jobKey)) {
-        out.push({
-          key: jobKey,
-          job_id: j.id,
-          revision_id: null,
-          description: [
-            // All work types, not just the first one, each with the options
-            // chosen for it: "All-on-4 (Metal bar)". Their price is in the job's.
-            workWithOptionsLabel(jobWorkItems(j), settings.tooValikud) || j.too?.trim() || 'Töö',
-            billTo === 'customer'
-              ? (j.customer_ref?.trim() || j.patsient?.trim() || null)
-              : null,
-            j.hambad ? `hambad ${j.hambad}` : null,
-            (j.extras ?? []).length > 0
-              ? (j.extras ?? []).map(e => e.nimi).join(', ')
-              : null,
-          ].filter(Boolean).join(' · '),
-          qty: 1,
-          // Through jobTotalValue, not summed by hand: this line and the job's
-          // own payment state must agree about what the job is worth, and they
-          // did not while extras were missing from one of them.
-          unit_price: jobTotalValue(j),
-        })
-      }
-
-      // Revisions are billed as their own lines — they have their own price and
-      // are frequently charged separately from the original work.
-      for (const [i, r] of (j.revisions ?? []).entries()) {
-        const revKey = `${j.id}:${r.id}`
-        if (billedJobIds.has(revKey) || onDraft.has(revKey)) continue
-        if (!r.price) continue
-        out.push({
-          key: revKey,
-          job_id: j.id,
-          revision_id: r.id,
-          description: `${j.too?.trim() || 'Töö'} — muudatus #${i + 1}${
-            revisionReasonLabel(r) ? ` (${revisionReasonLabel(r)})` : ''}`,
-          qty: 1,
-          unit_price: Number(r.price),
-        })
-      }
-    }
-    return out
-  }, [jobs, billTo, customerId, patientKey, patientId, billedJobIds, lines, settings.tooValikud])
+  const addresseeChosen = billTo === 'customer' ? !!customerId : !!patientKey
+  // WHOSE work depends on the addressee: a client invoice covers everything that
+  // client ordered (a Network order's job too), whoever the patients were.
+  const candidates = useMemo(
+    () => unbilledCandidates(jobs, { billTo, customerId, patientId, patientName: patsient }, billed, priceBookOf(settings), settings.tooValikud),
+    [jobs, billTo, customerId, patientId, patsient, billed, settings],
+  )
+  const months = useMemo(() => candidateMonths(candidates), [candidates])
+  const [month, setMonth] = useState<string>('')
+  const shownCandidates = month ? candidates.filter(c => monthOf(c.date) === month) : candidates
+  const picked = (c: Candidate) => lines.some(l => l.key.startsWith(`${c.key}#`))
+  const linesOf = (c: Candidate): DraftLine[] => c.lines.map((l, i) => ({
+    key: `${c.key}#${i}`, job_id: c.job_id, revision_id: c.revision_id, description: l.description, qty: 1, unit_price: l.unit_price,
+  }))
+  const toggle = (c: Candidate) => setLines(prev => (prev.some(l => l.key.startsWith(`${c.key}#`))
+    ? prev.filter(l => !l.key.startsWith(`${c.key}#`))
+    : [...prev, ...linesOf(c)]))
+  // A month's invoice: everything unbilled in the month shown, on this one invoice.
+  const pickAll = () => setLines(prev => [...prev, ...shownCandidates.filter(c => !prev.some(l => l.key.startsWith(`${c.key}#`))).flatMap(linesOf)])
 
   const net = Math.round(lines.reduce((s, l) => s + l.qty * l.unit_price, 0) * 100) / 100
   const vat = Math.round(net * vatRate) / 100
@@ -174,7 +125,6 @@ export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: Invoic
     [instalments, planInput]
   )
 
-  const addLine = (l: DraftLine) => setLines(prev => [...prev, l])
   const addBlank = () => setLines(prev => [...prev, {
     key: `manual-${prev.length}-${prev.reduce((n, x) => n + x.key.length, 0)}`,
     job_id: null, revision_id: null, description: '', qty: 1, unit_price: 0,
@@ -303,7 +253,7 @@ export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: Invoic
                     type="button"
                     onClick={() => {
                       setBillTo(o.key)
-                      setLines([])
+                      setLines([]); setMonth('')
                       if (o.key === 'customer') { setPatsient(''); setPatientId(null) }
                       else setCustomerId(null)
                     }}
@@ -318,7 +268,7 @@ export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: Invoic
               {billTo === 'customer' ? (
                 <select
                   value={customerId ?? ''}
-                  onChange={e => { setCustomerId(e.target.value || null); setLines([]) }}
+                  onChange={e => { setCustomerId(e.target.value || null); setLines([]); setMonth('') }}
                   className="input"
                 >
                   <option value="">{t('invoices.selectClient')}</option>
@@ -353,29 +303,52 @@ export function InvoiceForm({ jobs, initialPatient, onClose, onCreated }: Invoic
 
           {/* ── Unbilled work ── */}
           <div>
-            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-2">
-              {t('invoices.unbilledWork')} {patientKey && `(${candidates.length})`}
-            </p>
-            {!patientKey ? (
-              <p className="text-xs text-ink-faint">{t('invoices.selectAPatientToSeeTheir')}</p>
-            ) : candidates.length === 0 ? (
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider flex-1">
+                {t('invoices.unbilledWork')} {addresseeChosen && `(${shownCandidates.length})`}
+              </p>
+              {months.length > 0 && (
+                <select value={month} onChange={e => setMonth(e.target.value)} className="input h-8 w-auto py-0 text-xs" aria-label={t('invoices.month')}>
+                  <option value="">{t('invoices.allMonths')}</option>
+                  {months.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+              )}
+              {shownCandidates.length > 0 && (
+                <button type="button" onClick={pickAll} className="btn-ghost h-8 text-xs border border-ink-faint/25">
+                  {month ? t('invoices.selectAllMonth', { month }) : t('invoices.selectAll')}
+                </button>
+              )}
+            </div>
+            {!addresseeChosen ? (
+              <p className="text-xs text-ink-faint">{billTo === 'customer' ? t('invoices.selectAClientToSee') : t('invoices.selectAPatientToSeeTheir')}</p>
+            ) : shownCandidates.length === 0 ? (
               <p className="text-xs text-ink-faint">
                 {t('invoices.noUnbilledJobsAllOfThis')}
               </p>
             ) : (
-              <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
-                {candidates.map(c => (
-                  <button
-                    key={c.key} type="button" onClick={() => addLine(c)}
-                    className="w-full flex items-center gap-2 text-left px-2 py-1.5 rounded-lg
-                      border border-ink-faint/20 hover:border-accent/40 transition-colors"
-                  >
-                    <Plus size={11} className="text-accent flex-shrink-0" />
-                    <span className="text-xs text-ink truncate flex-1">{c.description}</span>
-                    <span className="text-xs font-semibold text-ink tabular-nums flex-shrink-0">
-                      {c.unit_price.toFixed(2)} €
+              <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+                {shownCandidates.map(c => (
+                  <label key={c.key}
+                    className={`flex items-start gap-2 px-2 py-1.5 rounded-lg border cursor-pointer transition-colors ${picked(c) ? 'border-accent/50 bg-accent/5' : 'border-ink-faint/20 hover:border-accent/40'}`}>
+                    <input type="checkbox" className="mt-0.5 h-4 w-4 flex-shrink-0" checked={picked(c)} onChange={() => toggle(c)} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-ink truncate flex-1">{[c.ref, c.revision_id ? null : c.title].filter(Boolean).join(' · ') || c.title}</span>
+                        {c.date && <span className="text-[11px] text-ink-faint flex-shrink-0">{c.date.slice(0, 10)}</span>}
+                        <span className="text-xs font-semibold text-ink tabular-nums flex-shrink-0">{c.total.toFixed(2)} €</span>
+                      </span>
+                      {(c.lines.length > 1 || c.revision_id) && (
+                        <span className="block space-y-0.5 mt-0.5">
+                          {c.lines.map((l, i) => (
+                            <span key={i} className="flex gap-2 text-[11px] text-ink-muted">
+                              <span className="truncate flex-1">{l.description}</span>
+                              <span className="tabular-nums">{l.unit_price.toFixed(2)} €</span>
+                            </span>
+                          ))}
+                        </span>
+                      )}
                     </span>
-                  </button>
+                  </label>
                 ))}
               </div>
             )}

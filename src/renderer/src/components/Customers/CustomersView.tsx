@@ -6,7 +6,11 @@
  * calling this one "Kliendid" and never "Kliinikud".
  */
 import { useMemo, useState } from 'react'
-import { Plus, Search, Building2, Archive, ArchiveRestore, Pencil, Trash2, Loader2, X, Download } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
+import { Plus, Search, Building2, Archive, ArchiveRestore, Pencil, Trash2, Loader2, X, Download, FileText } from 'lucide-react'
+import { InvoiceForm } from '../Invoices/InvoiceForm'
+import { billedKeys, unbilledCandidates } from '../../lib/invoiceCandidates'
+import { priceBookOf, useSettings } from '../../stores/useSettings'
 import type { Customer, CustomerInput } from '../../types/customer'
 import { BILLING_MODE_LABEL, BILLING_MODE_HINT, EMPTY_CUSTOMER } from '../../types/customer'
 import {
@@ -14,7 +18,7 @@ import {
 } from '../../hooks/useCustomers'
 import { useJobs } from '../../hooks/useJobs'
 import { useAuth } from '../../context/AuthContext'
-import { clinicCountry, fieldExamples } from '../../lib/country'
+import { clinicCountry, fieldExamples, invoicesAvailable } from '../../lib/country'
 import { useInvoices } from '../../hooks/useInvoices'
 import { usePermissions } from '../../hooks/usePermissions'
 import { describeError } from '../Patients/errors'
@@ -31,6 +35,21 @@ export function CustomersView() {
   // customer needs jobs.write.
   const money = can('payments.read')
   const canEdit = can('jobs.write')
+  const { clinic } = useAuth()
+  const { settings } = useSettings()
+  // "Invoice unbilled work": the invoice form, addressed to this client (as on Invoices).
+  const canInvoice = can('payments.write') && invoicesAvailable(clinicCountry(clinic))
+  const [invoicing, setInvoicing] = useState<string | null>(null)
+  const billed = useMemo(() => billedKeys(invoices), [invoices])
+  const unbilled = useMemo(() => {
+    const m = new Map<string, number>()
+    if (!canInvoice) return m
+    const book = priceBookOf(settings)
+    for (const id of new Set(jobs.map(j => j.customer_id).filter((x): x is string => !!x))) {
+      m.set(id, unbilledCandidates(jobs, { billTo: 'customer', customerId: id, patientId: null, patientName: '' }, billed, book, settings.tooValikud).length)
+    }
+    return m
+  }, [jobs, billed, settings, canInvoice])
   const [query, setQuery] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [editing, setEditing] = useState<Customer | 'new' | null>(null)
@@ -154,7 +173,13 @@ export function CustomersView() {
                     </td>
                     <td className="px-4 py-2.5 text-right tabular-nums text-ink-muted">{s.jobs || '—'}</td>
                     {money && <td className="px-4 py-2.5 text-right tabular-nums text-ink-muted">{s.invoices || '—'}</td>}
-                    <td className="px-4 py-2.5 text-right">
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      {canInvoice && (unbilled.get(c.id) ?? 0) > 0 && (
+                        <button type="button" onClick={e => { e.stopPropagation(); setInvoicing(c.id) }}
+                          className="btn-ghost mr-2 text-xs border border-ink-faint/25" title={t('customers.invoiceUnbilledHint')}>
+                          <FileText size={12} /> {t('customers.invoiceUnbilled', { n: unbilled.get(c.id) ?? 0 })}
+                        </button>
+                      )}
                       {canEdit && <Pencil size={13} className="text-ink-faint inline" />}
                     </td>
                   </tr>
@@ -164,6 +189,10 @@ export function CustomersView() {
           </table>
         )}
       </div>
+
+      <AnimatePresence>
+        {invoicing && <InvoiceForm jobs={jobs} initialCustomerId={invoicing} onClose={() => setInvoicing(null)} />}
+      </AnimatePresence>
 
       {editing && (
         <CustomerForm

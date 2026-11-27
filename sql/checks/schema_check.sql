@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2701.
+-- Expected rows: 2706.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -900,6 +900,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.my_share(p_job uuid)', 'security definer, stable, search_path=public, body md5 b46a16e9f91eff0de6d92c736d125cac'),
     ('function', 'public.my_stage_jobs()', 'security definer, stable, search_path=public, body md5 efbb10cb25ccb3c190b976721a902f1e'),
     ('function', 'public.my_stock_item(p_item uuid)', 'security definer, volatile, search_path=public, body md5 102659dfb05ed38338af94421f511d68'),
+    ('function', 'public.network_client_relink_jobs()', 'security definer, volatile, search_path=public, body md5 405449952b5828522595d253a077bf72'),
     ('function', 'public.network_client_state_notices()', 'security definer, volatile, search_path=public, body md5 31a413d56fe292b7fcee7755a0c60c8d'),
     ('function', 'public.network_confirm_client(p_client uuid, p_list text, p_can_see jsonb)', 'security definer, volatile, search_path=public, body md5 52c6bc91479738ae2b5541384f86f222'),
     ('function', 'public.network_connect(p_network_clinic uuid, p_account uuid, p_connection uuid, p_profile jsonb)', 'security definer, volatile, search_path=public, extensions, body md5 b2a002c21144e7eb44598e41ec48ef7d'),
@@ -992,6 +993,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.refuse_share_of_deleted_job()', 'security definer, volatile, search_path=public, body md5 ba80dc59ac3b1557f56031e7c1d57ec0'),
     ('function', 'public.register_job_file(p_job uuid, p_type text, p_sha256 text, p_size bigint, p_mime text, p_extension text, p_supersedes uuid)', 'security definer, volatile, search_path=public, body md5 8ea8d6d9fbc195232b2d42ab9e98668a'),
     ('function', 'public.reject_client_order(p_order uuid, p_reason text)', 'security definer, volatile, search_path=public, body md5 3f89eaabf76fbd8b7352b362b7e2bf5e'),
+    ('function', 'public.relink_order_jobs(p_client uuid)', 'security definer, volatile, search_path=public, body md5 9a9a04821a73f617626f0219cde69e37'),
     ('function', 'public.remove_job_note(p_job uuid, p_note text)', 'security invoker, volatile, search_path=public, body md5 1adba4d171df087c321df2af8455c922'),
     ('function', 'public.replace_stale_grant()', 'security definer, volatile, search_path=public, body md5 59a2787dbcc7c1c86ac4b018abdd4834'),
     ('function', 'public.request_file_download(p_file uuid)', 'security definer, volatile, search_path=public, body md5 c1a09145877deefadca86dde25c21a2f'),
@@ -1458,6 +1460,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.my_stock_item(p_item uuid) to service_role', 'EXECUTE'),
     ('grant', 'public.network_client to authenticated', 'SELECT'),
     ('grant', 'public.network_client to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
+    ('grant', 'public.network_client_relink_jobs() to service_role', 'EXECUTE'),
     ('grant', 'public.network_client_session to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.network_client_state_notices() to service_role', 'EXECUTE'),
     ('grant', 'public.network_confirm_client(p_client uuid, p_list text, p_can_see jsonb) to authenticated', 'EXECUTE'),
@@ -1662,6 +1665,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.register_job_file(p_job uuid, p_type text, p_sha256 text, p_size bigint, p_mime text, p_extension text, p_supersedes uuid) to service_role', 'EXECUTE'),
     ('grant', 'public.reject_client_order(p_order uuid, p_reason text) to authenticated', 'EXECUTE'),
     ('grant', 'public.reject_client_order(p_order uuid, p_reason text) to service_role', 'EXECUTE'),
+    ('grant', 'public.relink_order_jobs(p_client uuid) to service_role', 'EXECUTE'),
     ('grant', 'public.remove_job_note(p_job uuid, p_note text) to authenticated', 'EXECUTE'),
     ('grant', 'public.remove_job_note(p_job uuid, p_note text) to service_role', 'EXECUTE'),
     ('grant', 'public.replace_stale_grant() to PUBLIC', 'EXECUTE'),
@@ -2747,6 +2751,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.messages.guard_partner_visible_message', 'CREATE TRIGGER guard_partner_visible_message BEFORE INSERT OR UPDATE OF body ON public.messages FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_message()'),
     ('trigger', 'public.messages.question_notify', 'CREATE TRIGGER question_notify AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION on_question_notify()'),
     ('trigger', 'public.messages.stamp_message_org', 'CREATE TRIGGER stamp_message_org BEFORE INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION stamp_message_org()'),
+    ('trigger', 'public.network_client.network_client_relink_jobs', 'CREATE TRIGGER network_client_relink_jobs AFTER UPDATE OF customer_id ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_relink_jobs()'),
     ('trigger', 'public.network_client.network_client_state_notices', 'CREATE TRIGGER network_client_state_notices AFTER UPDATE OF state ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_state_notices()'),
     ('trigger', 'public.patient_teeth.audit_patient_tooth', 'CREATE TRIGGER audit_patient_tooth AFTER INSERT OR DELETE OR UPDATE ON public.patient_teeth FOR EACH ROW EXECUTE FUNCTION audit_patient_tooth()'),
     ('trigger', 'public.patients.audit_patient_change', 'CREATE TRIGGER audit_patient_change AFTER INSERT OR DELETE OR UPDATE ON public.patients FOR EACH ROW EXECUTE FUNCTION audit_patient_change()'),

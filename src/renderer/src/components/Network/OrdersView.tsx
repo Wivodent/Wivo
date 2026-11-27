@@ -54,8 +54,6 @@ const tabLabel = (tab: OrderTab): string =>
   tab === 'new' ? t('orders.tabNew') : tab === 'in_progress' ? t('orders.tabInProgress') : tab === 'ready' ? t('orders.tabReady')
     : tab === 'sent' ? t('orders.tabSent') : tab === 'arrived' ? t('orders.tabReceived') : tab === 'problem' ? t('orders.tabProblem')
     : tab === 'cancelled' ? t('orders.tabCancelled') : t('orders.tabRejected')
-/** The tabs that show their count, as in the design: the ones that need doing (and a delivery problem). */
-const COUNTED: readonly OrderTab[] = ['new', 'in_progress', 'ready', 'problem']
 
 /** What a bell notice asks this page to open (lib/notificationTarget). `n` grows with each ask. */
 export interface OrdersFocus { orderId?: string; requests?: boolean; n: number }
@@ -147,7 +145,8 @@ export function OrdersView({ focus, onOpenJob }: { focus?: OrdersFocus; onOpenJo
                 className={`h-10 rounded-full px-4 text-sm ${tab === k ? 'bg-accent font-bold text-white'
                   : k === 'problem' && perTab.problem > 0 ? 'border-2 border-rose-400 font-semibold text-rose-700 hover:bg-rose-500/10'
                   : 'border border-ink-faint/30 text-ink hover:bg-bg-sidebar'}`}>
-                {tabLabel(k)}{COUNTED.includes(k) ? ` · ${perTab[k]}` : ''}
+                {/* Every tab shows its count, the same way. */}
+                {tabLabel(k)} · {perTab[k]}
               </button>
             ))}
           </div>
