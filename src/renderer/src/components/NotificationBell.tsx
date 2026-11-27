@@ -3,6 +3,7 @@
  * the same and only facts the e-mail carries.
  */
 import { useEffect, useState } from 'react'
+import { problemReasonText } from '../lib/delivery'
 import { takeOpenNotificationsRequest, onOpenNotificationsRequest } from '../lib/openNotifications'
 import { formatDistanceToNow } from 'date-fns'
 import { Bell } from 'lucide-react'
@@ -50,6 +51,13 @@ export const text = (n: AppNotification, stageLabel: (key: string) => string): s
   if (n.kind === 'client_message') return t('notifications.clientMessage', { ref: String(n.detail.ref ?? '') })
   // sql/144: a job needs adjustment; a client said how the sent work fitted.
   if (n.kind === 'job_adjust') return t('notifications.jobAdjust', { code })
+  // sql/145: a delivery problem (on an order, or our own job); resolved; "Did your order arrive?".
+  if (n.kind === 'delivery_problem') {
+    const reason = problemReasonText(String(n.detail.reason ?? ''))
+    return n.detail.ref ? t('notifications.deliveryProblemOrder', { ref: String(n.detail.ref), reason }) : t('notifications.deliveryProblem', { code, reason })
+  }
+  if (n.kind === 'problem_resolved') return t('notifications.problemResolved', { code })
+  if (n.kind === 'received_reminder') return t('notifications.receivedReminder', { code })
   if (n.kind === 'client_fit') {
     return n.detail.decision === 'fitted'
       ? t('notifications.clientFitted', { ref: String(n.detail.ref ?? '') })

@@ -143,6 +143,19 @@ describe('network-client', () => {
     expect(calls.at(-1)?.fn).toBe('client_feedback')
   })
 
+  it('Received and a delivery problem: checked here, the database decides (sql/145)', async () => {
+    const { deps, calls } = await setup({})
+    await handleNetworkClient({ action: 'received', session: SESSION, orderId: ORDER_ID }, deps)
+    expect(calls.at(-1)).toEqual({ fn: 'client_received', args: { p_session: SESSION, p_order: ORDER_ID } })
+    expect((await handleNetworkClient({ action: 'received', session: SESSION, orderId: 'nope' }, deps)).status).toBe(400)
+    await handleNetworkClient({ action: 'problem', session: SESSION, orderId: ORDER_ID, reason: 'damaged', note: ' Cracked ' }, deps)
+    expect(calls.at(-1)).toEqual({ fn: 'client_report_problem', args: { p_session: SESSION, p_order: ORDER_ID, p_reason: 'damaged', p_note: 'Cracked' } })
+    const n = calls.length
+    expect((await handleNetworkClient({ action: 'problem', session: SESSION, orderId: ORDER_ID, reason: 'broken', note: 'x' }, deps)).status).toBe(400)
+    expect((await handleNetworkClient({ action: 'problem', session: SESSION, orderId: ORDER_ID, reason: 'other', note: '  ' }, deps)).status).toBe(400)
+    expect(calls.length).toBe(n)
+  })
+
   it('an order that is not Wivo order v1 does not reach the database', async () => {
     const { deps, calls } = await setup({})
     const a = await handleNetworkClient({ action: 'new_order', session: SESSION, order: { format: 'other' } }, deps)

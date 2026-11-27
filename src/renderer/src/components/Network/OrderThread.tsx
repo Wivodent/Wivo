@@ -12,7 +12,7 @@
  *    shows on the message it answers and in the conversation.
  */
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Download, Paperclip, PencilLine, Send, X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Download, Paperclip, PencilLine, Send, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useOrderThread, useNetworkClients, clientName, PORTAL_KEY } from '../../hooks/useNetworkPortal'
@@ -22,6 +22,7 @@ import { orderFileUrl, saveOrderFile } from '../../lib/fileLink'
 import { sendOrderMessage } from '../../lib/orderMessages'
 import { threadItems, reviewAnswer, latestReview, isImageFile, fileBadge, type ThreadFile, type ThreadMessage } from '../../lib/orderView'
 import { describeError } from '../Patients/errors'
+import { problemReasonText, resolutionText } from '../../lib/delivery'
 import { t, dateLocale } from '@/lib/i18n'
 
 const when = (iso: string) => format(new Date(iso), 'd MMM yyyy HH:mm', { locale: dateLocale })
@@ -53,6 +54,23 @@ export function OrderThread({ orderId, clientName, canWrite, showOrderFiles = tr
         <p className="label">{t('orders.messages')}</p>
         <div className="space-y-2">
           {items.map(m => {
+            // sql/145: Received, a delivery problem (red), the clinic's resolution.
+            if (m.delivery_state) {
+              const tone = m.delivery_state === 'problem' ? 'border-2 border-rose-300 bg-rose-500/10' : m.delivery_state === 'received' ? 'bg-emerald-500/10' : 'ml-auto bg-accent/10'
+              const title = m.delivery_state === 'problem' ? t('delivery.clientProblem', { reason: problemReasonText(m.delivery_reason ?? '') })
+                : m.delivery_state === 'received' ? t('delivery.clientReceived')
+                : t('delivery.weResolved', { resolution: resolutionText(m.delivery_reason ?? '') })
+              return (
+                <div key={m.id} className={`max-w-[85%] space-y-2 rounded-xl px-3 py-2 text-base ${tone}`}>
+                  <p className="flex items-center gap-1 font-semibold">
+                    {m.delivery_state === 'problem' ? <AlertTriangle size={16} aria-hidden="true" /> : <CheckCircle2 size={16} aria-hidden="true" />} {title}
+                  </p>
+                  {m.body !== '✓' && <p className="whitespace-pre-wrap">{m.body}</p>}
+                  {m.files.length > 0 && <FileList files={m.files} onError={setError} onOpenLarge={setLarge} />}
+                  <p className="text-xs text-ink-muted">{m.from_client ? clientName : t('orders.us')} · {when(m.created_at)}</p>
+                </div>
+              )
+            }
             if (m.fit_state) {
               return (
                 <div key={m.id} className={`max-w-[85%] space-y-2 rounded-xl px-3 py-2 text-base ${m.fit_state === 'fitted' ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>

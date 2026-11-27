@@ -84,16 +84,26 @@ everywhere and open as before.
 
 ## What the client sees back
 
-`client_orders` and `client_order_detail` give an order's status in four
-words, and the reason if it was rejected:
+`client_orders` and `client_order_detail` give an order's status, and the
+reason if it was rejected:
 
-| Status | When |
-|---|---|
-| `received` | sent, not decided yet |
-| `in_progress` | accepted: a job was made (also shown when the owner hides the progress) |
-| `ready` | the job is at the clinic's last stage |
-| `sent` | the job is on its way or handed over |
-| `rejected` | refused, with the clinic's reason |
+| Status | When | Shown as |
+|---|---|---|
+| `received` | sent, not decided yet | New |
+| `in_progress` | accepted: a job was made (also shown when the owner hides the progress) | In progress |
+| `ready` | the job is at the clinic's last stage | Ready |
+| `sent` | the job is on its way or handed over, and the client has not said Received | Sent |
+| `arrived` | the client said Received, the clinic confirmed it by phone, or it was handed over in person (sql/145); also work sent before 145 | Received |
+| `problem` | the client reported a problem with the delivery, and the clinic has not marked it resolved (sql/145) | Problem |
+| `rejected` | refused, with the clinic's reason | Rejected |
+
+`received` is the clinic having the order; `arrived` is the client having the
+work. After `sent` the client answers through `network-client`: `received`,
+or `problem` with a reason (`not_arrived`, `damaged`, `wrong_item`,
+`missing_parts`, `other`), a text and photos (sent with its message). Its
+messages carry `delivery_state` (`received`, `problem`, the clinic's
+`resolved`) and `delivery_reason`. Fitted / Needs adjustment and the ratings
+(module `ratings`, sql/144) need `arrived`.
 
 ## Versions
 

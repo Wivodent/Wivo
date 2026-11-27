@@ -25,6 +25,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SESSION = /^[0-9a-f]{64}$/
 const SHA256 = /^[0-9a-f]{64}$/i
 const MAX_FILE = 2 * 1024 * 1024 * 1024
+/** sql/145: why a delivery went wrong. */
+const PROBLEM_REASONS: readonly string[] = ['not_arrived', 'damaged', 'wrong_item', 'missing_parts', 'other']
 
 type RpcResult = { data: unknown; error: { code?: string; message?: string } | null }
 
@@ -192,6 +194,18 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
       const comment = typeof b.comment === 'string' ? b.comment.trim().slice(0, 1000) : ''
       if (!orderId || score === null) return bad
       return call('client_rate_clinic', { p_order: orderId, p_score: score, p_comment: comment || null })
+    }
+    // sql/145: the order arrived, or a problem with the delivery (a reason and a text; photos go with its message).
+    case 'received': {
+      const orderId = id(b.orderId)
+      return orderId ? call('client_received', { p_order: orderId }) : bad
+    }
+    case 'problem': {
+      const orderId = id(b.orderId)
+      const reason = typeof b.reason === 'string' && PROBLEM_REASONS.includes(b.reason) ? b.reason : null
+      const note = typeof b.note === 'string' ? b.note.trim().slice(0, 4000) : ''
+      if (!orderId || !reason || !note) return bad
+      return call('client_report_problem', { p_order: orderId, p_reason: reason, p_note: note })
     }
     case 'feedback': {
       const orderId = id(b.orderId)

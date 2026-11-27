@@ -18,14 +18,22 @@ describe('an order\'s tab on the Orders page', () => {
     const o = { status: 'accepted' as const, job_id: 'j1' }
     expect(orderTab(o, { id: 'j1', status: 'disain', delivery_status: 'labor' }, DONE)).toBe('in_progress')
     expect(orderTab(o, { id: 'j1', status: DONE, delivery_status: 'labor' }, DONE)).toBe('ready')
+    // A database before sql/145 (no sent_at at all) knows only Sent.
     expect(orderTab(o, { id: 'j1', status: DONE, delivery_status: 'teel' }, DONE)).toBe('sent')
     expect(orderTab(o, { id: 'j1', status: 'disain', delivery_status: 'yle_antud' }, DONE)).toBe('sent')
+    // sql/145: Sent → Received, or a delivery problem until the clinic resolves it.
+    const sent = { id: 'j1', status: DONE, delivery_status: 'teel', sent_at: '2026-11-20T10:00:00Z', received_at: null }
+    expect(orderTab(o, sent, DONE)).toBe('sent')
+    expect(orderTab(o, { ...sent, received_at: '2026-11-22T10:00:00Z' }, DONE)).toBe('arrived')
+    expect(orderTab(o, { ...sent, problem: true }, DONE)).toBe('problem')
+    // Sent before 145 (no sent_at): received.
+    expect(orderTab(o, { ...sent, sent_at: null }, DONE)).toBe('arrived')
     // A job that cannot be read (gone, or no right to it) is not guessed at.
     expect(orderTab(o, undefined, DONE)).toBe('in_progress')
   })
   it('counts every tab from the rows, none made up', () => {
     const c = countByTab(['new', 'new', 'sent'] as const, x => x)
-    expect(c).toEqual({ new: 2, in_progress: 0, ready: 0, sent: 1, rejected: 0 })
+    expect(c).toEqual({ new: 2, in_progress: 0, ready: 0, sent: 1, arrived: 0, problem: 0, rejected: 0 })
     expect(clientStatusOfTab('new')).toBe('received')
     expect(clientStatusOfTab('ready')).toBe('ready')
   })

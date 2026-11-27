@@ -1,7 +1,9 @@
 /**
  * Feedback after the work is done (sql/144, module `ratings`).
  *
- *  - JobFeedback, on the job page once the work is at its last stage or sent:
+ *  - JobFeedback, on the job page once the work is received (sql/145: Sent →
+ *    Received → Fitted), and from then on for good: anything can be changed
+ *    later, weeks later too (every change of a rating is kept, sql/145):
  *    for the doctor who ordered it (a clinic doctor, the owner) "Fitted ✓" and
  *    "Needs adjustment" (a reason from the remake reasons and a text: a
  *    revision is made and the technician and designer are told), and a 1–5
@@ -21,7 +23,7 @@ import { format } from 'date-fns'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
-import { usePipeline } from '../../context/PipelineContext'
+import { isReceived } from '../../lib/delivery'
 import { revisionReasonText, type Job } from '../../types/job'
 import { describeError } from '../Patients/errors'
 import { useClinicProfiles } from '../../hooks/useClinicProfiles'
@@ -29,14 +31,14 @@ import { remakesByPerson, ratingsByPerson, type RatingRow } from '../../lib/feed
 import { t, dateLocale } from '@/lib/i18n'
 
 interface FitRow { decision: 'fitted' | 'adjust'; reason: string | null; created_at: string }
-interface MyRating { direction: 'work' | 'input'; score: number; comment: string | null }
+interface MyRating { direction: 'work' | 'input'; score: number; comment: string | null; created_at?: string; updated_at?: string }
 
-export function JobFeedback({ job }: { job: Pick<Job, 'id' | 'status' | 'delivery_status' | 'order_doctor' | 'assigned_to' | 'designed_by'> & { fitted_at?: string | null } }) {
+export function JobFeedback({ job }: { job: Pick<Job, 'id' | 'status' | 'delivery_status' | 'order_doctor' | 'assigned_to' | 'designed_by' | 'sent_at' | 'received_at'> & { fitted_at?: string | null } }) {
   const { moduleOn, isOwner } = usePermissions()
-  const { doneStageKey } = usePipeline()
   const { user, profile } = useAuth()
   const qc = useQueryClient()
-  const done = job.status === doneStageKey || job.delivery_status === 'teel' || job.delivery_status === 'yle_antud'
+  // Received (or sent before that step existed, or a database before sql/145): feedback is open.
+  const done = isReceived(job)
   const me = user?.id ?? null
   const isDoctor = !!me && (isOwner || job.order_doctor === me || profile?.org_role === 'doctor')
   const isMaker = !!me && (job.assigned_to === me || job.designed_by === me)
@@ -48,7 +50,7 @@ export function JobFeedback({ job }: { job: Pick<Job, 'id' | 'status' | 'deliver
     queryFn: async () => {
       const [fit, mine] = await Promise.all([
         supabase.from('job_fit').select('decision, reason, created_at').eq('job_id', job.id).order('created_at', { ascending: false }).limit(1),
-        supabase.from('job_rating').select('direction, score, comment').eq('job_id', job.id).eq('rater_profile', me!),
+        supabase.from('job_rating').select('direction, score, comment, created_at, updated_at').eq('job_id', job.id).eq('rater_profile', me!),
       ])
       return { fit: (fit.data?.[0] as FitRow | undefined) ?? null, mine: (mine.data ?? []) as MyRating[] }
     },
@@ -104,24 +106,34 @@ export function JobFeedback({ job }: { job: Pick<Job, 'id' | 'status' | 'deliver
               </div>
             </div>
           )}
-          <RateRow label={t('feedback.rateWork')} current={mine('work')} onSave={(s, c) => rate('work', s, c)} />
+          {data.isFetched && <RateRow key={`work:${mine('work')?.updated_at ?? ''}`} label={t('feedback.rateWork')} current={mine('work')} onSave={(s, c) => rate('work', s, c)} />}
         </div>
       )}
-      {isMaker && job.order_doctor && job.order_doctor !== me && (
-        <RateRow label={t('feedback.rateInput')} current={mine('input')} onSave={(s, c) => rate('input', s, c)} />
+      {isMaker && job.order_doctor && job.order_doctor !== me && data.isFetched && (
+        <RateRow key={`input:${mine('input')?.updated_at ?? ''}`} label={t('feedback.rateInput')} current={mine('input')} onSave={(s, c) => rate('input', s, c)} />
       )}
       {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
     </section>
   )
 }
 
-function RateRow({ label, current, onSave }: { label: string; current: MyRating | null; onSave: (score: number, comment: string | null) => Promise<void> }) {
+/**
+ * A rating that stays open: shows what was given (and when it was last
+ * changed), and saves a change at any time.
+ */
+export function RateRow({ label, current, onSave }: { label: string; current: Pick<MyRating, 'score' | 'comment' | 'created_at' | 'updated_at'> | null; onSave: (score: number, comment: string | null) => Promise<void> }) {
   const [score, setScore] = useState<number | null>(current?.score ?? null)
   const [comment, setComment] = useState(current?.comment ?? '')
   const [saved, setSaved] = useState(false)
+  const changed = current?.updated_at && current.created_at && current.updated_at.slice(0, 19) !== current.created_at.slice(0, 19)
   return (
     <div className="space-y-2 border-t border-ink-faint/15 pt-3">
       <p className="text-sm font-semibold text-ink">{label} <span className="font-normal text-ink-muted">({t('feedback.optional')})</span></p>
+      {current && (
+        <p className="text-xs text-ink-muted">
+          {changed ? t('feedback.changedOn', { date: format(new Date(current.updated_at!), 'd MMM yyyy', { locale: dateLocale }) }) : t('feedback.canChange')}
+        </p>
+      )}
       <Stars value={score} onChange={n => { setScore(n); setSaved(false) }} label={label} />
       <div className="flex gap-2">
         <input className="input h-10 flex-1 text-sm" maxLength={1000} value={comment} onChange={e => { setComment(e.target.value); setSaved(false) }} placeholder={t('feedback.comment')} aria-label={t('feedback.comment')} />

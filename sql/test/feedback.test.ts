@@ -29,10 +29,12 @@ async function service<T = unknown>(sql: string, params: unknown[] = []): Promis
 async function serviceError(sql: string, params: unknown[] = []): Promise<string | null> {
   try { await service(sql, params); return null } catch (e) { return (e as Error).message }
 }
+/** A job; at the last stage it is handed over too, so it counts as received (sql/145) and feedback is open. */
 async function job(status = last): Promise<string> {
   const { rows } = await db.query<{ id: string }>(
     `insert into public.jobs (clinic_id, patsient, status, order_doctor, assigned_to, designed_by) values ($1, 'X', $2, $3, $4, $5) returning id`,
     [A.clinicId, status, doctor, A.workerId, designer])
+  if (status === last) await db.query(`update public.jobs set delivery_status = 'yle_antud' where id = $1`, [rows[0].id])
   return rows[0].id
 }
 const ratingsOn = (on: boolean) => db.query(`insert into public.clinic_settings (clinic_id, features) values ($1, $2::jsonb)
@@ -84,12 +86,12 @@ describe('Fitted / Needs adjustment on our own job', () => {
     expect(told.map(r => r.user_id).sort()).toEqual([A.workerId, designer].sort())
   })
 
-  it('only the doctor (or a clinic doctor, or the owner), and only when the work is done', async () => {
+  it('only the doctor (or a clinic doctor, or the owner), and only once the work is received', async () => {
     const j = await job()
     expect(await errorAs(db, { id: A.workerId }, `select public.job_fit_decide($1, 'fitted', null, null)`, [j])).toMatch(/Only the doctor/)
     expect(await errorAs(db, { id: A.ownerId }, `select public.job_fit_decide($1, 'fitted', null, null)`, [j])).toBeNull()
     const early = await job(first)
-    expect(await errorAs(db, { id: doctor }, `select public.job_fit_decide($1, 'fitted', null, null)`, [early])).toMatch(/not done/)
+    expect(await errorAs(db, { id: doctor }, `select public.job_fit_decide($1, 'fitted', null, null)`, [early])).toMatch(/Not received/)
   })
 })
 
@@ -136,9 +138,12 @@ describe('the Network client’s side', () => {
     ;[{ job: jobId }] = await rowsAs<{ job: string }>(db, { id: A.ownerId }, `select public.accept_client_order($1, null) as job`, [order])
   })
 
-  it('not before the work is sent; then Needs adjustment makes a revision, a message in the conversation, one bell', async () => {
+  it('not before the work is sent and received; then Needs adjustment makes a revision, a message in the conversation, one bell', async () => {
     expect(await serviceError(`select public.client_fit($1, $2, 'fitted', null, null)`, [session, order])).toMatch(/not sent/)
     await db.query(`update public.jobs set delivery_status = 'teel' where id = $1`, [jobId])
+    // Sent is not enough since sql/145: Received first.
+    expect(await serviceError(`select public.client_fit($1, $2, 'fitted', null, null)`, [session, order])).toMatch(/Not received/)
+    await service(`select public.client_received($1, $2)`, [session, order])
     const msg = await service<string>(`select public.client_fit($1, $2, 'adjust', 'Halb passivus', 'Rocks on 11') as r`, [session, order])
     const { rows: [m] } = await db.query<{ fit_state: string; body: string; from_client: boolean }>(`select fit_state, body, from_client from public.client_order_message where id = $1`, [msg])
     expect(m).toEqual({ fit_state: 'adjust', body: 'Halb passivus: Rocks on 11', from_client: true })

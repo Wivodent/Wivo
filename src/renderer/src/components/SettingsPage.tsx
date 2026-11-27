@@ -1530,6 +1530,16 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
                 </span>
               </label>
             </div>
+
+            {/* "Did your order arrive?" (sql/145): the days after Sent before the orderer is asked. */}
+            <div className="mt-6 pt-5 border-t border-ink-faint/15 max-w-xs">
+              <NumField
+                label={t('settingsPage.receivedReminderDays')} suffix={t('settingsPage.daysSuffix')} min={1} max={60}
+                value={settings.vastuvotuPaevad}
+                onChange={v => setNumber('vastuvotuPaevad', Math.min(60, Math.max(1, Math.round(v))))}
+                hint={t('settingsPage.receivedReminderDaysHelp')}
+              />
+            </div>
           </section>
         )}
 

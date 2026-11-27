@@ -38,6 +38,8 @@ import { ToothPicker } from '../../components/teeth/ToothPicker'
 import { applyPaint } from '../../components/teeth/toothDrag'
 import { AbutmentPicker } from '../../components/NewJobWizard/teeth/AbutmentPicker'
 import { Stars, AdjustFields } from '../../components/Feedback/FeedbackFields'
+import { ProblemFields } from '../../components/Delivery/DeliveryFields'
+import { problemReasonText, resolutionText } from '../../lib/delivery'
 import { teethCountLabel } from '../../components/NewJobWizard/teeth/WorkTypeTabs'
 import {
   teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
@@ -267,7 +269,7 @@ type LiveConn = Connection & { clinic: DirectoryClinic }
 /** What one clinic says right now: its state and, with a session, the account's orders there. */
 interface ClinicOverview { state: Connection['state']; session?: ClinicSession; orders?: ClientOrderSummary[]; notices?: ClientNotice[] }
 
-const OPEN: readonly ClientOrderStatus[] = ['received', 'in_progress', 'ready']
+const OPEN: readonly ClientOrderStatus[] = ['received', 'in_progress', 'ready', 'problem']
 
 function useClinicOverviews(conns: LiveConn[]) {
   return useQueries({
@@ -467,6 +469,9 @@ export function noticeText(n: Pick<ClientNotice, 'kind' | 'ref' | 'reason'>, cli
     case 'sent': return t('network.noticeSent', { ref, clinic })
     case 'connected': return t('network.noticeConnected', { clinic })
     case 'declined': return t('network.noticeDeclined', { clinic })
+    // sql/145
+    case 'received_reminder': return t('network.noticeDidItArrive', { ref, clinic })
+    case 'problem_resolved': return t('network.noticeProblemResolved', { ref, clinic })
   }
 }
 
@@ -679,11 +684,17 @@ type Api = ReturnType<typeof clinicApi>
 
 const STATUS_STYLE: Record<ClientOrderStatus, string> = {
   received: 'bg-sky-500/15 text-sky-800', in_progress: 'bg-blue-500/15 text-blue-700', ready: 'bg-emerald-500/15 text-emerald-700',
-  sent: 'bg-emerald-600 text-white', rejected: 'bg-rose-500/15 text-rose-700',
+  sent: 'bg-emerald-600 text-white', arrived: 'bg-emerald-800 text-white', problem: 'bg-rose-600 text-white', rejected: 'bg-rose-500/15 text-rose-700',
 }
+/** 'received' is the clinic having the order (New); 'arrived' is the client having the work (Received, sql/145). */
 const statusLabel = (s: ClientOrderStatus): string =>
   s === 'received' ? t('network.statusReceived') : s === 'in_progress' ? t('network.statusInProgress')
-    : s === 'ready' ? t('network.statusReady') : s === 'sent' ? t('network.statusSent') : t('network.statusRejected')
+    : s === 'ready' ? t('network.statusReady') : s === 'sent' ? t('network.statusSent')
+    : s === 'arrived' ? t('network.statusArrived') : s === 'problem' ? t('network.statusProblem') : t('network.statusRejected')
+
+/** My orders' tabs (sql/145): everything, or one status. */
+const MY_TABS: readonly ('all' | ClientOrderStatus)[] = ['all', 'received', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected']
+const myTabLabel = (k: 'all' | ClientOrderStatus): string => (k === 'all' ? t('network.tabAll') : k === 'received' ? t('network.tabNew') : statusLabel(k))
 
 function StatusBadge({ status }: { status: ClientOrderStatus }) {
   return <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLE[status]}`}>{statusLabel(status)}</span>
@@ -696,11 +707,25 @@ function TypeArt({ name, size }: { name: string; size: number }) {
 
 function MyOrders({ api, clinicId, onOpen }: { api: Api; clinicId: string; onOpen: (id: string) => void }) {
   const orders = useQuery<ClientOrderSummary[]>({ queryKey: ['network', 'orders', clinicId], queryFn: api.orders, refetchInterval: 60_000 })
+  const [tab, setTab] = useState<'all' | ClientOrderStatus>('all')
   if (orders.error) return <p className="text-base text-rose-600">{errorText(orders.error)}</p>
-  if ((orders.data ?? []).length === 0) return <p className="card p-5 text-base text-ink-muted">{t('network.noOrders')}</p>
+  const all = orders.data ?? []
+  if (all.length === 0) return <p className="card p-5 text-base text-ink-muted">{t('network.noOrders')}</p>
+  const count = (k: 'all' | ClientOrderStatus) => (k === 'all' ? all.length : all.filter(o => o.status === k).length)
+  const shown = tab === 'all' ? all : all.filter(o => o.status === tab)
   return (
     <div className="space-y-2">
-      {(orders.data ?? []).map(o => (
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label={t('network.myOrders')}>
+        {MY_TABS.filter(k => k === 'all' || k === tab || count(k) > 0).map(k => (
+          <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+            className={`min-h-10 shrink-0 rounded-full px-3 text-sm ${tab === k ? 'bg-accent font-bold text-white'
+              : k === 'problem' ? 'border-2 border-rose-400 font-semibold text-rose-700' : 'border border-ink-faint/30 bg-bg-card'}`}>
+            {myTabLabel(k)} · {count(k)}
+          </button>
+        ))}
+      </div>
+      {shown.length === 0 && <p className="card p-4 text-base text-ink-muted">{t('network.tabEmpty')}</p>}
+      {shown.map(o => (
         <button key={o.id} type="button" onClick={() => onOpen(o.id)} className="card flex w-full items-center gap-3 rounded-2xl p-3 text-left active:bg-bg-sidebar">
           <TypeArt name={o.work_type} size={44} />
           <span className="min-w-0 flex-1">
@@ -1119,6 +1144,23 @@ function ClientThread({ api, orderId, clinicName, detail, onError }: {
         <div className="card space-y-2.5 rounded-2xl p-4">
           <p className="text-sm font-bold">{t('network.messages')}</p>
           {items.map(m => {
+            // sql/144, 145: the client's own fit and delivery answers, and the clinic's resolution of a problem.
+            if (m.delivery_state || m.fit_state) {
+              const mine = m.from_client
+              const title = m.delivery_state === 'received' ? t('network.youSaidReceived')
+                : m.delivery_state === 'problem' ? t('network.youReportedProblem', { reason: problemReasonText(m.delivery_reason ?? '') })
+                : m.delivery_state === 'resolved' ? t('network.clinicResolved', { clinic: clinicName, resolution: resolutionText(m.delivery_reason ?? '') })
+                : m.fit_state === 'fitted' ? t('network.youSaidFitted') : t('network.youAskedAdjustment')
+              const tone = m.delivery_state === 'problem' ? 'bg-rose-600 text-white' : m.delivery_state === 'resolved' ? 'bg-bg-sidebar' : m.fit_state === 'adjust' ? 'bg-amber-500 text-white' : 'bg-emerald-600 text-white'
+              return (
+                <div key={m.id} className={`max-w-[80%] space-y-2 rounded-2xl px-3 py-2 text-sm ${mine ? 'ml-auto rounded-br-md' : 'rounded-bl-md'} ${tone}`}>
+                  <p className="font-semibold">{title}</p>
+                  {m.body !== '✓' && <p className="whitespace-pre-wrap">{m.body}</p>}
+                  {m.files.length > 0 && <ClientFiles api={api} files={m.files} onOpen={open} />}
+                  <p className={`text-[11px] ${mine ? 'text-white/80' : 'text-ink-muted'}`}>{format(new Date(m.created_at), 'd MMM HH:mm', { locale: dateLocale })}</p>
+                </div>
+              )
+            }
             if (m.review_of && m.review_state) {
               return (
                 <div key={m.id} className={`ml-auto max-w-[80%] rounded-2xl rounded-br-md px-3 py-2 text-sm ${m.review_state === 'approved' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>
@@ -1296,6 +1338,9 @@ function ClientFeedback({ api, orderId, clinicName, onDone }: { api: Api; orderI
       )}
       <div className="space-y-2 border-t border-ink-faint/15 pt-3">
         <p className="text-sm font-semibold">{t('network.rateClinic', { clinic: clinicName })} <span className="font-normal text-ink-muted">({t('feedback.optional')})</span></p>
+        <p className="text-xs text-ink-muted">{data.rating?.updated_at && data.rating.created_at && data.rating.updated_at.slice(0, 19) !== data.rating.created_at.slice(0, 19)
+          ? t('feedback.changedOn', { date: format(new Date(data.rating.updated_at), 'd MMM yyyy', { locale: dateLocale }) })
+          : t('feedback.canChange')}</p>
         <Stars value={score} onChange={n => { setScore(n); setSaved(false) }} label={t('network.rateClinic', { clinic: clinicName })} />
         <div className="flex gap-2">
           <input className="input h-11 flex-1 rounded-xl text-base" maxLength={1000} value={comment} onChange={e => { setComment(e.target.value); setSaved(false) }} placeholder={t('feedback.comment')} aria-label={t('feedback.comment')} />
@@ -1307,17 +1352,83 @@ function ClientFeedback({ api, orderId, clinicName, onDone }: { api: Api; orderI
   )
 }
 
+/**
+ * After the work is sent (sql/145): "Received ✓", or "Problem with delivery"
+ * (a reason, what happened, photos if any). The clinic hears a problem at
+ * once and the order shows it until the clinic resolves it; Received can
+ * still be said then (the resent work arrived). No `ratings` module needed.
+ */
+function ClientDelivery({ api, orderId, clinicName, status, onDone }: { api: Api; orderId: string; clinicName: string; status: 'sent' | 'problem'; onDone: () => void }) {
+  const fb = useQuery<OrderFeedback>({ queryKey: ['network', 'feedback', orderId], queryFn: () => api.feedback(orderId) })
+  const [reporting, setReporting] = useState(false)
+  const [reason, setReason] = useState('')
+  const [note, setNote] = useState('')
+  const [photos, setPhotos] = useState<File[]>([])
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const problem = fb.data?.problem && !fb.data.problem.resolved_at ? fb.data.problem : null
+
+  async function received() {
+    if (!(await confirmDialog({ message: t('network.receivedAsk', { clinic: clinicName }), confirmLabel: t('delivery.received') }))) return
+    setBusy(true); setError(null)
+    try { await api.received(orderId); void fb.refetch(); onDone() }
+    catch (e) { setError(errorText(e)) } finally { setBusy(false) }
+  }
+  async function report() {
+    setBusy(true); setError(null)
+    try {
+      const msg = await api.reportProblem(orderId, reason, note.trim())
+      for (const f of photos) await api.messageUpload(msg, f)
+      setReporting(false); setReason(''); setNote(''); setPhotos([])
+      void fb.refetch(); onDone()
+    } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className={`card space-y-3 rounded-2xl p-4 ${status === 'problem' ? 'border-2 border-rose-300' : ''}`}>
+      <p className="text-sm font-bold">{status === 'problem' ? t('network.problemOpen') : t('network.didItArrive')}</p>
+      {problem && (
+        <p className="text-sm text-rose-700">{t('network.problemReported', { reason: problemReasonText(problem.reason), clinic: clinicName })}</p>
+      )}
+      {!reporting ? (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={() => void received()} className="btn-primary min-h-11 justify-center rounded-xl px-4 text-sm">
+            <Check size={16} aria-hidden="true" /> {t('delivery.received')}</button>
+          {status === 'sent' && (
+            <button type="button" disabled={busy} onClick={() => setReporting(true)} className="min-h-11 rounded-xl border border-ink-faint/40 bg-bg-card px-4 text-sm">{t('delivery.problem')}</button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <ProblemFields reason={reason} note={note} onReason={setReason} onNote={setNote} />
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-ink-faint px-3 text-sm text-ink-soft">
+            <Paperclip size={16} aria-hidden="true" /> {photos.length ? t('network.filesChosen', { n: photos.length }) : t('network.addPhotos')}
+            <input type="file" multiple accept="image/*,.pdf,.stl" className="hidden" onChange={e => setPhotos([...(e.target.files ?? [])].slice(0, 20))} />
+          </label>
+          <p className="text-xs text-ink-muted">{t('network.problemTells', { clinic: clinicName })}</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setReporting(false)} className="min-h-11 flex-1 rounded-xl border border-ink-faint/40 bg-bg-card text-sm">{t('network.backStep')}</button>
+            <button type="button" disabled={busy || !reason || !note.trim()} onClick={() => void report()} className="btn-primary min-h-11 flex-1 justify-center rounded-xl text-sm">{t('delivery.sendProblem')}</button>
+          </div>
+        </div>
+      )}
+      {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
+    </div>
+  )
+}
+
 /** The steps an order goes through as the client sees them; a date only where Wivo has one. */
-const PROGRESS: { key: 'received' | 'accepted' | 'production' | 'ready' | 'sent'; label: () => string }[] = [
+const PROGRESS: { key: 'received' | 'accepted' | 'production' | 'ready' | 'sent' | 'arrived'; label: () => string }[] = [
   { key: 'received', label: () => t('network.progressReceived') },
   { key: 'accepted', label: () => t('network.progressAccepted') },
   { key: 'production', label: () => t('network.progressProduction') },
   { key: 'ready', label: () => t('network.progressReady') },
   { key: 'sent', label: () => t('network.progressSent') },
+  { key: 'arrived', label: () => t('network.progressArrived') },
 ]
-/** How far an order is along PROGRESS: the index of its current step. */
+/** How far an order is along PROGRESS: the index of its current step. A delivery problem stays at Sent. */
 export const progressIndex = (s: Exclude<ClientOrderStatus, 'rejected'>): number =>
-  s === 'received' ? 0 : s === 'in_progress' ? 2 : s === 'ready' ? 3 : 4
+  s === 'received' ? 0 : s === 'in_progress' ? 2 : s === 'ready' ? 3 : s === 'arrived' ? 5 : 4
 
 function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
   api: Api; clinicId: string; clinicName: string; orderId: string; detail: UseQueryResult<ClientOrderDetail>
@@ -1355,7 +1466,7 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
           <div className="card space-y-3 rounded-2xl p-4">
             <p className="text-sm font-bold">{t('network.progress')}</p>
             {PROGRESS.map((s, i) => {
-              const done = i < at || i === 0 || (i === at && d.status === 'sent')
+              const done = i < at || i === 0 || (i === at && (d.status === 'sent' || d.status === 'problem' || d.status === 'arrived'))
               const current = i === at && !done
               return (
                 <div key={s.key} className="flex items-center gap-3">
@@ -1372,7 +1483,8 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
 
       {p.notes && <p className="card whitespace-pre-wrap rounded-2xl p-4 text-base text-ink-muted">{p.notes}</p>}
 
-      {d.status === 'sent' && <ClientFeedback api={api} orderId={orderId} clinicName={clinicName} onDone={() => void detail.refetch()} />}
+      {(d.status === 'sent' || d.status === 'problem') && <ClientDelivery api={api} orderId={orderId} clinicName={clinicName} status={d.status} onDone={() => void detail.refetch()} />}
+      {d.status === 'arrived' && <ClientFeedback api={api} orderId={orderId} clinicName={clinicName} onDone={() => void detail.refetch()} />}
       <ClientThread api={api} orderId={orderId} clinicName={clinicName} detail={detail} onError={setError} />
       {error && <p className="text-base text-rose-600">{error}</p>}
     </div>

@@ -23,7 +23,7 @@ import { describeError } from '../Patients/errors'
 import { t } from '@/lib/i18n'
 
 /** The order a job came from, if any: its tracking line goes there. */
-function useOrderOfJob(jobId: string, known?: string) {
+export function useOrderOfJob(jobId: string, known?: string) {
   return useQuery<string | null>({
     queryKey: ['network_portal', 'order-of-job', jobId],
     enabled: !known,

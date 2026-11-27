@@ -518,6 +518,15 @@ export interface Job {
   delivered_at: string | null
   /** sql/144: the doctor or the client said it fitted (the job card's tick). Cleared by a "Needs adjustment". */
   fitted_at?: string | null
+  /**
+   * sql/145, written only by the database: when it left the lab, when the
+   * orderer said Received (and how: 'orderer', 'client', 'phone' with a note,
+   * 'handed_over'). Absent on a database before 145.
+   */
+  sent_at?: string | null
+  received_at?: string | null
+  received_via?: 'orderer' | 'client' | 'phone' | 'handed_over' | null
+  received_note?: string | null
   // --- Work items (migration 0XX) — multiple work types per job ---
   work_items: WorkItem[]    // e.g. [{too:'Kroon', hambad:'11,12'}, {too:'Sild', hambad:'14,15,16'}]
   // --- Revision list ---

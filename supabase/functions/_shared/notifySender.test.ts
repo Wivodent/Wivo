@@ -264,7 +264,10 @@ describe('the Network clients’ e-mails (sql/142)', () => {
     expect(n('sent')).toBe('Your order TF-DE-261127-001 is on its way')
     expect(n('accepted')).toBe('Dentiks accepted TF-DE-261127-001')
     expect(n('connected')).toBe('Dentiks confirmed your connection')
-    for (const k of ['message', 'accepted', 'rejected', 'ready', 'sent', 'connected', 'declined']) expect(n(k)).toBeTruthy()
+    for (const k of ['message', 'accepted', 'rejected', 'ready', 'sent', 'connected', 'declined', 'received_reminder', 'problem_resolved']) expect(n(k)).toBeTruthy()
+    // sql/145: the reminder and a resolved problem; still only the reference and the clinic.
+    expect(n('received_reminder')).toBe('Did your order TF-DE-261127-001 arrive?')
+    expect(n('problem_resolved')).toBe('Dentiks resolved the delivery problem on TF-DE-261127-001')
   })
 
   it('the clinic’s own notices about orders have their subjects and open Orders', async () => {

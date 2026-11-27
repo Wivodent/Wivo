@@ -7,25 +7,41 @@
 import type { CatalogueItem, ClientOrderStatus, WivoOrder, WivoOrderV1 } from '@shared/network/order'
 import type { WorkType } from '@shared/pricing/workTypes'
 import { workTypeRules } from '@shared/wizard/workTypeRules'
+import { deliveryStep } from './delivery'
 
-/** The Orders page's tabs, in the clinic's words. Mirrors client_order_status (sql/138). */
-export type OrderTab = 'new' | 'in_progress' | 'ready' | 'sent' | 'rejected'
-export const ORDER_TABS: readonly OrderTab[] = ['new', 'in_progress', 'ready', 'sent', 'rejected']
+/**
+ * The Orders page's tabs, in the clinic's words. Mirrors client_order_status
+ * (sql/138, 145): 'arrived' is the tab "Received" (the client has it), not
+ * the order's own 'received' (which is New).
+ */
+export type OrderTab = 'new' | 'in_progress' | 'ready' | 'sent' | 'arrived' | 'problem' | 'rejected'
+export const ORDER_TABS: readonly OrderTab[] = ['new', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected']
 
-export interface OrderJobState { id: string; status: string | null; delivery_status: string | null }
+export interface OrderJobState {
+  id: string; status: string | null; delivery_status: string | null
+  /** sql/145: when it left and arrived; absent on a database before it. */
+  sent_at?: string | null; received_at?: string | null; received_via?: string | null; received_note?: string | null
+  /** sql/145: an open delivery problem on the job. */
+  problem?: boolean
+}
 
 /**
  * An order's tab: new and rejected from the order itself; an accepted one by
- * its job on the board, the same rule the client sees (sent once the job is
- * on its way or handed over, ready at the last stage, else in progress). A
- * job that cannot be read counts as in progress.
+ * its job on the board, the same rule the client sees (once sent: a problem,
+ * received, or sent; ready at the last stage, else in progress). A job that
+ * cannot be read counts as in progress.
  */
 export function orderTab(order: { status: 'received' | 'accepted' | 'rejected'; job_id: string | null },
   job: OrderJobState | undefined, doneStageKey: string): OrderTab {
   if (order.status === 'received') return 'new'
   if (order.status === 'rejected') return 'rejected'
   if (!job) return 'in_progress'
-  if (job.delivery_status === 'teel' || job.delivery_status === 'yle_antud') return 'sent'
+  const step = deliveryStep(job, !!job.problem)
+  // A database before sql/145 knows only Sent.
+  if (step !== 'not_sent' && job.sent_at === undefined) return 'sent'
+  if (step === 'problem') return 'problem'
+  if (step === 'received') return 'arrived'
+  if (step === 'awaiting') return 'sent'
   if (job.status === doneStageKey) return 'ready'
   return 'in_progress'
 }
@@ -34,7 +50,7 @@ export function orderTab(order: { status: 'received' | 'accepted' | 'rejected'; 
 export const clientStatusOfTab = (tab: OrderTab): ClientOrderStatus => (tab === 'new' ? 'received' : tab)
 
 export function countByTab<T>(items: readonly T[], tabOf: (item: T) => OrderTab): Record<OrderTab, number> {
-  const out: Record<OrderTab, number> = { new: 0, in_progress: 0, ready: 0, sent: 0, rejected: 0 }
+  const out: Record<OrderTab, number> = { new: 0, in_progress: 0, ready: 0, sent: 0, arrived: 0, problem: 0, rejected: 0 }
   for (const it of items) out[tabOf(it)]++
   return out
 }
@@ -208,7 +224,10 @@ export function sentMessage(
 
 export interface ThreadMessage { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null
   /** sql/144: the client's "Fitted" / "Needs adjustment" on sent work. */
-  fit_state?: 'fitted' | 'adjust' | null }
+  fit_state?: 'fitted' | 'adjust' | null
+  /** sql/145: the client's Received or delivery problem (with its reason), or the clinic's resolution (with how). */
+  delivery_state?: 'received' | 'problem' | 'resolved' | null
+  delivery_reason?: string | null }
 export interface ThreadFile { id: string; file_name: string; size: number; created_at: string; message_id?: string | null; from_client?: boolean; mime_type?: string | null }
 
 /** Each message with its files, in order; files sent with the order itself (no message) apart. */

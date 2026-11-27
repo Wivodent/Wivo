@@ -445,6 +445,30 @@ Lisaks plaanile:
 - **Moodul:** omaniku Wivo kirjutab litsentsist `clinic_settings.features.ratings`,
   iga funktsioon küsib `ratings_on()`.
 
+## 2.10 Received ja tarneprobleem (27.11.2026, sql/145)
+
+Järjekord on nüüd **Sent → Received → Fitted / Needs adjustment**.
+
+- **Received** (`jobs.received_at`, `received_via`): Network-klient
+  (`client_received`); oma tööl tellinud arst, kliiniku arst või omanik; kliinik
+  ise "Received (confirmed by phone)" koos märkusega (`job_mark_received`,
+  `p_by_phone`). Laborist otse "Üle antud" loeb kohe kättesaaduks. Enne 145
+  saadetud töö (`sent_at` puudub) loeb kättesaaduks: vanade tööde kohta keegi
+  ei küsi. Neid veerge kirjutavad ainult 145 funktsioonid (`jobs_delivery_guard`).
+- **Problem with delivery** (`delivery_problem`): põhjus, tekst, kliendil fotod
+  sõnumi juures; kelluke (`delivery_problem`), vestlus, Orders lehel punane märk
+  ja vahekaart "Problem", kuni kliinik märgib "Resolved" (resend / replaced /
+  other + märkus). Kahjustatud töö või vale eseme puhul võib lahendamine lisada
+  revisjoni. Korraga üks avatud probleem töö kohta.
+- **Meeldetuletus** (`delivery_reminders`, pg_cron iga tund): X päeva pärast
+  "Sent" ilma "Received"-ita (seade, vaikimisi 3, `features.received_reminder_days`)
+  saab tellija ühe korra "Did your order arrive?"; Orders lehel märk "Not confirmed".
+- **Tagasiside jääb avatuks:** pärast "Received" saab hinde ja kommentaari lisada
+  või muuta kuitahes hiljem, mõlemal poolel. Iga muudatus jääb
+  `job_rating_change` tabelisse (näeb ainult omanik).
+- Received ja probleem töötavad ka ilma `ratings` moodulita; mooduli taga on
+  ainult hinded ja Fitted / Needs adjustment.
+
 ---
 
 ## Järjekord

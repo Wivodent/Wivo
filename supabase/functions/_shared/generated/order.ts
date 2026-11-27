@@ -152,5 +152,10 @@ export function emptyOrder(): WivoOrderV1 {
 }
 
 /** What a client sees an order as (client_orders): the clinic's progress in four words, or refused. */
-export type ClientOrderStatus = 'received' | 'in_progress' | 'ready' | 'sent' | 'rejected'
-export const CLIENT_ORDER_STATUSES: readonly ClientOrderStatus[] = ['received', 'in_progress', 'ready', 'sent', 'rejected']
+/**
+ * 'received' is the clinic having the order (shown as New); after 'sent'
+ * (sql/145) comes 'arrived' (the client said Received) or 'problem' (a
+ * delivery problem the clinic has not resolved yet).
+ */
+export type ClientOrderStatus = 'received' | 'in_progress' | 'ready' | 'sent' | 'arrived' | 'problem' | 'rejected'
+export const CLIENT_ORDER_STATUSES: readonly ClientOrderStatus[] = ['received', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected']

@@ -273,6 +273,8 @@ export interface WivoSettings {
   automaatneViide: boolean
   /** The licence has `ratings` (sql/144): written by the owner's Wivo from the licence, read by the database. */
   hinnangud: boolean
+  /** Days after Sent before "Did your order arrive?" (sql/145), 1–60. Read by the database's reminder. */
+  vastuvotuPaevad: number
   // ─── Fikseeritud kulud iga töö kohta ───────────────────────────────────────
   // Applied automatically to every job's cost calculation. Covers things like
   // gloves, face shields, disinfection supplies — small per-patient costs that
@@ -349,6 +351,7 @@ function defaultSettings(): WivoSettings {
     laboriRezhiim: true,
     automaatneViide: true,
     hinnangud: false,
+    vastuvotuPaevad: 3,
     yldkulud: [],
     toopaevadNadalas: 5,
     makseTahtaegPaevades: 14,
@@ -505,6 +508,7 @@ function loadSettings(): WivoSettings {
       laboriRezhiim: stored.laboriRezhiim ?? true,
       automaatneViide: stored.automaatneViide ?? true,
       hinnangud: stored.hinnangud ?? false,
+      vastuvotuPaevad: stored.vastuvotuPaevad ?? 3,
       designFee: stored.designFee ?? 0,
       defaultMachine: stored.defaultMachine ?? '',
       kasutajaNimi: stored.kasutajaNimi ?? '',
@@ -712,6 +716,7 @@ export function applyClinicRow(row: Partial<ClinicSettingsRow>): void {
           // Absent on every row written before sql/140: on.
           automaatneViide: row.features.auto_reference ?? true,
           hinnangud: row.features.ratings ?? false,
+          vastuvotuPaevad: row.features.received_reminder_days ?? 3,
         }
       : {}),
     // Merged onto what is already loaded, never taken whole: a row written

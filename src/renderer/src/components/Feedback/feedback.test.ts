@@ -17,7 +17,8 @@ describe('the ratings module gates every piece', () => {
     expect(fb).toMatch(/const on = moduleOn\('ratings'\) && isOwner/)
     const orders = read('../Network/OrdersView.tsx')
     expect(orders).toMatch(/enabled: moduleOn\('ratings'\) && isOwner/)
-    expect(orders).toMatch(/if \(!moduleOn\('ratings'\)\) return null/)
+    expect(orders).toMatch(/if \(!on \|\| !mine\.isFetched\) return null/)
+    expect(orders).toMatch(/const on = moduleOn\('ratings'\)/)
   })
   it('the owner’s Wivo writes the licence’s answer for the database, only once the licence is read', () => {
     const sync = read('../RatingsLicenceSync.tsx')
@@ -29,5 +30,17 @@ describe('the ratings module gates every piece', () => {
     const fields = read('FeedbackFields.tsx')
     expect(fields).not.toMatch(/lib\/supabase|from '\.\.\/\.\.\/lib\/supabase'/)
     expect(read('../../mobile/network/NetworkApp.tsx')).toContain("import { Stars, AdjustFields } from '../../components/Feedback/FeedbackFields'")
+  })
+  it('the delivery pieces the Network form uses carry no clinic database code either (sql/145)', () => {
+    expect(read('../Delivery/DeliveryFields.tsx')).not.toMatch(/lib\/supabase/)
+    expect(read('../../lib/delivery.ts')).not.toMatch(/lib\/supabase/)
+    const app = read('../../mobile/network/NetworkApp.tsx')
+    expect(app).toContain("import { ProblemFields } from '../../components/Delivery/DeliveryFields'")
+    expect(app).not.toMatch(/Delivery\/JobDelivery|Feedback\/Feedback'/)
+  })
+  it('Received and the delivery problem work without the ratings module; feedback opens only after Received (sql/145)', () => {
+    const delivery = read('../Delivery/JobDelivery.tsx')
+    expect(delivery).not.toMatch(/moduleOn/)
+    expect(read('Feedback.tsx')).toMatch(/const done = isReceived\(job\)/)
   })
 })

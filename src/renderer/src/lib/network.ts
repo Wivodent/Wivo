@@ -69,7 +69,9 @@ export interface ClientOrderDetail {
   status: ClientOrderStatus
   reject_reason: string | null
   /** sql/143: needs_review on the clinic's messages; review_of / review_state on the client's answers. */
-  messages: { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null }[] | null
+  messages: { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null
+    /** sql/145: the fit answer, and the delivery answers (Received, a problem, the clinic's resolution) with their reason. */
+    fit_state?: 'fitted' | 'adjust' | null; delivery_state?: 'received' | 'problem' | 'resolved' | null; delivery_reason?: string | null }[] | null
   /** sql/143: the message a file came with (null: sent with the order), and who sent it. */
   files: { id: string; file_name: string; size: number; created_at: string; message_id?: string | null; from_client?: boolean; mime_type?: string | null }[] | null
 }
@@ -77,14 +79,19 @@ export interface ClientOrderDetail {
 /** What the client already said on an order (sql/144), and whether the clinic has feedback on. */
 export interface OrderFeedback {
   enabled: boolean
+  /** sql/145: the client has it (absent before 145: read as received once sent). */
+  received?: boolean
+  received_at?: string | null
+  /** sql/145: the latest delivery problem on the order, open or resolved. */
+  problem?: { reason: string; created_at: string; resolved_at: string | null; resolution: string | null } | null
   fit: { decision: 'fitted' | 'adjust'; reason: string | null; created_at: string } | null
-  rating: { score: number; comment: string | null } | null
+  rating: { score: number; comment: string | null; created_at?: string; updated_at?: string } | null
 }
 
 /** A notice to the client from one clinic (sql/142): what happened, never a message's text. */
 export interface ClientNotice {
   id: string
-  kind: 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined'
+  kind: 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined' | 'received_reminder' | 'problem_resolved'
   order_id: string | null
   ref: string | null
   reason: string | null
@@ -249,6 +256,11 @@ export function clinicApi(clinicId: string, apiUrl: string, session: string) {
     /** sql/144: the client's rating of this clinic for one order, 1–5. */
     rateClinic: (orderId: string, score: number, comment?: string) =>
       call<null>(clinicId, apiUrl, session, 'rate_clinic', { orderId, score, comment: comment ?? null }),
+    /** sql/145: the order arrived. */
+    received: (orderId: string) => call<null>(clinicId, apiUrl, session, 'received', { orderId }),
+    /** sql/145: a problem with the delivery (a reason and a text); returns the message, for its photos. */
+    reportProblem: (orderId: string, reason: string, note: string) =>
+      call<string>(clinicId, apiUrl, session, 'problem', { orderId, reason, note }),
     /** sql/144: whether feedback is on here, and what the client already said on this order. */
     feedback: (orderId: string) => call<OrderFeedback>(clinicId, apiUrl, session, 'feedback', { orderId })
       .catch(() => ({ enabled: false, fit: null, rating: null }) as OrderFeedback),

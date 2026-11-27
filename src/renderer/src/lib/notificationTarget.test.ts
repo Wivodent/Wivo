@@ -15,6 +15,13 @@ describe('where a bell notice goes', () => {
     expect(notificationTarget(n('client_message', JOB, { order: ORDER }), own)).toEqual({ to: 'job', jobId: JOB })
     expect(notificationTarget(n('client_review', null, { order: ORDER }), own)).toEqual({ to: 'order', orderId: ORDER })
   })
+  it('a delivery problem, its resolution and the reminder open the job; on an order not yet a job, Orders (sql/145)', () => {
+    expect(notificationTarget(n('delivery_problem', JOB, { order: ORDER, reason: 'damaged' }), own)).toEqual({ to: 'job', jobId: JOB })
+    expect(notificationTarget(n('delivery_problem', 'not-ours', { order: ORDER }), own)).toEqual({ to: 'order', orderId: ORDER })
+    expect(notificationTarget(n('delivery_problem', JOB, { reason: 'other' }), own)).toEqual({ to: 'job', jobId: JOB })
+    expect(notificationTarget(n('problem_resolved', JOB), own)).toEqual({ to: 'job', jobId: JOB })
+    expect(notificationTarget(n('received_reminder', JOB), own)).toEqual({ to: 'job', jobId: JOB })
+  })
   it('a request to connect opens Orders at "Asking to connect"', () => {
     expect(notificationTarget(n('client_request', null, { client: 'x' }), own)).toEqual({ to: 'requests' })
   })

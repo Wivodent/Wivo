@@ -18,7 +18,7 @@
 -- No rows: this database matches the migrations in all of it.
 --
 -- Covered: trigger.
--- Expected rows: 62.
+-- Expected rows: 64.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -39,6 +39,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.invoices.invoices_recalc_on_rate', 'CREATE TRIGGER invoices_recalc_on_rate AFTER UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION invoices_rate_touch()'),
     ('trigger', 'public.job_file.file_added_notify', 'CREATE TRIGGER file_added_notify AFTER UPDATE OF completed_at ON public.job_file FOR EACH ROW EXECUTE FUNCTION on_file_added_notify()'),
     ('trigger', 'public.job_file.refuse_file_on_deleted_job', 'CREATE TRIGGER refuse_file_on_deleted_job BEFORE INSERT ON public.job_file FOR EACH ROW EXECUTE FUNCTION refuse_file_on_deleted_job()'),
+    ('trigger', 'public.job_rating.job_rating_keep_change', 'CREATE TRIGGER job_rating_keep_change AFTER UPDATE ON public.job_rating FOR EACH ROW EXECUTE FUNCTION job_rating_keep_change()'),
     ('trigger', 'public.job_share.job_share_notify', 'CREATE TRIGGER job_share_notify AFTER INSERT OR UPDATE OF revoked_at ON public.job_share FOR EACH ROW EXECUTE FUNCTION on_job_share_notify()'),
     ('trigger', 'public.job_share.refuse_share_of_deleted_job', 'CREATE TRIGGER refuse_share_of_deleted_job BEFORE INSERT OR UPDATE ON public.job_share FOR EACH ROW EXECUTE FUNCTION refuse_share_of_deleted_job()'),
     ('trigger', 'public.job_stage.job_stage_pay_role', 'CREATE TRIGGER job_stage_pay_role BEFORE INSERT ON public.job_stage FOR EACH ROW EXECUTE FUNCTION job_stage_pay_role_from_template()'),
@@ -55,6 +56,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.jobs.job_stages_from_template', 'CREATE TRIGGER job_stages_from_template AFTER INSERT ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_created_stages()'),
     ('trigger', 'public.jobs.job_team_notify', 'CREATE TRIGGER job_team_notify AFTER INSERT OR UPDATE OF status, revisions, assigned_to, designed_by, work_items ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_team_notify()'),
     ('trigger', 'public.jobs.jobs_claim_reference', 'CREATE TRIGGER jobs_claim_reference BEFORE INSERT ON public.jobs FOR EACH ROW EXECUTE FUNCTION jobs_claim_reference()'),
+    ('trigger', 'public.jobs.jobs_delivery_guard', 'CREATE TRIGGER jobs_delivery_guard BEFORE INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION jobs_delivery_guard()'),
     ('trigger', 'public.jobs.jobs_updated_at', 'CREATE TRIGGER jobs_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION set_updated_at()'),
     ('trigger', 'public.jobs.notify_job_option_doers', 'CREATE TRIGGER notify_job_option_doers AFTER INSERT OR UPDATE OF work_items ON public.jobs FOR EACH ROW EXECUTE FUNCTION notify_job_option_doers()'),
     ('trigger', 'public.jobs.set_job_code', 'CREATE TRIGGER set_job_code BEFORE INSERT OR UPDATE OF job_code, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION set_job_code()'),

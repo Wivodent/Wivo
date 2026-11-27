@@ -4,7 +4,8 @@
  * orders straight into this Wivo.
  *
  * Top to bottom: the heading with "taking orders" and Settings (the owner);
- * four counts; the orders by tab (New, In progress, Ready, Sent, Rejected)
+ * four counts; the orders by tab (New, In progress, Ready, Sent, Received,
+ * Problem, Rejected: sql/145)
  * beside who asks to connect, the invite link with the directory switch, and
  * the connected clients. Every number is counted from rows this person may
  * read; nothing is shown that Wivo does not have (no ratings, no "unread").
@@ -27,10 +28,13 @@ import { saveOrderFile } from '../../lib/fileLink'
 import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
 import { MarkSentButton } from './MarkSent'
 import { OrderThread } from './OrderThread'
-import { Stars } from '../Feedback/FeedbackFields'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
-import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, networkConfigured, type OrderTab } from '../../lib/orderView'
+import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, networkConfigured, ORDER_TABS, type OrderTab, type OrderJobState } from '../../lib/orderView'
+import { notConfirmed, reminderDays, isReceived } from '../../lib/delivery'
+import { JobDelivery } from '../Delivery/JobDelivery'
+import { RateRow } from '../Feedback/Feedback'
+import { useAuth } from '../../context/AuthContext'
 import { confirmDialog } from '../../lib/confirm'
 import { describeError } from '../Patients/errors'
 import { InfoButton } from '../ui/InfoButton'
@@ -48,9 +52,9 @@ const when = (iso: string) => format(new Date(iso), 'd MMM yyyy HH:mm', { locale
 const ago = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true, locale: dateLocale })
 const tabLabel = (tab: OrderTab): string =>
   tab === 'new' ? t('orders.tabNew') : tab === 'in_progress' ? t('orders.tabInProgress') : tab === 'ready' ? t('orders.tabReady')
-    : tab === 'sent' ? t('orders.tabSent') : t('orders.tabRejected')
-/** The tabs that show their count, as in the design: the ones that need doing. */
-const COUNTED: readonly OrderTab[] = ['new', 'in_progress', 'ready']
+    : tab === 'sent' ? t('orders.tabSent') : tab === 'arrived' ? t('orders.tabReceived') : tab === 'problem' ? t('orders.tabProblem') : t('orders.tabRejected')
+/** The tabs that show their count, as in the design: the ones that need doing (and a delivery problem). */
+const COUNTED: readonly OrderTab[] = ['new', 'in_progress', 'ready', 'problem']
 
 /** What a bell notice asks this page to open (lib/notificationTarget). `n` grows with each ask. */
 export interface OrdersFocus { orderId?: string; requests?: boolean; n: number }
@@ -136,9 +140,11 @@ export function OrdersView({ focus, onOpenJob }: { focus?: OrdersFocus; onOpenJo
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
         <section className="card overflow-hidden p-0 lg:col-span-2" aria-label={t('orders.heading')}>
           <div className="flex flex-wrap gap-2 border-b border-ink-faint/20 px-4 py-3" role="tablist">
-            {(['new', 'in_progress', 'ready', 'sent', 'rejected'] as const).map(k => (
+            {ORDER_TABS.map(k => (
               <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
-                className={`h-10 rounded-full px-4 text-sm ${tab === k ? 'bg-accent font-bold text-white' : 'border border-ink-faint/30 text-ink hover:bg-bg-sidebar'}`}>
+                className={`h-10 rounded-full px-4 text-sm ${tab === k ? 'bg-accent font-bold text-white'
+                  : k === 'problem' && perTab.problem > 0 ? 'border-2 border-rose-400 font-semibold text-rose-700 hover:bg-rose-500/10'
+                  : 'border border-ink-faint/30 text-ink hover:bg-bg-sidebar'}`}>
                 {tabLabel(k)}{COUNTED.includes(k) ? ` · ${perTab[k]}` : ''}
               </button>
             ))}
@@ -163,7 +169,8 @@ export function OrdersView({ focus, onOpenJob }: { focus?: OrdersFocus; onOpenJo
         </div>
       </div>
 
-      {open && <OrderDialog order={open} client={byId.get(open.client_id)} canDecide={can('jobs.write')} canWrite={can('jobs.read') || can('jobs.write')} onClose={() => setOpenId(null)} />}
+      {open && <OrderDialog order={open} client={byId.get(open.client_id)} canDecide={can('jobs.write')} canWrite={can('jobs.read') || can('jobs.write')}
+        job={open.job_id ? jobs?.get(open.job_id) : undefined} onClose={() => setOpenId(null)} />}
     </div>
   )
 }
@@ -461,11 +468,13 @@ function Chip({ children, tone }: { children: React.ReactNode; tone?: 'blue' }) 
 
 function OrderRow({ order, tab, client, counts, canAccept, onOpen, job }: {
   order: ClientOrderRow; tab: OrderTab; client?: NetworkClientRow; counts?: OrderCounts; canAccept: boolean; onOpen: () => void
-  /** The job the order became, as the board has it (for Mark as sent). */
-  job?: { id: string; status: string | null; delivery_status: string | null }
+  /** The job the order became, as the board has it (for Mark as sent, and the delivery: sql/145). */
+  job?: OrderJobState
 }) {
   const accept = useAcceptOrder()
   const optionLabels = useOptionLabels()
+  const days = reminderDays(useSettings().settings.vastuvotuPaevad)
+  const late = !!job && notConfirmed(job, !!job.problem, days)
   const [error, setError] = useState<string | null>(null)
   const p = order.payload
   const teeth = teethLabel(p?.teeth ?? '')
@@ -489,6 +498,8 @@ function OrderRow({ order, tab, client, counts, canAccept, onOpen, job }: {
           {order.due && <Chip>{t('orders.dueChip', { date: format(new Date(order.due), 'dd.MM', { locale: dateLocale }) })}</Chip>}
           {files > 0 && <Chip>{files === 1 ? t('orders.oneFile') : t('orders.nFiles', { n: files })}</Chip>}
           {messages > 0 && <Chip tone="blue">{messages === 1 ? t('orders.oneMessage') : t('orders.nMessages', { n: messages })}</Chip>}
+          {tab === 'problem' && <span className="rounded-lg bg-rose-600 px-2 py-0.5 text-sm font-bold text-white">{t('delivery.problemBadge')}</span>}
+          {late && <span className="rounded-lg bg-amber-500/20 px-2 py-0.5 text-sm font-bold text-amber-800">{t('delivery.notConfirmed')}</span>}
         </div>
         {tab === 'rejected' && order.reject_reason && <p className="text-sm text-rose-700">{t('orders.rejectedBecause', { reason: order.reject_reason })}</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -507,7 +518,7 @@ function OrderRow({ order, tab, client, counts, canAccept, onOpen, job }: {
   )
 }
 
-function OrderDialog({ order, client, canDecide, canWrite, onClose }: { order: ClientOrderRow; client?: NetworkClientRow; canDecide: boolean; canWrite: boolean; onClose: () => void }) {
+function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { order: ClientOrderRow; client?: NetworkClientRow; canDecide: boolean; canWrite: boolean; job?: OrderJobState; onClose: () => void }) {
   const templates = (useWorkflowTemplates().data ?? []).filter(tpl => !tpl.archived)
   const accept = useAcceptOrder()
   const reject = useRejectOrder()
@@ -544,8 +555,11 @@ function OrderDialog({ order, client, canDecide, canWrite, onClose }: { order: C
           {p?.notes && <div className="sm:col-span-2"><Field label={t('orders.notes')} value={p.notes} /></div>}
         </dl>
 
-        {/* sql/144: the clinic rates the client's input on an accepted order (module ratings). */}
-        {order.status === 'accepted' && canDecide && <RateClientRow orderId={order.id} />}
+        {/* sql/145: Sent → Received, or a delivery problem until the clinic resolves it. */}
+        {order.status === 'accepted' && job && <div className="mt-5 empty:hidden"><JobDelivery job={job} orderId={order.id} /></div>}
+
+        {/* sql/144: the clinic rates the client's input (module ratings), once received (sql/145), and changes it later. */}
+        {order.status === 'accepted' && canDecide && order.job_id && job && isReceived(job) && <RateClientRow orderId={order.id} jobId={order.job_id} />}
 
         {/* The conversation, its files and reviews (sql/143): the same component as on the job page. */}
         <div className="mt-5">
@@ -631,27 +645,35 @@ function feedbackLine(f: ClientFeedbackRow | undefined): string {
   return parts.length ? `${parts.join(' · ')} · ` : ''
 }
 
-function RateClientRow({ orderId }: { orderId: string }) {
+/**
+ * The clinic's rating of the client's input: open for good once the order is
+ * received, with what this person gave before (sql/145: a change later is
+ * kept).
+ */
+function RateClientRow({ orderId, jobId }: { orderId: string; jobId: string }) {
   const { moduleOn } = usePermissions()
-  const [score, setScore] = useState<number | null>(null)
-  const [comment, setComment] = useState('')
-  const [state, setState] = useState<'idle' | 'saved' | string>('idle')
-  if (!moduleOn('ratings')) return null
+  const { user } = useAuth()
+  const [error, setError] = useState<string | null>(null)
+  const on = moduleOn('ratings')
+  const mine = useQuery<{ score: number; comment: string | null; created_at: string; updated_at: string } | null>({
+    queryKey: ['feedback', jobId, 'client', user?.id],
+    enabled: on && !!user,
+    queryFn: async () => {
+      const { data, error: e } = await supabase.from('job_rating').select('score, comment, created_at, updated_at')
+        .eq('job_id', jobId).eq('direction', 'clinic_to_client').eq('rater_profile', user!.id).limit(1)
+      return e ? null : (data?.[0] as { score: number; comment: string | null; created_at: string; updated_at: string } | undefined) ?? null
+    },
+  })
+  if (!on || !mine.isFetched) return null
   return (
     <div className="mt-5 space-y-2 rounded-xl border border-ink-faint/20 p-3">
-      <p className="text-sm font-semibold text-ink">{t('feedback.rateClient')} <span className="font-normal text-ink-muted">({t('feedback.optional')})</span></p>
-      <Stars value={score} onChange={n => { setScore(n); setState('idle') }} label={t('feedback.rateClient')} />
-      <div className="flex gap-2">
-        <input className="input h-10 flex-1 text-sm" maxLength={1000} value={comment} onChange={e => { setComment(e.target.value); setState('idle') }} placeholder={t('feedback.comment')} aria-label={t('feedback.comment')} />
-        <button type="button" disabled={score === null} className="btn-primary h-10 px-4 text-sm"
-          onClick={async () => {
-            const { error } = await supabase.rpc('rate_client', { p_order: orderId, p_score: score, p_comment: comment.trim() || null })
-            setState(error ? describeError(error) : 'saved')
-          }}>
-          {state === 'saved' ? t('feedback.saved') : t('feedback.save')}
-        </button>
-      </div>
-      {state !== 'idle' && state !== 'saved' && <p className="text-sm text-rose-600" role="alert">{state}</p>}
+      <RateRow key={mine.data?.updated_at ?? 'none'} label={t('feedback.rateClient')} current={mine.data ?? null}
+        onSave={async (score, comment) => {
+          setError(null)
+          const { error: e } = await supabase.rpc('rate_client', { p_order: orderId, p_score: score, p_comment: comment })
+          if (e) setError(describeError(e)); else void mine.refetch()
+        }} />
+      {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
     </div>
   )
 }

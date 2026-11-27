@@ -184,6 +184,8 @@ async function inChunks<T>(ids: readonly string[], read: (part: string[]) => Pro
 /** The Orders page hears the board: a job moved to its last stage or sent changes its order's tab. */
 export function useOrderJobsLive(enabled = true): void {
   useRealtimeInvalidate('jobs', [[...PORTAL_KEY, 'jobs']], enabled)
+  // sql/145: a delivery problem reported or resolved.
+  useRealtimeInvalidate('delivery_problem', [[...PORTAL_KEY, 'jobs'], ['delivery']], enabled)
 }
 
 export interface OrderCounts { files: Map<string, number>; messages: Map<string, number> }
@@ -222,8 +224,17 @@ export function useOrderJobs(jobIds: readonly string[]) {
     queryKey: [...PORTAL_KEY, 'jobs', clinicId, ids.join(',')],
     enabled: !!clinicId && ids.length > 0,
     queryFn: async () => {
-      const list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status').in('id', part).is('deleted_at', null)))
-      return new Map(list.map(j => [j.id, j]))
+      // sql/145: when it left and arrived, and which have an open delivery problem. A database before it: the board state only.
+      let list: OrderJobState[]
+      try {
+        list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status, sent_at, received_at, received_via, received_note').in('id', part).is('deleted_at', null)))
+      } catch (e) {
+        if ((e as { code?: string }).code !== '42703') throw e
+        list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status').in('id', part).is('deleted_at', null)))
+      }
+      const open = await inChunks(ids, part => rows<{ job_id: string }>(supabase.from('delivery_problem').select('job_id').in('job_id', part).is('resolved_at', null)))
+      const withProblem = new Set(open.map(p => p.job_id))
+      return new Map(list.map(j => [j.id, { ...j, problem: withProblem.has(j.id) }]))
     },
   })
 }

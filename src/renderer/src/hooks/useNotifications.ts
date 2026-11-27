@@ -25,6 +25,8 @@ export interface AppNotification {
     | 'client_order' | 'client_request' | 'client_message' | 'client_review'
     // sql/144: a job needs adjustment (its technician and designer); a client said how the sent work fitted.
     | 'job_adjust' | 'client_fit'
+    // sql/145: a delivery problem (the clinic), it was resolved (who reported it), "Did your order arrive?" (the doctor who ordered it).
+    | 'delivery_problem' | 'problem_resolved' | 'received_reminder'
   detail: Record<string, unknown>
   created_at: string
   read_at: string | null

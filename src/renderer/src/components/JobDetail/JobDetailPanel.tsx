@@ -9,6 +9,7 @@ import { usePipeline } from '../../context/PipelineContext'
 import { MarkSentButton } from '../Network/MarkSent'
 import { JobOrderThread } from '../Network/OrderThread'
 import { JobFeedback } from '../Feedback/Feedback'
+import { JobDelivery } from '../Delivery/JobDelivery'
 import { stageChipStyle } from '../../config/pipeline'
 import { ToothPicker } from '../teeth/ToothPicker'
 import { ShadePicker } from './ShadePicker'
@@ -1048,6 +1049,8 @@ export function JobDetailPanel({ job, onClose, onSave, onCreateCopy, onDelete, s
               {!activeRev && <OptionDoers job={job} className="mx-5 mt-3 px-5 py-3 bg-bg-card rounded-xl" />}
               {/* At the last stage and still at the lab: send it (and tell the client, if it is an order). */}
               {!activeRev && <div className="mx-5 mt-3 flex justify-end empty:hidden"><MarkSentButton job={job} /></div>}
+              {/* Sent: Received, or a delivery problem until it is resolved (sql/145). */}
+              {!activeRev && <div className="mx-5 mt-3 empty:hidden"><JobDelivery job={job} /></div>}
               {/* A job from a Network order: its conversation, files and reviews go on here (sql/143). */}
               {!activeRev && <div className="mx-5 mt-3 empty:hidden"><JobOrderThread jobId={job.id} /></div>}
               {/* Fitted / Needs adjustment and ratings (sql/144, module ratings). */}
