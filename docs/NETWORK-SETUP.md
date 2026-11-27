@@ -8,8 +8,9 @@ kirjutatud, ainult failid).
 > kasutab varjatud sisestust või faili, mis pärast kustutatakse.
 > Iga `supabase` käsk saab `--project-ref`. `supabase link` mitte kunagi.
 
-**Järjekord:** A (Network, üks kord) → enne proovi kõike B ja C
-võltsprojektis (docs/TEST-PROJECT.md) → alles siis Dentiks.
+**Järjekord:** A (Network, üks kord) → enne proovi B ja C võltsprojektis
+(docs/TEST-PROJECT.md) → alles siis Dentiks. Kliiniku ühendamine (B) on üks
+käsk: `npm run network:connect -- --clinic <id>`.
 
 ---
 
@@ -35,9 +36,9 @@ Dashboard → Authentication:
 1. **Sign In / Providers → Email**: sees; **Confirm email**: sees.
 2. **Multi-Factor → TOTP**: **Enabled** (ilma selleta ei anna Network
    ühtegi tõendit: kõik nõuab teist tegurit).
-3. **URL Configuration → Site URL**: `https://app.wivodent.com/network`;
-   **Redirect URLs** lisa `https://wivo.dentiks.lv/network` ja iga teise
-   kliiniku telefoniaadress `/network`-iga.
+3. **URL Configuration → Site URL**: `https://app.wivodent.com/network`.
+   Kliinikute telefoniaadressid (`https://wivo.dentiks.lv/network` jne) lisab
+   **Redirect URLs** alla ühendamise käsk ise (B2, samm e).
 4. Password: minimaalne pikkus **12**, "Leaked password protection" sees.
 
 ### A3. Migratsioon
@@ -68,8 +69,8 @@ node network/scripts/make-network-key.mjs "$env:USERPROFILE\Documents"
 Tekib kaks faili:
 - `network-signing.env` — **privaatvõti**. Ainult järgmise sammu jaoks,
   siis kustuta.
-- `network-public-key.txt` — avalik võti (43 märki). Seda annad igale
-  kliinikule (samm B4). Avalik: seda võib hoida ja jagada.
+- `network-public-key.txt` — avalik võti (43 märki). See läheb faili
+  `network/config.json` (samm A6). Avalik: seda võib hoida ja jagada.
 
 ### A5. Saladus ja funktsioon
 
@@ -80,7 +81,7 @@ npx supabase functions deploy network-token --project-ref <NETWORK_REF> --workdi
 npx supabase functions deploy network-clinic --no-verify-jwt --project-ref <NETWORK_REF> --workdir network
 ```
 
-`network-clinic`: kliinik loeb ja muudab oma kataloogirida (samm A8). JWT
+`network-clinic`: kliinik loeb ja muudab oma kataloogirida (samm B2, b). JWT
 kontroll on **väljas**, sest seda kutsub ainult kliiniku funktsioon serverist
 ja tõend on kliiniku allkiri.
 
@@ -93,21 +94,19 @@ kliiniku `supabase/` kausta**).
 Kontroll: Dashboard → Edge Functions → `network-token` on olemas, JWT
 kontroll **sees** (vaikimisi).
 
-### A6. Kliinik kataloogi
+### A6. `network/config.json`
 
-Iga kliinik, kes tellimusi Networki kaudu vastu võtab, saab rea. SQL Editor
-(Networki projektis):
+Kaks avalikku väärtust, mida ühendamise käsk (B2) loeb:
 
-```sql
-insert into public.clinic (name, country, city, api_url, listed)
-values ('Dentiks', 'LV', 'Rīga', 'https://<KLIINIKU_REF>.supabase.co', false)
-returning id, invite_code;
+```json
+{
+  "ref": "<NETWORK_REF>",
+  "publicKey": "<network-public-key.txt sisu, 43 märki>"
+}
 ```
 
-- `id` → **kliiniku Networki number** (samm B4).
-- `invite_code` → kutse link: `https://wivo.dentiks.lv/network/join/<invite_code>`.
-- `listed` jääb `false`. Omanik lülitab selle ise Wivos (samm B5); SQL-i
-  pole selleks vaja.
+Muud fail ei sisalda; `scripts/networkConnect.test.ts` keelab kõik muu
+(privaatvõti, token). Fail on gitis.
 
 ### A7. Telefonirakendus teab Networki
 
@@ -122,108 +121,61 @@ Settings → Environment variables (Production):
 Mõlemad on avalikud. Järgmine build võtab need. Ilma nendeta ütleb
 `/network` "not set up".
 
-### A8. Kliiniku oma võti (iga kliinik)
-
-Selle võtmega allkirjastab kliiniku funktsioon `network-directory` oma
-päringud Networkile: omanik lülitab kataloogis näitamise sisse või välja ja
-näeb kutse linki. Network hoiab ainult avalikku võtit.
-
-PowerShellis, repo kaustast. Kaust **väljaspool repot**:
-
-```powershell
-node network/scripts/make-clinic-key.mjs "$env:USERPROFILE\Documents" dentiks https://<NETWORK_REF>.supabase.co
-```
-
-Tekib:
-- `dentiks-network-clinic.env`: privaatvõti + Networki aadress. Ainult
-  sammu B5 jaoks, siis kustuta.
-- `dentiks-network-clinic-public-key.txt`: avalik võti (43 märki).
-
-SQL Editor (Networki projektis):
-
-```sql
-update public.clinic set clinic_public_key = '<avalik võti>' where id = '<kliiniku Networki number>';
-```
-
-Kontroll (ainult lugemine):
-
-```sql
-select name, clinic_public_key is not null as has_key from public.clinic;
-```
-
 ---
 
-## B. Kliiniku pool (iga kliinik; enne võltsprojekt, siis Dentiks)
+## B. Kliinik Networki (iga kliinik, üks käsk)
 
-### B1. Migratsioon 138
+Omanik ei näe ühtegi võtit ega numbrit: kõik teeb see käsk Kevini arvutist.
 
-**Pärast 136 ja 137** (vt docs/NIGHT-REPORT-2026-11-27.md järjekorda).
-SQL Editor → `sql/138_network_portal.sql` → Run; siis eraldi:
+### B1. Enne
 
-```sql
-notify pgrst, 'reload schema';
-```
+1. Kliiniku andmebaasis on **migratsioon 138** (pärast 136 ja 137; Dentiksile
+   allkirjastatud paketiga, RELEASE.md §5). Ilma selleta käsk peatub enne,
+   kui midagi kirjutab.
+2. `clinics/<id>.json` sisaldab `orgId`, `city` ja `country` (kataloog näitab
+   nime, linna ja riiki).
+3. Litsentsi moodulites on `portal`
+   (`scripts/make-license.mjs … --modules jobs,payroll,stock,portal`), muidu
+   pole menüüs "Orders".
 
-Dentiksi projekti jõuab see allkirjastatud paketiga / sinu käsitsi
-jooksutusega nagu teised (RELEASE.md §5).
+### B2. Ühenda
 
-Kontroll:
-
-```sql
-select has_function_privilege('authenticated', 'public.client_orders(text)', 'execute');  -- false
-select count(*) from public.network_settings;                                             -- 0
-```
-
-### B2. Funktsioonid
+Esmalt kuivkäivitus (ei saada midagi, näitab iga sammu ja SQL-i):
 
 ```powershell
-npx supabase functions deploy network-client --no-verify-jwt --project-ref <KLIINIKU_REF>
-npx supabase functions deploy file-link --project-ref <KLIINIKU_REF>
+npm run network:connect -- --clinic dentiks --dry-run
 ```
 
-`network-client` vajab ainult platvormi enda muutujaid (URL, teenusevõti).
-Uut saladust ei ole.
-
-### B3. Litsents
-
-Kliiniku litsentsi moodulitesse lisa `portal`
-(`scripts/make-license.mjs … --modules jobs,payroll,stock,portal`, docs/MODULES-AND-RATINGS.md).
-Ilma selleta pole menüüs "Orders" (arendusrežiimis ja telefonis on kõik
-moodulid sees, aga andmebaasis on tellimused ikka väljas, kuni omanik
-lülitab).
-
-### B4. Omanik lülitab sisse
-
-Wivo (desktop) → külgmenüü **Orders** → kaart **Wivo Network**:
-
-1. linnuke **Take orders through Wivo Network**;
-2. **Network key** = `network-public-key.txt` sisu (43 märki);
-3. **Your clinic's Network number** = samm A6 `id`;
-4. **Save**.
-
-Välja lülitades lõpevad kõik klientide sessioonid kohe.
-
-### B5. Kataloog ja kutse link (omaniku lüliti)
-
-Kliiniku projekti saladused sammu A8 failist, siis funktsioon:
+Siis päriselt:
 
 ```powershell
-npx supabase secrets set --project-ref <KLIINIKU_REF> --env-file "$env:USERPROFILE\Documents\dentiks-network-clinic.env"
-Remove-Item "$env:USERPROFILE\Documents\dentiks-network-clinic.env"
-npx supabase functions deploy network-directory --project-ref <KLIINIKU_REF>
+npm run network:connect -- --clinic dentiks
 ```
 
-Wivo → **Orders** → kaart **Wivo Network**:
-- **Show my clinic in the Wivo Network directory**: kataloogis on ainult
-  nimi, linn ja riik. Sisse saab lülitada ainult siis, kui tellimused on
-  sees; välja alati.
-- **Invite link** + **Copy invite link**: töötab ka kataloogita.
+Küsib varjatult **Supabase access tokenit** (Account → Access Tokens; Enter
+teisel küsimusel = sama token Networki jaoks). Token ei käi käsureale ega
+kettale. Seejärel teeb järjest, iga sammu ainult siis, kui see on tegemata
+(teine käivitus ei muuda midagi):
 
-Kontroll: linnuke maha/peale → Networki projektis
-`select name, listed from public.clinic;` näitab muutust.
+| Samm | Mida |
+|---|---|
+| a | kliiniku rida Networki kataloogi (`listed = false`) → Networki number ja kutsekood |
+| b | kliiniku Ed25519 võti: avalik pool Networki ritta, privaatne otse kliiniku saladustesse (`NETWORK_CLINIC_KEY`, `NETWORK_URL`), mitte kettale |
+| c | funktsioonid kliiniku projekti: `network-client` (`--no-verify-jwt`), `network-directory`, `file-link` |
+| d | Networki avalik võti ja Networki number kliiniku `network_settings` tabelisse; **tellimused jäävad välja** |
+| e | `<telefoniaadress>/network` Networki Redirect URLs nimekirja |
+| f | kõik üle kontrollitud; kokkuvõte, Networki number ja kutse link |
 
-Ilma selle sammuta ütleb kaart "not available yet". Muu tellimuste töö
-toimib ka ilma selleta.
+Lisavalikud: `--rotate-key` (uus kliiniku võti), `--skip-deploy`.
+
+### B3. Omanik
+
+Wivo → **Orders** → kaart **Wivo Network**: **Take orders from outside**
+(välja lülitamine küsib üle: kõik klientide sessioonid lõpevad kohe),
+**Show my clinic in the directory**, kutse link ja **Copy**.
+
+Kui kliinik pole veel ühendatud, ütleb kaart "Wivo will set this up for you.
+Contact Wivo." ja väljad on peidus **Advanced (Wivo support)** all.
 
 ---
 
@@ -247,6 +199,50 @@ toimib ka ilma selleta.
    põhjus.
 8. Wivo → Orders → Connected → **End** → telefonis järgmine samm ütleb
    "signed out of this clinic"; uuesti küsides tuleb uus soov.
+
+## Lisa: käsitsi samm-sammult (mida B2 teeb)
+
+Ainult siis, kui käsk ei sobi (nt token ei ulatu kliiniku projekti).
+
+1. **Kataloogirida** (SQL Editor, Networki projekt):
+
+   ```sql
+   insert into public.clinic (name, country, city, api_url, listed)
+   values ('Dentiks', 'LV', 'Rīga', 'https://<KLIINIKU_REF>.supabase.co', false)
+   returning id, invite_code;
+   ```
+
+   `id` = kliiniku Networki number; kutse link
+   `https://wivo.dentiks.lv/network/join/<invite_code>`.
+
+2. **Kliiniku võti**, kaust väljaspool repot:
+
+   ```powershell
+   node network/scripts/make-clinic-key.mjs "$env:USERPROFILE\Documents" dentiks https://<NETWORK_REF>.supabase.co
+   npx supabase secrets set --project-ref <KLIINIKU_REF> --env-file "$env:USERPROFILE\Documents\dentiks-network-clinic.env"
+   Remove-Item "$env:USERPROFILE\Documents\dentiks-network-clinic.env"
+   ```
+
+   Networki projektis:
+   `update public.clinic set clinic_public_key = '<dentiks-network-clinic-public-key.txt>' where id = '<Networki number>';`
+
+3. **Funktsioonid**:
+
+   ```powershell
+   npx supabase functions deploy network-client --no-verify-jwt --project-ref <KLIINIKU_REF>
+   npx supabase functions deploy network-directory --project-ref <KLIINIKU_REF>
+   npx supabase functions deploy file-link --project-ref <KLIINIKU_REF>
+   ```
+
+4. **Kliiniku seaded**: Wivo → Orders → Wivo Network → **Advanced (Wivo
+   support)**: Network key (`network-public-key.txt`), Network number (1.),
+   Save. Tellimused jäävad välja, kuni omanik lülitab.
+
+5. **Redirect**: Networki Dashboard → Authentication → URL Configuration →
+   Redirect URLs → `https://wivo.dentiks.lv/network`.
+
+Kontroll (Networki projektis, ainult lugemine):
+`select name, listed, clinic_public_key is not null as has_key from public.clinic;`
 
 ## Mida Network kunagi ei hoia
 

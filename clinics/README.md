@@ -20,6 +20,8 @@ Names follow the clinic, never the country or the city.
 | `cloudflareProject` | The Cloudflare Pages project of the phone app. | `wivo-dentiks` |
 | `phoneBranch` | The git branch that project builds. It only ever points at a commit already on `testing`. Never `main` or `testing`. | `riga` |
 | `orgId` | Optional. The clinic's organisation UUID, the `--org` of its licence (Settings → Licence → Organisation). A licence delivered with the updates must name it (docs/RELEASE.md §7), and `make-license.mjs --publish` needs it. | *(Kevin adds it)* |
+| `city` | Optional. The town, as the Wivo Network directory shows it (`npm run network:connect`). | `Rīga` |
+| `country` | Optional. Two capital letters, as the Wivo Network directory shows it; `network:connect` needs it. | `LV` |
 
 `scripts/clinicBuild.test.ts` checks every file here.
 
@@ -42,3 +44,5 @@ say the same as `<id>.json`, so an older env file still works.)
 3. `clinics/<id>.json` here, and `clinics/<id>.env` on the machine that builds.
 4. `npm run release -- --clinic <id> --first`, then the steps in
    docs/CLINIC-ROLLOUT.md with the new clinic's names.
+5. `npm run network:connect -- --clinic <id>` connects it to the Wivo Network
+   (docs/NETWORK-SETUP.md, B). Orders stay off until the owner turns them on.

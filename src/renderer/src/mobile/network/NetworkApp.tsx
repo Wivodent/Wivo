@@ -8,8 +8,13 @@
  *     my clinics (connected, waiting; open orders where the clinic answered),
  *     recent orders; finding a clinic (the directory, or an invite link
  *     /network/join/<code>)
- *   → a clinic: New order in three steps (the clinic, what and where, the
- *     details), My orders, an order's progress, messages and files
+ *   → a clinic: New order (Work & teeth → Details → Review, with the clinic
+ *     first when it was picked), My orders, an order's progress, messages and
+ *     files; ending the connection only from the clinic's "⋯" menu, asked first
+ *
+ * Nothing final sits beside an ordinary button or happens without a question:
+ * ending a connection asks, with the clinic's name; leaving a filled-in order
+ * asks "Discard this order?".
  *
  * Only what Wivo has is shown: no rating, no stage names, no dates it does
  * not keep.
@@ -19,7 +24,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
-import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2 } from 'lucide-react'
+import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   network, networkConfigured, myAccount, saveAccount, directory, clinicByInvite, myConnections,
@@ -30,7 +35,8 @@ import { emptyOrder, orderProblems, type CatalogueItem, type ClientOrderStatus, 
 import { InfoButton } from '../../components/ui/InfoButton'
 import { WorkTypeArt } from '../../components/ui/WorkTypeArt'
 import {
-  teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, UPPER_TEETH, LOWER_TEETH,
+  teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
+  UPPER_TEETH, LOWER_TEETH, type FormStep,
 } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
 import { t, dateLocale } from '@/lib/i18n'
@@ -40,7 +46,7 @@ type Screen =
   | { name: 'find' }
   | { name: 'pick' }
   | { name: 'join'; code: string }
-  | { name: 'clinic'; conn: Connection & { clinic: DirectoryClinic }; tab?: 'new' | 'mine'; orderId?: string }
+  | { name: 'clinic'; conn: Connection & { clinic: DirectoryClinic }; startNew?: boolean; fromPick?: boolean; orderId?: string }
 
 /** The invite code in /network/join/<code>, if this is one. */
 export function inviteCodeOf(pathname: string): string | null {
@@ -291,14 +297,15 @@ function Home() {
   if (screen.name === 'find') return <FindClinic onBack={home} onAsked={() => { void conns.refetch(); home() }} />
   if (screen.name === 'join') return <JoinClinic code={screen.code} onBack={home} onAsked={() => { void conns.refetch(); home() }} />
   if (screen.name === 'clinic') {
-    return <ClinicScreen conn={screen.conn} startTab={screen.tab} startOrder={screen.orderId} onBack={() => { void conns.refetch(); home() }} />
+    return <ClinicScreen conn={screen.conn} startNew={screen.startNew} fromPick={screen.fromPick} startOrder={screen.orderId}
+      onBack={() => { void conns.refetch(); home() }} onBackToPick={() => setScreen({ name: 'pick' })} />
   }
 
   const a = account.data
   const overviewOf = (c: LiveConn): ClinicOverview | undefined => overviews[live.indexOf(c)]?.data
   const stateOf = (c: LiveConn): Connection['state'] => overviewOf(c)?.state ?? c.state
   const ready = live.filter(c => stateOf(c) === 'confirmed')
-  if (screen.name === 'pick') return <PickClinic conns={ready} onBack={home} onPick={c => setScreen({ name: 'clinic', conn: c, tab: 'new' })} />
+  if (screen.name === 'pick') return <PickClinic conns={ready} onBack={home} onPick={c => setScreen({ name: 'clinic', conn: c, startNew: true, fromPick: true })} />
 
   const known = live.filter(c => overviewOf(c)?.orders)
   const openTotal = known.reduce((n, c) => n + (overviewOf(c)!.orders!.filter(o => OPEN.includes(o.status)).length), 0)
@@ -306,7 +313,7 @@ function Home() {
     .flatMap(c => overviewOf(c)!.orders!.map(o => ({ o, c })))
     .sort((x, y) => y.o.created_at.localeCompare(x.o.created_at))
     .slice(0, 5)
-  const newOrder = () => (ready.length === 1 ? setScreen({ name: 'clinic', conn: ready[0], tab: 'new' }) : setScreen({ name: 'pick' }))
+  const newOrder = () => (ready.length === 1 ? setScreen({ name: 'clinic', conn: ready[0], startNew: true }) : setScreen({ name: 'pick' }))
 
   return (
     <div className="min-h-[100dvh] bg-bg text-ink" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
@@ -403,14 +410,14 @@ const greetingText = (hour: number): string => {
 const roleText = (r: Account['role']): string =>
   r === 'technician' ? t('network.roleTechnician') : r === 'doctor' ? t('network.roleDoctor') : r === 'clinic' ? t('network.roleClinic') : t('network.roleLab')
 
-/** The three steps of a new order: the clinic, what and where, the details. */
-function Steps({ step, label }: { step: 1 | 2 | 3; label: string }) {
+/** Where a new order is: only the steps the person sees are counted (lib/orderView stepNumber). */
+function Steps({ number, total, label }: { number: number; total: number; label: string }) {
   return (
     <div className="space-y-2">
       <div className="flex gap-1.5" aria-hidden="true">
-        {[1, 2, 3].map(i => <span key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? 'bg-accent' : 'bg-ink-faint/30'}`} />)}
+        {Array.from({ length: total }, (_, i) => <span key={i} className={`h-1.5 flex-1 rounded-full ${i < number ? 'bg-accent' : 'bg-ink-faint/30'}`} />)}
       </div>
-      <p className="text-sm font-semibold uppercase text-ink-muted">{t('network.stepOf', { n: step, total: 3 })} · {label}</p>
+      <p className="text-sm font-semibold uppercase text-ink-muted">{t('network.stepOf', { n: number, total })} · {label}</p>
     </div>
   )
 }
@@ -418,7 +425,7 @@ function Steps({ step, label }: { step: 1 | 2 | 3; label: string }) {
 function PickClinic({ conns, onBack, onPick }: { conns: LiveConn[]; onBack: () => void; onPick: (c: LiveConn) => void }) {
   return (
     <Shell onBack={onBack} title={t('network.newOrder')}>
-      <Steps step={1} label={t('network.stepClinic')} />
+      <Steps {...stepNumber('clinic', true)} label={t('network.stepClinic')} />
       {conns.map(c => (
         <button key={c.id} type="button" onClick={() => onPick(c)} className="card flex w-full items-center gap-3 rounded-2xl p-4 text-left active:bg-bg-sidebar">
           <Building2 size={22} className="text-accent" aria-hidden="true" />
@@ -471,21 +478,66 @@ function JoinClinic({ code, onBack, onAsked }: { code: string; onBack: () => voi
   )
 }
 
-// ── A clinic: New order, My orders ──────────────────────────────────────────
-function ClinicScreen({ conn, startTab, startOrder, onBack }: { conn: LiveConn; startTab?: 'new' | 'mine'; startOrder?: string; onBack: () => void }) {
+// ── A clinic: its page, New order, an order ─────────────────────────────────
+/**
+ * The clinic's page: New order and My orders, nothing final beside them.
+ * Ending the connection is in the "⋯" menu, in red, and asks first.
+ * `fromPick`: New order was started from the clinic picker, so leaving the
+ * form goes back there (the picker is its first step).
+ */
+function ClinicScreen({ conn, startNew, fromPick, startOrder, onBack, onBackToPick }: {
+  conn: LiveConn; startNew?: boolean; fromPick?: boolean; startOrder?: string; onBack: () => void; onBackToPick?: () => void
+}) {
   const [state, setState] = useState<{ state: Connection['state']; session?: ClinicSession } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<'new' | 'mine'>(startTab ?? 'mine')
+  const [mode, setMode] = useState<'home' | 'new'>(startNew ? 'new' : 'home')
   const [openOrder, setOpenOrder] = useState<string | null>(startOrder ?? null)
+  const [menu, setMenu] = useState(false)
   const tryConnect = async () => { setError(null); try { setState(await connect(conn)) } catch (e) { setError(errorText(e)) } }
   useEffect(() => { void tryConnect() }, [conn.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const api = useMemo(() => state?.session ? clinicApi(conn.clinic_id, conn.clinic.api_url, state.session.session) : null, [state, conn])
   const detail = useQuery({ queryKey: ['network', 'order', openOrder], queryFn: () => api!.order(openOrder!), enabled: !!api && !!openOrder, refetchInterval: 30_000 })
 
+  async function endIt() {
+    setMenu(false)
+    const yes = await confirmDialog({
+      title: t('network.endTitle', { clinic: conn.clinic.name }),
+      message: t('network.endExplain'),
+      confirmLabel: t('network.endConfirm'),
+      danger: true,
+    })
+    if (!yes) return
+    if (api) await api.end().catch(() => {})
+    await endConnection(conn.id)
+    onBack()
+  }
+
+  if (mode === 'new' && api && state?.session) {
+    return (
+      <NewOrder api={api} clinicId={conn.clinic_id} clinicName={conn.clinic.name} prices={!!state.session.can_see.prices}
+        withClinicStep={!!fromPick}
+        onLeave={() => (fromPick && onBackToPick ? onBackToPick() : setMode('home'))}
+        onSent={id => { setMode('home'); setOpenOrder(id) }} />
+    )
+  }
+
+  const menuButton = state?.state !== 'ended' && (
+    <div className="relative">
+      <button type="button" onClick={() => setMenu(m => !m)} aria-expanded={menu} aria-label={t('network.clinicMenu')}
+        className="flex h-10 w-10 items-center justify-center rounded-full text-ink-muted hover:bg-bg-sidebar"><MoreHorizontal size={20} aria-hidden="true" /></button>
+      {menu && (
+        <div className="absolute right-0 top-11 z-50 w-60 overflow-hidden rounded-xl bg-bg-card shadow-lg">
+          <button type="button" className="block w-full px-4 py-3 text-left text-base text-rose-600 hover:bg-bg-sidebar" onClick={() => void endIt()}>
+            {t('network.endConnection')}</button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <Shell onBack={openOrder ? () => (startOrder ? onBack() : setOpenOrder(null)) : onBack}
       title={openOrder ? detail.data?.payload.patient_ref ?? '' : conn.clinic.name}
-      right={openOrder && detail.data ? <StatusBadge status={detail.data.status} /> : undefined}>
+      right={openOrder ? (detail.data ? <StatusBadge status={detail.data.status} /> : undefined) : menuButton}>
       {error && <div className="card space-y-3 p-5"><p className="text-base text-rose-600">{error}</p>
         <button type="button" className={`btn-primary justify-center ${big}`} onClick={() => void tryConnect()}>{t('network.tryAgain')}</button></div>}
       {state?.state === 'requested' && (
@@ -503,21 +555,11 @@ function ClinicScreen({ conn, startTab, startOrder, onBack }: { conn: LiveConn; 
       )}
       {api && state?.session && !openOrder && (
         <>
-          <div className="grid grid-cols-2 gap-2" role="tablist">
-            <button type="button" role="tab" aria-selected={tab === 'new'} onClick={() => setTab('new')}
-              className={`h-12 rounded-xl border-2 text-base ${tab === 'new' ? 'border-accent bg-accent/10 font-semibold' : 'border-ink-faint/30'}`}>
-              <Plus size={16} className="mr-1 inline" aria-hidden="true" />{t('network.newOrder')}</button>
-            <button type="button" role="tab" aria-selected={tab === 'mine'} onClick={() => setTab('mine')}
-              className={`h-12 rounded-xl border-2 text-base ${tab === 'mine' ? 'border-accent bg-accent/10 font-semibold' : 'border-ink-faint/30'}`}>
-              {t('network.myOrders')}</button>
-          </div>
-          {tab === 'new'
-            ? <NewOrder api={api} clinicId={conn.clinic_id} clinicName={conn.clinic.name} prices={!!state.session.can_see.prices}
-                onBack={() => setTab('mine')} onSent={id => { setTab('mine'); setOpenOrder(id) }} />
-            : <MyOrders api={api} clinicId={conn.clinic_id} onOpen={setOpenOrder} />}
-          <button type="button" className="btn-ghost mx-auto text-sm text-rose-600"
-            onClick={async () => { if (await confirmDialog({ message: t('network.endAsk', { clinic: conn.clinic.name }), danger: true })) { await api.end().catch(() => {}); await endConnection(conn.id); onBack() } }}>
-            {t('network.endConnection')}</button>
+          <button type="button" onClick={() => setMode('new')} className="btn-primary h-14 w-full justify-center rounded-2xl text-lg font-bold">
+            <Plus size={20} aria-hidden="true" /> {t('network.newOrder')}
+          </button>
+          <h2 className="pt-1 text-lg font-bold">{t('network.myOrders')}</h2>
+          <MyOrders api={api} clinicId={conn.clinic_id} onOpen={setOpenOrder} />
         </>
       )}
       {api && openOrder && <OrderScreen api={api} clinicId={conn.clinic_id} clinicName={conn.clinic.name} orderId={openOrder} detail={detail} />}
@@ -565,14 +607,20 @@ function MyOrders({ api, clinicId, onOpen }: { api: Api; clinicId: string; onOpe
   )
 }
 
-/** Which of an order's fields step 2 is about: a problem in these keeps Next off. */
-const STEP2_PROBLEMS = new Set(['work_type', 'teeth', 'options', 'not_in_catalogue', 'option_not_offered', 'one_option_only'])
+/** Which of an order's fields the first form step is about: a problem in these keeps Next off. */
+const WORK_PROBLEMS = new Set(['work_type', 'teeth', 'options', 'not_in_catalogue', 'option_not_offered', 'one_option_only'])
 
-function NewOrder({ api, clinicId, clinicName, prices, onBack, onSent }: {
-  api: Api; clinicId: string; clinicName: string; prices: boolean; onBack: () => void; onSent: (id: string) => void
+/**
+ * New order, as steps the person sees: Work & teeth → Details → Review (and
+ * the clinic before them when it was picked). Back on the first of these
+ * leaves the form: straight away when nothing is filled in, else only after
+ * "Discard this order?".
+ */
+function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, onSent }: {
+  api: Api; clinicId: string; clinicName: string; prices: boolean; withClinicStep: boolean; onLeave: () => void; onSent: (id: string) => void
 }) {
   const catalog = useQuery<CatalogueItem[]>({ queryKey: ['network', 'catalog', clinicId], queryFn: api.catalog })
-  const [step, setStep] = useState<2 | 3>(2)
+  const [step, setStep] = useState<FormStep>('work')
   const [order, setOrder] = useState<WivoOrderV1>(emptyOrder)
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
@@ -581,8 +629,24 @@ function NewOrder({ api, clinicId, clinicName, prices, onBack, onSent }: {
   const today = new Date().toISOString().slice(0, 10)
   const problems = orderProblems(order, catalog.data, today)
   const needsTeeth = !!item && item.teeth !== 'none'
-  const step2Ok = !!item && !problems.some(p => STEP2_PROBLEMS.has(p)) && (!needsTeeth || order.teeth !== '')
+  const workOk = !!item && !problems.some(p => WORK_PROBLEMS.has(p)) && (!needsTeeth || order.teeth !== '')
+  const detailsOk = problems.length === 0
   const set = (patch: Partial<WivoOrderV1>) => setOrder(o => ({ ...o, ...patch }))
+  const { number, total } = stepNumber(step, withClinicStep)
+  const options = chosenOptionLabels(order.options, (key, id) => item?.groups.find(g => g.key === key)?.options.find(o => o.id === id)?.name)
+
+  async function back() {
+    if (step === 'review') return setStep('details')
+    if (step === 'details') return setStep('work')
+    if (orderTouched(order, files.length)) {
+      const discard = await confirmDialog({
+        title: t('network.discardTitle'), message: t('network.discardText'),
+        confirmLabel: t('network.discard'), cancelLabel: t('network.keepEditing'), danger: true,
+      })
+      if (!discard) return
+    }
+    onLeave()
+  }
 
   async function send() {
     setBusy(true); setError(null)
@@ -593,16 +657,20 @@ function NewOrder({ api, clinicId, clinicName, prices, onBack, onSent }: {
     } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
   }
 
-  return (
-    <div className="space-y-3">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-lg font-bold">{t('network.newOrder')}</h2>
-        <span className="truncate text-sm text-ink-muted">{t('network.toClinic', { clinic: clinicName })}</span>
-      </div>
+  const label = step === 'work' ? t('network.stepWork') : step === 'details' ? t('network.stepDetails') : t('network.stepReview')
+  const footer = (next: React.ReactNode) => (
+    <div className="flex gap-2 pt-1">
+      <button type="button" onClick={() => void back()} className="min-h-12 flex-1 rounded-2xl border border-ink-faint/40 bg-bg-card text-base font-semibold">{t('network.backStep')}</button>
+      {next}
+    </div>
+  )
 
-      {step === 2 && (
+  return (
+    <Shell onBack={() => void back()} title={t('network.newOrder')} right={<span className="truncate text-sm text-ink-muted">{t('network.toClinic', { clinic: clinicName })}</span>}>
+      <Steps number={number} total={total} label={label} />
+
+      {step === 'work' && (
         <>
-          <Steps step={2} label={t('network.stepWhat')} />
           <div className="grid grid-cols-3 gap-2">
             {(catalog.data ?? []).map(c => {
               const on = order.work_type === c.name
@@ -642,38 +710,12 @@ function NewOrder({ api, clinicId, clinicName, prices, onBack, onSent }: {
           ))}
 
           {needsTeeth && <TeethPicker value={order.teeth} arch={item!.teeth === 'arch'} onChange={teeth => set({ teeth })} />}
-
-          <div className="card space-y-2 rounded-2xl p-3">
-            <p className="text-sm font-bold">{t('network.files')}</p>
-            <div className="flex flex-wrap gap-2">
-              <label className="flex min-h-14 flex-1 cursor-pointer items-center justify-center gap-1 rounded-xl border border-dashed border-ink-faint px-3 text-sm text-ink-soft">
-                <Paperclip size={16} aria-hidden="true" /> {t('network.addScan')}
-                <input type="file" multiple className="hidden" onChange={e => setFiles(f => [...f, ...(e.target.files ?? [])].slice(0, 30))} />
-              </label>
-              {files.map((f, i) => (
-                <button key={`${f.name}:${i}`} type="button" title={f.name} aria-label={t('network.removeFile', { name: f.name })}
-                  onClick={() => setFiles(list => list.filter((_, j) => j !== i))}
-                  className="flex h-14 w-14 items-center justify-center rounded-xl bg-accent/10 text-xs font-bold text-accent">
-                  {fileBadge(f.name) || <Paperclip size={16} aria-hidden="true" />}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={onBack} className="h-13 min-h-12 flex-1 rounded-2xl border border-ink-faint/40 bg-bg-card text-base font-semibold">{t('network.backStep')}</button>
-            <button type="button" disabled={!step2Ok} onClick={() => setStep(3)} className="btn-primary min-h-12 flex-[2] justify-center rounded-2xl text-base font-bold">{t('network.next')}</button>
-          </div>
+          {footer(<button type="button" disabled={!workOk} onClick={() => setStep('details')} className="btn-primary min-h-12 flex-[2] justify-center rounded-2xl text-base font-bold">{t('network.next')}</button>)}
         </>
       )}
 
-      {step === 3 && (
+      {step === 'details' && (
         <>
-          <Steps step={3} label={t('network.stepDetails')} />
-          <div className="card space-y-1 rounded-2xl p-3">
-            <p className="text-base font-bold">{order.work_type}</p>
-            <p className="text-sm text-ink-muted">{[teethLabel(order.teeth), files.length ? t('network.filesChosen', { n: files.length }) : ''].filter(Boolean).join(' · ')}</p>
-          </div>
           <div className="card grid grid-cols-1 gap-3 rounded-2xl p-3 sm:grid-cols-2">
             <label className="block sm:col-span-2"><span className="label flex items-center gap-1">{t('network.patientRef')} <InfoButton label={t('network.patientRef')} text={t('network.patientRefInfo')} /></span>
               <input className="input h-12 text-base" maxLength={40} value={order.patient_ref} onChange={e => set({ patient_ref: e.target.value })} /></label>
@@ -684,17 +726,54 @@ function NewOrder({ api, clinicId, clinicName, prices, onBack, onSent }: {
             <label className="block sm:col-span-2"><span className="label">{t('network.notes')}</span>
               <textarea className="input min-h-24 text-base" maxLength={2000} value={order.notes ?? ''} onChange={e => set({ notes: e.target.value || null })} /></label>
           </div>
-          {error && <p className="text-base text-rose-600">{error}</p>}
-          <div className="flex gap-2 pt-1">
-            <button type="button" onClick={() => setStep(2)} className="min-h-12 flex-1 rounded-2xl border border-ink-faint/40 bg-bg-card text-base font-semibold">{t('network.backStep')}</button>
-            <button type="button" disabled={busy || problems.length > 0} onClick={() => void send()} className="btn-primary min-h-12 flex-[2] justify-center rounded-2xl text-base font-bold">
-              <Send size={18} aria-hidden="true" /> {busy ? t('network.sending') : t('network.sendOrder')}
-            </button>
+          <div className="card space-y-2 rounded-2xl p-3">
+            <p className="text-sm font-bold">{t('network.files')}</p>
+            <label className="flex min-h-14 cursor-pointer items-center justify-center gap-1 rounded-xl border border-dashed border-ink-faint px-3 text-sm text-ink-soft">
+              <Paperclip size={16} aria-hidden="true" /> {t('network.addScan')}
+              <input type="file" multiple className="hidden" onChange={e => setFiles(f => [...f, ...(e.target.files ?? [])].slice(0, 30))} />
+            </label>
+            {files.map((f, i) => (
+              <div key={`${f.name}:${i}`} className="flex items-center gap-2 rounded-xl bg-accent/5 px-2 py-1.5">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-[10px] font-bold text-accent">{fileBadge(f.name) || <Paperclip size={14} aria-hidden="true" />}</span>
+                <span className="min-w-0 flex-1 truncate text-sm">{f.name}</span>
+                <button type="button" aria-label={t('network.removeFile', { name: f.name })} onClick={() => setFiles(list => list.filter((_, j) => j !== i))}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-ink-muted hover:bg-bg-sidebar"><X size={16} aria-hidden="true" /></button>
+              </div>
+            ))}
           </div>
-          {problems.length > 0 && <p className="text-sm text-ink-muted">{t('network.fillIn')}</p>}
+          {!detailsOk && order.patient_ref.trim() === '' && <p className="text-sm text-ink-muted">{t('network.fillIn')}</p>}
+          {footer(<button type="button" disabled={!detailsOk} onClick={() => setStep('review')} className="btn-primary min-h-12 flex-[2] justify-center rounded-2xl text-base font-bold">{t('network.next')}</button>)}
         </>
       )}
-    </div>
+
+      {step === 'review' && (
+        <>
+          <div className="card space-y-3 rounded-2xl p-4">
+            <div className="flex items-center gap-3">
+              <TypeArt name={order.work_type} size={48} />
+              <div className="min-w-0">
+                <p className="text-base font-bold">{[order.work_type, ...options].join(' · ')}</p>
+                <p className="text-sm text-ink-muted">{t('network.toClinic', { clinic: clinicName })}</p>
+              </div>
+            </div>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+              {order.teeth && <><dt className="text-ink-muted">{t('network.teeth')}</dt><dd>{teethLabel(order.teeth)}</dd></>}
+              <dt className="text-ink-muted">{t('network.patientRef')}</dt><dd className="break-words">{order.patient_ref}</dd>
+              {order.shade && <><dt className="text-ink-muted">{t('network.shade')}</dt><dd>{order.shade}</dd></>}
+              {order.due && <><dt className="text-ink-muted">{t('network.due')}</dt><dd>{format(new Date(order.due), 'd MMM yyyy', { locale: dateLocale })}</dd></>}
+              {files.length > 0 && <><dt className="text-ink-muted">{t('network.files')}</dt><dd>{files.map(f => f.name).join(', ')}</dd></>}
+            </dl>
+            {order.notes && <p className="whitespace-pre-wrap text-sm text-ink-muted">{order.notes}</p>}
+          </div>
+          {error && <p className="text-base text-rose-600">{error}</p>}
+          {footer(
+            <button type="button" disabled={busy || !detailsOk} onClick={() => void send()} className="btn-primary min-h-12 flex-[2] justify-center rounded-2xl text-base font-bold">
+              <Send size={18} aria-hidden="true" /> {busy ? t('network.sending') : t('network.sendOrder')}
+            </button>,
+          )}
+        </>
+      )}
+    </Shell>
   )
 }
 

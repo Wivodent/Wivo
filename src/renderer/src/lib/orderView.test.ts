@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   orderTab, countByTab, clientStatusOfTab, teethLabel, parseTeeth, formatTeeth, initials, dayPart,
-  chosenOptionLabels, fileBadge, UPPER_TEETH, LOWER_TEETH,
+  chosenOptionLabels, fileBadge, stepNumber, orderTouched, networkConfigured, UPPER_TEETH, LOWER_TEETH,
 } from './orderView'
 
 const DONE = 'valmis'
@@ -69,5 +69,35 @@ describe('small things', () => {
     expect(fileBadge('upper jaw.stl')).toBe('STL')
     expect(fileBadge('photo.JPEG')).toBe('JPEG')
     expect(fileBadge('README')).toBe('')
+  })
+})
+
+describe('the phone\'s New order steps', () => {
+  it('counts only the steps the person sees: the clinic only when it was asked', () => {
+    expect(stepNumber('work', false)).toEqual({ number: 1, total: 3 })
+    expect(stepNumber('review', false)).toEqual({ number: 3, total: 3 })
+    expect(stepNumber('clinic', true)).toEqual({ number: 1, total: 4 })
+    expect(stepNumber('work', true)).toEqual({ number: 2, total: 4 })
+    expect(stepNumber('review', true)).toEqual({ number: 4, total: 4 })
+  })
+  it('a form is touched by anything filled in, or a file', () => {
+    const empty = { work_type: '', teeth: '', options: {}, shade: null, due: null, patient_ref: '', notes: null }
+    expect(orderTouched(empty, 0)).toBe(false)
+    expect(orderTouched({ ...empty, options: { framework: [] } }, 0)).toBe(false)
+    expect(orderTouched({ ...empty, patient_ref: '   ' }, 0)).toBe(false)
+    expect(orderTouched(empty, 1)).toBe(true)
+    expect(orderTouched({ ...empty, work_type: 'Crown' }, 0)).toBe(true)
+    expect(orderTouched({ ...empty, teeth: '11' }, 0)).toBe(true)
+    expect(orderTouched({ ...empty, options: { framework: ['metal-bar'] } }, 0)).toBe(true)
+    expect(orderTouched({ ...empty, notes: 'x' }, 0)).toBe(true)
+  })
+})
+
+describe('the Orders page\'s Network card', () => {
+  it('shows the owner switches only once Wivo has connected the clinic (key and number)', () => {
+    expect(networkConfigured(null)).toBe(false)
+    expect(networkConfigured({ network_public_key: 'A'.repeat(43), network_clinic_id: null })).toBe(false)
+    expect(networkConfigured({ network_public_key: null, network_clinic_id: 'x' })).toBe(false)
+    expect(networkConfigured({ network_public_key: 'A'.repeat(43), network_clinic_id: 'x' })).toBe(true)
   })
 })

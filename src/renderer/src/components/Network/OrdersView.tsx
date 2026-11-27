@@ -10,7 +10,7 @@
  * read; nothing is shown that Wivo does not have (no ratings, no "unread").
  */
 import { useMemo, useState } from 'react'
-import { Inbox, Check, X, Download, Send, Settings2, Globe2, Copy } from 'lucide-react'
+import { Inbox, Check, X, Download, Send, Globe2, Copy } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
   useNetworkSettings, useNetworkClients, useClientOrders, useOrderThread, usePortalLive,
@@ -25,7 +25,7 @@ import { usePipeline } from '../../context/PipelineContext'
 import { useSettings, useWorkTypes } from '../../stores/useSettings'
 import { saveOrderFile } from '../../lib/fileLink'
 import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
-import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, type OrderTab } from '../../lib/orderView'
+import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, networkConfigured, type OrderTab } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
 import { describeError } from '../Patients/errors'
 import { InfoButton } from '../ui/InfoButton'
@@ -56,11 +56,10 @@ export function OrdersView() {
   const orders = useClientOrders().data ?? []
   const jobs = useOrderJobs(orders.filter(o => o.status === 'accepted' && o.job_id).map(o => o.job_id!)).data
   const counts = useOrderCounts(orders.map(o => o.id)).data
-  const directoryOn = isOwner && !!settings.data?.network_clinic_id
-  const entry = useDirectoryEntry(directoryOn).data
+  const configured = networkConfigured(settings.data)
+  const entry = useDirectoryEntry(isOwner && configured).data
   const [openId, setOpenId] = useState<string | null>(null)
   const [tab, setTab] = useState<OrderTab>('new')
-  const [showSettings, setShowSettings] = useState(false)
 
   const byId = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients])
   const tabOf = (o: ClientOrderRow) => orderTab(o, o.job_id ? jobs?.get(o.job_id) : undefined, doneStageKey)
@@ -91,16 +90,11 @@ export function OrdersView() {
             <span className={`h-2.5 w-2.5 rounded-full ${on ? 'bg-emerald-600' : 'bg-ink-faint'}`} aria-hidden="true" />
             <span className="text-base font-semibold text-ink">{on ? t('orders.taking') : t('orders.notTaking')}</span>
             {on && entry?.listed && <span className="text-sm text-ink-muted">· {t('orders.visibleInDirectory')}</span>}
-            <button type="button" onClick={() => setShowSettings(s => !s)} aria-expanded={showSettings || !on}
-              className="btn-ghost h-9 px-3 text-sm"><Settings2 size={16} aria-hidden="true" /> {t('orders.settings')}</button>
           </div>
         )}
       </div>
 
-      {isOwner && (showSettings || (settings.isFetched && !on)) && (
-        <SetupCard key={settings.data?.org_id ?? 'none'} row={settings.data ?? null} onSaved={() => setShowSettings(false)} />
-      )}
-      {isOwner && !on && settings.isFetched && <p className="text-base text-ink-muted">{t('orders.offHint')}</p>}
+      {isOwner && configured && !on && <p className="text-base text-ink-muted">{t('orders.offHint')}</p>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t('orders.statNew')} value={perTab.new} sub={t('orders.statNewSub')} strong onClick={() => setTab('new')} />
@@ -135,7 +129,7 @@ export function OrdersView() {
               {requests.map(c => <RequestCard key={c.id} client={c} canDecide={isOwner} />)}
             </section>
           )}
-          {directoryOn && <InviteCard ordersOn={on} />}
+          {isOwner && settings.isFetched && <NetworkCard key={settings.data?.org_id ?? 'none'} row={settings.data ?? null} />}
           {connected.length > 0 && <ConnectedClients clients={connected} ordersPerClient={ordersPerClient} canChange={isOwner} />}
         </div>
       </div>
@@ -159,10 +153,117 @@ function Stat({ label, value, sub, strong, warn, onClick }: { label: string; val
     : <div className={cls}>{body}</div>
 }
 
-// ── Setting it up (the owner) ──────────────────────────────────────────────
-function SetupCard({ row, onSaved }: { row: { enabled: boolean; network_public_key: string | null; network_clinic_id: string | null; session_hours: number } | null; onSaved: () => void }) {
+// ── Wivo Network: the owner's card ─────────────────────────────────────────
+type SettingsRow = { enabled: boolean; network_public_key: string | null; network_clinic_id: string | null; session_hours: number }
+
+const directoryProblemText = (p: DirectoryProblem | undefined): string =>
+  p === 'not_allowed' ? t('orders.directoryNotAllowed')
+    : p === 'orders_off' ? t('orders.directoryOrdersOff')
+    : p === 'try_again' ? t('orders.directoryTryAgain')
+    : p === 'unreachable' ? t('orders.directoryUnreachable')
+    : t('app.notAvailableYet')
+
+/**
+ * What the owner sees: "Take orders from outside", "Show my clinic in the
+ * directory", the invite link and Copy. No key and no number: Wivo connects
+ * the clinic (scripts/network-connect.mjs). Before it has, the card says so,
+ * and the fields are under "Advanced (Wivo support)".
+ */
+function NetworkCard({ row }: { row: SettingsRow | null }) {
+  const configured = networkConfigured(row)
+  return (
+    <section className="card space-y-3 p-4" data-testid="network-card">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">
+        <Globe2 size={20} className="text-accent" aria-hidden="true" /> {t('orders.setupTitle')}
+        <InfoButton label={t('orders.setupTitle')} text={t('orders.titleInfo')} />
+      </h2>
+      {configured ? <NetworkSwitches row={row!} /> : (
+        <>
+          <p className="text-base text-ink">{t('orders.wivoSetsUp')}</p>
+          <details>
+            <summary className="cursor-pointer text-sm text-ink-muted">{t('orders.advanced')}</summary>
+            <AdvancedSetup row={row} />
+          </details>
+        </>
+      )}
+    </section>
+  )
+}
+
+function NetworkSwitches({ row }: { row: SettingsRow }) {
   const save = useSaveNetworkSettings()
-  const [enabled, setEnabled] = useState(row?.enabled ?? false)
+  const entry = useDirectoryEntry(true)
+  const setListed = useSetDirectoryListed()
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const e = entry.data
+  const link = e ? inviteLink(e.inviteCode) : null
+  const problem = setListed.error?.problem ?? entry.error?.problem
+  const place = e ? [e.city, e.country].filter(Boolean).join(', ') : ''
+
+  async function setOrders(on: boolean) {
+    setError(null)
+    // Turning off ends every client's session at once: asked first, as any change that cannot simply be taken back.
+    if (!on && !(await confirmDialog({ message: t('orders.turnOffAsk'), confirmLabel: t('orders.turnOff'), danger: true }))) return
+    try {
+      await save.mutateAsync({ p_enabled: on, p_public_key: row.network_public_key, p_network_clinic: row.network_clinic_id, p_session_hours: row.session_hours })
+    } catch (err) { setError(describeError(err)) }
+  }
+
+  async function copy() {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch { /* the clipboard refused: the link is on screen to select */ }
+  }
+
+  return (
+    <div className="space-y-3">
+      <label className="flex items-center justify-between gap-3 text-base font-semibold text-ink">
+        <span>{t('orders.takeOrders')}</span>
+        <input type="checkbox" className="h-6 w-6 shrink-0" checked={row.enabled} disabled={save.isPending}
+          aria-label={t('orders.takeOrders')} onChange={ev => void setOrders(ev.target.checked)} />
+      </label>
+      {e && (
+        <div className="space-y-1">
+          <label className="flex items-center justify-between gap-3 text-base font-semibold text-ink">
+            <span className="flex items-center gap-1">{t('orders.directoryShort')}
+              <InfoButton label={t('orders.directoryListed')} text={t('orders.directoryListedInfo')} /></span>
+            <input type="checkbox" className="h-6 w-6 shrink-0" checked={e.listed} aria-label={t('orders.directoryListed')}
+              disabled={setListed.isPending || (!row.enabled && !e.listed)}
+              onChange={ev => setListed.mutate(ev.target.checked)} />
+          </label>
+          <p className="text-sm text-ink-muted">{t('orders.directoryShownAs', { name: e.name, place: place || '—' })}</p>
+          {!row.enabled && e.listed && <p className="text-sm text-amber-600">{t('orders.directoryListedButOff')}</p>}
+        </div>
+      )}
+      {entry.isLoading && <p className="text-sm text-ink-muted">{t('orders.directoryLoading')}</p>}
+      {link && (
+        <div className="space-y-2 border-t border-ink-faint/20 pt-3">
+          <span className="flex items-center gap-1 text-sm font-semibold text-ink">{t('orders.inviteLink')}
+            <InfoButton label={t('orders.inviteLink')} text={t('orders.inviteLinkInfo')} /></span>
+          <p className="text-sm text-ink-muted">{t('orders.inviteText')}</p>
+          <div className="flex gap-2">
+            <input className="input h-11 min-w-0 flex-1 truncate font-mono text-sm" value={link} readOnly
+              onFocus={ev => ev.currentTarget.select()} aria-label={t('orders.inviteLink')} />
+            <button type="button" onClick={() => void copy()} aria-label={t('orders.copyInvite')}
+              className="h-11 shrink-0 rounded-xl border border-accent px-3 text-sm font-bold text-accent hover:bg-accent/10">
+              <Copy size={16} className="mr-1 inline" aria-hidden="true" />{copied ? t('orders.inviteCopied') : t('orders.copy')}
+            </button>
+          </div>
+        </div>
+      )}
+      {(entry.isError || setListed.isError) && <p className="text-sm text-rose-600" role="alert">{directoryProblemText(problem)}</p>}
+      {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
+    </div>
+  )
+}
+
+/** Wivo support's fields, for a clinic the script has not connected yet. Orders stay off until the owner turns them on. */
+function AdvancedSetup({ row }: { row: SettingsRow | null }) {
+  const save = useSaveNetworkSettings()
   const [key, setKey] = useState(row?.network_public_key ?? '')
   const [clinicId, setClinicId] = useState(row?.network_clinic_id ?? '')
   const [hours, setHours] = useState(row?.session_hours ?? 8)
@@ -172,24 +273,12 @@ function SetupCard({ row, onSaved }: { row: { enabled: boolean; network_public_k
   async function submit() {
     setError(null)
     try {
-      await save.mutateAsync({ p_enabled: enabled && ready, p_public_key: key.trim() || null, p_network_clinic: clinicId.trim() || null, p_session_hours: hours })
-      onSaved()
+      await save.mutateAsync({ p_enabled: false, p_public_key: key.trim() || null, p_network_clinic: clinicId.trim() || null, p_session_hours: hours })
     } catch (e) { setError(describeError(e)) }
   }
 
   return (
-    <div className="card space-y-4 p-5">
-      <div className="flex items-center gap-3">
-        <Globe2 size={24} className="text-accent" aria-hidden="true" />
-        <span className="flex-1">
-          <span className="block text-lg font-semibold text-ink">{t('orders.setupTitle')}</span>
-          <span className={`text-base ${row?.enabled ? 'text-emerald-600' : 'text-ink-muted'}`}>{row?.enabled ? t('orders.setupOn') : t('orders.setupOff')}</span>
-        </span>
-      </div>
-      <label className="flex items-center gap-3 text-base">
-        <input type="checkbox" className="h-6 w-6" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
-        {t('orders.setupEnable')}
-      </label>
+    <div className="mt-3 space-y-3">
       <div>
         <span className="label flex items-center gap-1">{t('orders.setupKey')} <InfoButton label={t('orders.setupKey')} text={t('orders.setupKeyInfo')} /></span>
         <input className="input h-11 font-mono" value={key} onChange={e => setKey(e.target.value)} spellCheck={false} />
@@ -202,77 +291,10 @@ function SetupCard({ row, onSaved }: { row: { enabled: boolean; network_public_k
         <span className="label">{t('orders.setupHours')}</span>
         <input type="number" min={1} max={24} className="input h-11 w-32" value={hours} onChange={e => setHours(Math.max(1, Math.min(24, Number(e.target.value) || 8)))} />
       </div>
-      {enabled && !ready && <p className="text-sm text-amber-600">{t('orders.setupNeedsBoth')}</p>}
+      {!ready && (key || clinicId) && <p className="text-sm text-amber-600">{t('orders.setupNeedsBoth')}</p>}
       {error && <p className="text-sm text-rose-600">{error}</p>}
-      <button type="button" onClick={submit} disabled={save.isPending} className="btn-primary h-12 px-6 text-base">{t('orders.save')}</button>
+      <button type="button" onClick={submit} disabled={save.isPending || !ready} className="btn-primary h-11 px-5 text-base">{t('orders.save')}</button>
     </div>
-  )
-}
-
-// ── The invite link and the directory (the owner) ──────────────────────────
-const directoryProblemText = (p: DirectoryProblem | undefined): string =>
-  p === 'not_allowed' ? t('orders.directoryNotAllowed')
-    : p === 'orders_off' ? t('orders.directoryOrdersOff')
-    : p === 'try_again' ? t('orders.directoryTryAgain')
-    : p === 'unreachable' ? t('orders.directoryUnreachable')
-    : t('app.notAvailableYet')
-
-/**
- * The invite link and "Show my clinic in the directory". Read and changed
- * through the clinic's network-directory function (the owner and the second
- * factor, then a request signed with the clinic's own key); the app never
- * writes to the Network itself.
- */
-function InviteCard({ ordersOn }: { ordersOn: boolean }) {
-  const entry = useDirectoryEntry(true)
-  const setListed = useSetDirectoryListed()
-  const [copied, setCopied] = useState(false)
-  const e = entry.data
-  const link = e ? inviteLink(e.inviteCode) : null
-  const problem = setListed.error?.problem ?? entry.error?.problem
-  const place = e ? [e.city, e.country].filter(Boolean).join(', ') : ''
-
-  async function copy() {
-    if (!link) return
-    try {
-      await navigator.clipboard.writeText(link)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), 2000)
-    } catch { /* the clipboard refused: the link is on screen to select */ }
-  }
-
-  return (
-    <section className="card space-y-3 p-4" data-testid="network-directory">
-      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">{t('orders.inviteTitle')}
-        <InfoButton label={t('orders.inviteLink')} text={t('orders.inviteLinkInfo')} /></h2>
-      <p className="text-sm text-ink-muted">{t('orders.inviteText')}</p>
-      {entry.isLoading && <p className="text-sm text-ink-muted">{t('orders.directoryLoading')}</p>}
-      {link && (
-        <div className="flex gap-2">
-          <input className="input h-11 min-w-0 flex-1 truncate font-mono text-sm" value={link} readOnly
-            onFocus={ev => ev.currentTarget.select()} aria-label={t('orders.inviteLink')} />
-          <button type="button" onClick={() => void copy()} aria-label={t('orders.copyInvite')}
-            className="h-11 shrink-0 rounded-xl border border-accent px-3 text-sm font-bold text-accent hover:bg-accent/10">
-            <Copy size={16} className="mr-1 inline" aria-hidden="true" />{copied ? t('orders.inviteCopied') : t('orders.copy')}
-          </button>
-        </div>
-      )}
-      {e && (
-        <div className="space-y-1 border-t border-ink-faint/20 pt-3">
-          <label className="flex items-center justify-between gap-3 text-base font-semibold text-ink">
-            <span className="flex items-center gap-1">{t('orders.directoryShort')}
-              <InfoButton label={t('orders.directoryListed')} text={t('orders.directoryListedInfo')} /></span>
-            <input type="checkbox" className="h-6 w-6 shrink-0" checked={e.listed}
-              aria-label={t('orders.directoryListed')}
-              disabled={setListed.isPending || (!ordersOn && !e.listed)}
-              onChange={ev => setListed.mutate(ev.target.checked)} />
-          </label>
-          <p className="text-sm text-ink-muted">{t('orders.directoryShownAs', { name: e.name, place: place || '—' })}</p>
-          {!ordersOn && e.listed && <p className="text-sm text-amber-600">{t('orders.directoryListedButOff')}</p>}
-        </div>
-      )}
-      {(entry.isError || setListed.isError) && <p className="text-sm text-rose-600" role="alert">{directoryProblemText(problem)}</p>}
-    </section>
   )
 }
 

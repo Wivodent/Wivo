@@ -6,5 +6,7 @@
   "supabaseRef": "fwsrnsdrlrlmjfkkkhvp",
   "cloudflareProject": "wivo-dentiks",
   "phoneBranch": "riga",
-  "orgId": "0641ae3d-5bdb-4e67-b147-6cc45ba59bb4"
+  "orgId": "0641ae3d-5bdb-4e67-b147-6cc45ba59bb4",
+  "city": "Rīga",
+  "country": "LV"
 }

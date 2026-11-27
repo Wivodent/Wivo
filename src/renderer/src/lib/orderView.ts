@@ -109,3 +109,23 @@ export function fileBadge(name: string): string {
   const m = /\.([a-z0-9]{1,5})$/i.exec(name.trim())
   return m ? m[1].toUpperCase() : ''
 }
+
+/** Wivo has connected the clinic: the Network's key and the clinic's Network number are set (scripts/network-connect.mjs). */
+export const networkConfigured = (row: { network_public_key: string | null; network_clinic_id: string | null } | null | undefined): boolean =>
+  !!row?.network_public_key && !!row?.network_clinic_id
+
+/** The steps of the phone's New order form. Picking the clinic is a step only when it was really asked. */
+export type FormStep = 'clinic' | 'work' | 'details' | 'review'
+
+/** The step's number and how many steps there are, counting only the ones the person sees. */
+export function stepNumber(step: FormStep, withClinicStep: boolean): { number: number; total: number } {
+  const visible: FormStep[] = withClinicStep ? ['clinic', 'work', 'details', 'review'] : ['work', 'details', 'review']
+  const i = visible.indexOf(step)
+  return { number: i < 0 ? 1 : i + 1, total: visible.length }
+}
+
+/** Whether leaving the form would lose something the person filled in (and should be asked first). */
+export function orderTouched(o: { work_type: string; teeth: string; options: Record<string, string[]>; shade: string | null; due: string | null; patient_ref: string; notes: string | null }, files: number): boolean {
+  return files > 0 || o.work_type !== '' || o.teeth !== '' || Object.values(o.options).some(v => v.length > 0)
+    || !!o.shade || !!o.due || o.patient_ref.trim() !== '' || !!o.notes?.trim()
+}

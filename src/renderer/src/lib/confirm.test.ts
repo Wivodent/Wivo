@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { confirmDialog, currentConfirm, answerConfirm, registerConfirmHost } from './confirm'
 
 describe('Wivo\'s own confirmation dialog', () => {
@@ -17,6 +19,20 @@ describe('Wivo\'s own confirmation dialog', () => {
     expect(await b).toBe(false)
     expect(currentConfirm()).toBeNull()
     release()
+  })
+
+  it('carries a title and the words of both buttons to the dialog', async () => {
+    const release = registerConfirmHost()
+    const a = confirmDialog({ title: 'Discard this order?', message: 'It is lost.', confirmLabel: 'Discard', cancelLabel: 'Keep editing', danger: true })
+    expect(currentConfirm()).toMatchObject({ title: 'Discard this order?', confirmLabel: 'Discard', cancelLabel: 'Keep editing' })
+    answerConfirm(false)
+    expect(await a).toBe(false)
+    release()
+  })
+
+  it('a dangerous question starts on Cancel, so Enter alone never confirms it (ConfirmHost)', () => {
+    const src = readFileSync(join(__dirname, '../components/ui/ConfirmHost.tsx'), 'utf8')
+    expect(src).toContain(';(request.danger ? no : yes).current?.focus()')
   })
 
   it('one question at a time, in order', async () => {

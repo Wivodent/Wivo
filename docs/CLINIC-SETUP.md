@@ -558,6 +558,27 @@ näitab Riia aadressi ja kolme moodulit. Punane bänner = vale aadress: peatu.
 
 ---
 
+## 12b. Wivo Network (tellimused väljast)
+
+Uus kliinik saab Networki kohe, ühe käsuga Kevini arvutist
+(docs/NETWORK-SETUP.md, osa B). Eeldused: migratsioon 138 on kliiniku
+andmebaasis, `clinics/<id>.json` sisaldab `orgId`, `city` ja `country`, ja
+litsentsi moodulites on `portal` (lisa see ülal `--modules … ,portal`).
+
+```sh
+npm run network:connect -- --clinic <id> --dry-run
+npm run network:connect -- --clinic <id>
+```
+
+Küsib varjatult Supabase access tokenit. Teeb kataloogirea, kliiniku võtme
+(privaatne otse kliiniku saladustesse), funktsioonid, kliiniku seaded ja
+Networki redirecti, ning kontrollib kõik üle. Teine käivitus ei muuda midagi.
+
+Tellimused jäävad **välja**. Omanik lülitab need ise: Wivo → **Orders** →
+**Take orders from outside**. Omanik ei näe ühtegi võtit ega numbrit.
+
+---
+
 ## 13. Kümme kontot ja rollid
 
 Omaniku Wivos: **Team → Add staff member**. Kaks viisi:

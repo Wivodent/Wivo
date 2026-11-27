@@ -15,6 +15,7 @@ Files for the separate Supabase project `wivo-network` (docs/PLAN-NETWORK-1.md).
 | `functions/_shared/generated/token.ts` | copy of `shared/network/token.ts` (`node scripts/copy-shared-to-functions.mjs`) |
 | `scripts/make-network-key.mjs` | the signing key pair, written outside the repo |
 | `scripts/make-clinic-key.mjs` | one clinic's own key pair (its project's secret + its Network row), outside the repo |
+| `config.json` | the Network's ref and public key (public values only), read by `npm run network:connect` (scripts/network-connect.mjs), which connects a clinic in one go |
 | `test/network.test.ts` | the schema on PGlite and the function's logic |
 
 Set-up steps: docs/NETWORK-SETUP.md.

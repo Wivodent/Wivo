@@ -19,6 +19,7 @@
     "release": "node scripts/release.mjs build",
     "release:sign": "node scripts/release.mjs sign",
     "release:publish": "node scripts/release.mjs publish",
+    "network:connect": "node scripts/network-connect.mjs",
     "dist-portable": "npm run build && set CSC_IDENTITY_AUTO_DISCOVERY=false&& electron-builder --dir --config.forceCodeSigning=false",
     "mobile:dev": "vite --config vite.mobile.config.ts",
     "mobile:build": "vite build --config vite.mobile.config.ts"

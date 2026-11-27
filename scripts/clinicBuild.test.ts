@@ -73,7 +73,14 @@ describe('clinics/<id>.json', () => {
     const { name: _, ...noName } = SETTINGS
     expect(parseClinic(JSON.stringify(noName), 'dentiks').problems).toEqual(['name is missing'])
     expect(parseClinic('{', 'dentiks').problems).toEqual(['it is not JSON'])
-    expect(CLINIC_FIELDS).toEqual([...Object.keys(SETTINGS), 'orgId'])
+    expect(CLINIC_FIELDS).toEqual([...Object.keys(SETTINGS), 'orgId', 'city', 'country'])
+  })
+
+  it('city and country are optional, and when given, a town and two capital letters (the Network directory shows them)', () => {
+    expect(clinicWith({ city: 'Rīga', country: 'LV' }).clinic).toMatchObject({ city: 'Rīga', country: 'LV' })
+    expect(clinicWith().clinic?.country).toBeUndefined()
+    for (const country of ['lv', 'LVA', '', 7]) expect(clinicWith({ country }).problems, String(country)).toEqual(['country must be two capital letters (e.g. LV)'])
+    for (const city of ['', ' ', 'x'.repeat(121), 'a\nb', 3]) expect(clinicWith({ city }).problems.length, String(city)).toBe(1)
   })
 
   it('orgId is optional, and when given, a UUID (a delivered licence must name it, docs/RELEASE.md §7)', () => {

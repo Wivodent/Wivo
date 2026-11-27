@@ -11,8 +11,12 @@
  */
 export interface ConfirmRequest {
   message: string
+  /** A bold first line above the message, e.g. what ends and with whom. */
+  title?: string
   /** The confirming button's words; "Confirm" when not given. */
   confirmLabel?: string
+  /** The other button's words ("Keep editing"); "Cancel" when not given. */
+  cancelLabel?: string
   /** A red button: deleting, ending, signing out. */
   danger?: boolean
 }
