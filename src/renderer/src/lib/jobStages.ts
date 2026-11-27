@@ -80,8 +80,11 @@ export function stageLines(stages: readonly JobStage[], currentKey: string): Sta
   const current = ordered.find(s => s.stageKey === currentKey)
   let away = 0
   return ordered.map(s => {
-    if (s.skipped) return { ...s, state: 'skipped' as const, stagesAway: null }
+    // The stage the job is at stays 'current' even when it is skipped (it keeps
+    // `skipped: true`): a job can be moved into a skipped stage (the board), and
+    // without a current stage it had no Previous or Next to get out (2.2.6).
     if (current && s.stageKey === current.stageKey) return { ...s, state: 'current' as const, stagesAway: null }
+    if (s.skipped) return { ...s, state: 'skipped' as const, stagesAway: null }
     if (current && s.position < current.position) return { ...s, state: 'done' as const, stagesAway: null }
     away += 1
     return { ...s, state: 'upcoming' as const, stagesAway: away - 1 }
@@ -101,6 +104,36 @@ export function neighbours(lines: readonly StageLine[]): { previous: StageLine |
   const previous = [...lines.slice(0, idx)].reverse().find(l => l.state !== 'skipped') ?? null
   const next = lines.slice(idx + 1).find(l => l.state !== 'skipped') ?? null
   return { previous, next }
+}
+
+/** The job is at a stage that is skipped on it (moved there from the board, say). */
+export const atSkippedStage = (lines: readonly StageLine[]): boolean =>
+  lines.some(l => l.state === 'current' && l.skipped)
+
+/**
+ * Skipping a stage. The database refuses to skip the stage the job is at
+ * ("The stage the job is at cannot be skipped"), so skipping it means moving
+ * the job on to the next active stage (2.2.6). Moving on marks the stage left
+ * as done, and a done stage cannot be skipped: the skip mark is then not
+ * kept, and the job is where it should be. No active stage after it: refused.
+ */
+export async function skipStage(jobId: string, lines: readonly StageLine[], stageKey: string): Promise<void> {
+  const line = lines.find(l => l.stageKey === stageKey)
+  if (line?.state !== 'current') return setJobStageSkipped(jobId, stageKey, true)
+  const { next } = neighbours(lines)
+  if (!next) throw Object.assign(new Error('No active stage after this one'), { code: '22023' })
+  await moveJobStage(jobId, next.stageKey)
+  try { await setJobStageSkipped(jobId, stageKey, true) } catch { /* done now: see above */ }
+}
+
+/** The stage to move a new job to when the form skipped the one it starts at: the first later one not skipped. */
+export function firstActiveAfter(
+  stages: readonly { stageKey: string; position: number }[], from: string, skipped: ReadonlySet<string>,
+): string | null {
+  const ordered = [...stages].sort((a, b) => a.position - b.position)
+  const at = ordered.findIndex(s => s.stageKey === from)
+  if (at < 0) return null
+  return ordered.slice(at + 1).find(s => !skipped.has(s.stageKey))?.stageKey ?? null
 }
 
 /** For me: how many of the job's stages are between the current one and my first upcoming one. */
@@ -200,16 +233,27 @@ export async function applyStageEdits(
   jobId: string,
   edits: { people: Readonly<Record<string, readonly string[]>>; skipped: readonly string[] },
 ): Promise<void> {
-  const { data, error } = await supabase.from('job_stage').select('stage_key').eq('job_id', jobId)
+  const { data, error } = await supabase.from('job_stage').select('stage_key, position').eq('job_id', jobId)
   if (error) throw error
-  const have = new Set((data ?? []).map(r => (r as { stage_key: string }).stage_key))
+  const rows = (data ?? []) as { stage_key: string; position: number }[]
+  const have = new Set(rows.map(r => r.stage_key))
   let failure: unknown = null
   const attempt = async (f: () => Promise<void>) => { try { await f() } catch (e) { failure ??= e } }
   for (const [stage, people] of Object.entries(edits.people)) {
     if (have.has(stage)) await attempt(() => setJobStagePeople(jobId, stage, people))
   }
-  for (const stage of edits.skipped) {
-    if (have.has(stage)) await attempt(() => setJobStageSkipped(jobId, stage, true))
+  // The stage the new job starts at, skipped in the form: the job moves on to
+  // the first stage after it that is not skipped (the database will not skip
+  // the stage a job is at, 2.2.6). The others are skipped as before.
+  const { data: job } = await supabase.from('jobs').select('status').eq('id', jobId).maybeSingle()
+  const status = (job as { status?: string } | null)?.status ?? ''
+  const skipped = new Set(edits.skipped.filter(s => have.has(s)))
+  for (const stage of skipped) {
+    if (stage !== status) await attempt(() => setJobStageSkipped(jobId, stage, true))
+  }
+  if (skipped.has(status)) {
+    const to = firstActiveAfter(rows.map(r => ({ stageKey: r.stage_key, position: r.position })), status, skipped)
+    if (to) await attempt(() => moveJobStage(jobId, to))
   }
   if (failure) throw failure
 }

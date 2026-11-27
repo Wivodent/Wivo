@@ -8,6 +8,10 @@ import type { Message } from './types'
 import type { MessageKey } from './en'
 
 export const ru: Partial<Record<MessageKey, Message>> = {
+  "workflow.inSkippedStage": "Эта работа на пропущенном этапе",
+  "workflow.moveToNextActive": "Перейти к следующему активному этапу",
+  "workflow.moveToNextStage": "Перейти к следующему этапу",
+  "workflow.back": "Назад",
   // A push without its own words shows this as its title (sw.js); the sender's
   // words are already Russian (supabase/functions/_shared/pushText.ts).
   'mobile.pushFallbackTitle': "Новое уведомление",

@@ -10,15 +10,15 @@
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, Play, Plus } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Play, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { usePipeline } from '../../context/PipelineContext'
 import { useClinicProfiles } from '../../hooks/useClinicProfiles'
 import { describeError } from '../Patients/errors'
 import {
-  addJobStage, hasStagePeople, jobStagesUnavailable, moveJobStage, myTurnIn, neighbours, setJobStagePeople,
-  setJobStageSkipped, startJobStage, stageLines, useCanMove, useJobStages, useRefreshJobStages,
+  addJobStage, atSkippedStage, hasStagePeople, jobStagesUnavailable, moveJobStage, myTurnIn, neighbours, setJobStagePeople,
+  setJobStageSkipped, skipStage, startJobStage, stageLines, useCanMove, useJobStages, useRefreshJobStages,
 } from '../../lib/jobStages'
 import { StageBar, type StageBarItem } from './StageBar'
 import { stagePeopleOf } from '@/lib/stageAssign'
@@ -74,8 +74,15 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
     started: l.startedAt !== null,
     startedBy: l.startedBy,
     people: l.people,
-    canSkip: l.state === 'skipped' || l.state === 'upcoming',
+    // The stage the job is at can be skipped too: the job then moves on to the
+    // next active stage (lib/jobStages skipStage), if this person may move it there.
+    canSkip: l.state === 'skipped' || l.state === 'upcoming'
+      || (l.state === 'current' && !l.skipped && !finished && next !== null && canNext.data === true),
   }))
+  const stuck = atSkippedStage(lines) && !finished
+  const phone = size === 'lg'
+  const goNext = () => { if (next) void run(() => moveJobStage(job.id, next.stageKey)) }
+  const goBack = () => { if (previous) void run(() => moveJobStage(job.id, previous.stageKey)) }
 
   async function run(action: () => Promise<void>) {
     setError(null)
@@ -101,8 +108,35 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
         size={size}
         busy={busy}
         onPeople={(key, people) => void run(() => setJobStagePeople(job.id, key, people))}
-        onSkip={(key, skipped) => void run(() => setJobStageSkipped(job.id, key, skipped))}
+        onSkip={(key, skipped) => void run(() => skipped ? skipStage(job.id, lines, key) : setJobStageSkipped(job.id, key, false))}
       />
+
+      {stuck && (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/60 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <AlertTriangle size={16} aria-hidden="true" />
+          <span className="flex-1">{t('workflow.inSkippedStage')}</span>
+          {next && canNext.data === true && (
+            <button type="button" disabled={busy} onClick={goNext}
+              className={`btn-ghost flex items-center gap-1 border border-amber-500/60 text-amber-900 ${btn}`}>
+              {t('workflow.moveToNextActive')} <ArrowRight size={14} aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* The phone: one big button to move on, a smaller one back (2.2.6). */}
+      {phone && !stuck && next && canNext.data === true && (
+        <button type="button" disabled={busy} onClick={goNext}
+          className="btn-primary flex min-h-[56px] w-full items-center justify-center gap-2 text-lg font-semibold">
+          {t('workflow.moveToNextStage')} <ArrowRight size={20} aria-hidden="true" />
+        </button>
+      )}
+      {phone && previous && canPrevious.data === true && (
+        <button type="button" disabled={busy} onClick={goBack}
+          className="btn-ghost mx-auto flex min-h-[44px] items-center gap-1 text-sm">
+          <ArrowLeft size={16} aria-hidden="true" /> {t('workflow.back')}
+        </button>
+      )}
 
       {turnIn !== null && (
         <p className="text-xs text-ink-muted">
@@ -111,8 +145,8 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {previous && canPrevious.data === true && (
-          <button type="button" disabled={busy} onClick={() => void run(() => moveJobStage(job.id, previous.stageKey))}
+        {!phone && previous && canPrevious.data === true && (
+          <button type="button" disabled={busy} onClick={goBack}
             className={`btn-ghost flex items-center gap-1 border border-ink-faint/30 ${btn}`}>
             <ArrowLeft size={14} aria-hidden="true" /> {t('workflow.previousStage')}
           </button>
@@ -123,8 +157,8 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
             <Play size={14} aria-hidden="true" /> {t('workflow.iStarted')}
           </button>
         )}
-        {next && canNext.data === true && (
-          <button type="button" disabled={busy} onClick={() => void run(() => moveJobStage(job.id, next.stageKey))}
+        {!phone && !stuck && next && canNext.data === true && (
+          <button type="button" disabled={busy} onClick={goNext}
             className={`btn-ghost flex items-center gap-1 border border-accent/40 text-accent ${btn}`}>
             {t('workflow.nextStage')} <ArrowRight size={14} aria-hidden="true" />
           </button>
