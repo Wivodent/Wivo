@@ -223,3 +223,52 @@ describe('network-clinic (the function\'s logic)', () => {
     expect(await handleNetworkClinic({ request: await req() }, deps)).toEqual({ status: 409, body: { error: 'older_request' } })
   })
 })
+
+describe('the accepted Terms of Use (network/sql/005)', () => {
+  const terms = async (id: string) => (await db.query<{ v: string | null; at: string | null }>(
+    `select accepted_terms_version as v, accepted_terms_at as at from public.account where id = $1`, [id])).rows[0]
+
+  it('accept_terms writes the version and the server time; the account reads them back', async () => {
+    const [r] = await rowsAs<{ accepted_terms_version: string; accepted_terms_at: string }>(db, { id: alice },
+      `select * from public.accept_terms('2026-11-draft')`)
+    expect(r.accepted_terms_version).toBe('2026-11-draft')
+    expect(r.accepted_terms_at).toBeTruthy()
+    const seen = await rowsAs<{ accepted_terms_version: string }>(db, { id: alice }, `select accepted_terms_version from public.account`)
+    expect(seen).toEqual([{ accepted_terms_version: '2026-11-draft' }])
+  })
+
+  it('a user cannot write the columns directly: an update keeps them, an insert gets none', async () => {
+    const before = await terms(alice)
+    // Either refused by the grants or kept by the trigger: never changed.
+    await errorAs(db, { id: alice }, `update public.account set accepted_terms_version = '2099-01', accepted_terms_at = '2000-01-01' where id = $1`, [alice])
+    expect(await terms(alice)).toEqual(before)
+    // An ordinary profile save leaves them alone.
+    await rowsAs(db, { id: alice }, `update public.account set city = 'Riga', updated_at = now() where id = $1 returning 1`, [alice])
+    expect(await terms(alice)).toEqual(before)
+    // The trigger holds even where grants would not stop a write (here: the table's owner).
+    await db.query(`update public.account set accepted_terms_version = '2099-01', accepted_terms_at = now() where id = $1`, [alice])
+    expect(await terms(alice)).toEqual(before)
+
+    const carol = await user('carol@fake.test')
+    await errorAs(db, { id: carol },
+      `insert into public.account (id, kind, role, display_name, accepted_terms_version, accepted_terms_at)
+       values ($1, 'person', 'doctor', 'Carol Sample', '2026-11-draft', '2000-01-01')`, [carol])
+    const row = await terms(carol)
+    expect(row?.v ?? null).toBeNull()
+    expect(row?.at ?? null).toBeNull()
+  })
+
+  it('needs the second factor, a profile and a version of the right form; anon runs nothing', async () => {
+    expect(await errorAs(db, { id: bob, mfa: false }, `select public.accept_terms('2026-11-draft')`)).toMatch(/Second factor/)
+    expect(await errorAs(db, { id: bob }, `select public.accept_terms('next week')`)).toMatch(/Not a terms version/)
+    expect(await errorAs(db, 'anon', `select public.accept_terms('2026-11-draft')`)).toMatch(/permission denied/)
+    const dave = await user('dave@fake.test')
+    expect(await errorAs(db, { id: dave }, `select public.accept_terms('2026-11-draft')`)).toMatch(/Make your profile first/)
+  })
+
+  it('a new version replaces the old one', async () => {
+    await rowsAs(db, { id: bob }, `select * from public.accept_terms('2026-11-draft')`)
+    await rowsAs(db, { id: bob }, `select * from public.accept_terms('2027-02')`)
+    expect((await terms(bob)).v).toBe('2027-02')
+  })
+})

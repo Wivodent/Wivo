@@ -41,6 +41,9 @@ export interface Account {
   email_notifications?: boolean
   /** Network 004: where invoices go, when not the sign-in address (empty: none). Absent before it. */
   billing_email?: string | null
+  /** Network 005: the Terms of Use version accepted and when (written only by accept_terms). Absent before it. */
+  accepted_terms_version?: string | null
+  accepted_terms_at?: string | null
 }
 
 export interface DirectoryClinic { id: string; name: string; country: string; city: string | null; api_url: string }
@@ -145,6 +148,18 @@ export async function saveAccount(a: Omit<Account, 'id'>, isNew: boolean): Promi
     ? await n.from('account').insert({ id: u.user.id, ...row })
     : await n.from('account').update(row).eq('id', u.user.id)
   if (error) throw error
+}
+
+/** Network 005: the account accepts the Terms of Use and the Privacy Notice of this version, now (lib/legal). */
+export async function acceptTerms(version: string): Promise<void> {
+  const { error } = await need().rpc('accept_terms', { p_version: version })
+  if (error) throw error
+}
+
+/** The sign-in user's metadata (sign-up writes the accepted terms version there, lib/legal). */
+export async function signInMetadata(): Promise<Record<string, unknown> | null> {
+  const { data } = await need().auth.getUser()
+  return (data.user?.user_metadata as Record<string, unknown> | undefined) ?? null
 }
 
 export async function directory(search: string): Promise<DirectoryClinic[]> {

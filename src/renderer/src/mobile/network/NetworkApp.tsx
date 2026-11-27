@@ -28,10 +28,14 @@ import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Cl
 import { format } from 'date-fns'
 import {
   network, networkConfigured, myAccount, saveAccount, directory, clinicByInvite, myConnections,
-  requestConnection, endConnection, connect, clinicApi, NetworkError,
+  requestConnection, endConnection, connect, clinicApi, NetworkError, acceptTerms, signInMetadata,
   type Account, type Connection, type DirectoryClinic, type ClinicSession, type ClientOrderSummary, type ClientOrderDetail, type ClientNotice, type OrderFeedback,
 } from '../../lib/network'
 import { versionLine } from '../../lib/buildInfo'
+import {
+  LEGAL_PATHS, LEGAL_PUBLISHED, TERMS_VERSION, legalDocOf, legalPage, needsTermsAcceptance, signUpTermsMetadata, acceptedAtSignUp, type LegalDoc,
+} from '../../lib/legal'
+import { RichText } from '../../components/ui/RichText'
 import { emptyOrder, orderProblems, orderImplants, type CatalogueItem, type ClientOrderStatus, type WivoOrderV1 } from '@shared/network/order'
 import { InfoButton } from '../../components/ui/InfoButton'
 import { WorkTypeArt } from '../../components/ui/WorkTypeArt'
@@ -78,6 +82,9 @@ const errorText = (e: unknown): string => {
 }
 
 export function NetworkApp() {
+  // /network/terms and /network/privacy: readable by anyone, signed in or not, Network set up or not.
+  const legal = legalDocOf(location.pathname)
+  if (legal) return <LegalPage doc={legal} />
   if (!networkConfigured || !network) {
     return <Shell><p className="py-10 text-center text-base text-ink-muted">{t('network.notConfigured')}</p></Shell>
   }
@@ -97,7 +104,10 @@ function Shell({ children, onBack, title, right }: { children: React.ReactNode; 
       </header>
       <main className="mx-auto max-w-2xl space-y-4 p-4">{children}</main>
       {/* Which build this is: shown only (lib/buildInfo). */}
-      <footer className="pb-4 text-center text-[11px] text-ink-faint">{versionLine('Wivo Network', __APP_VERSION__)}</footer>
+      <footer className="space-y-1 pb-4 text-center text-[11px] text-ink-faint">
+        <LegalLinks />
+        <p>{versionLine('Wivo Network', __APP_VERSION__)}</p>
+      </footer>
     </div>
   )
 }
@@ -130,12 +140,16 @@ function SignInForm() {
   const [password, setPassword] = useState('')
   const [note, setNote] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [agreed, setAgreed] = useState(false)
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    if (mode === 'up' && !agreed) return
     setBusy(true); setNote(null)
+    // Sign-up keeps the accepted terms version in the user's metadata; the
+    // account (made after the second factor) takes it over (lib/legal).
     const r = mode === 'in'
       ? await n.auth.signInWithPassword({ email: email.trim(), password })
-      : await n.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: `${location.origin}/network` } })
+      : await n.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: `${location.origin}/network`, data: signUpTermsMetadata() } })
     setBusy(false)
     if (r.error) setNote(mode === 'in' ? t('network.signInFailed') : t('network.signUpFailed'))
     else if (mode === 'up') setNote(t('network.checkEmail'))
@@ -150,8 +164,9 @@ function SignInForm() {
         <label className="block"><span className="label">{t('network.password')}</span>
           <input className="input h-12 text-base" type="password" autoComplete={mode === 'in' ? 'current-password' : 'new-password'} minLength={12} required value={password} onChange={e => setPassword(e.target.value)} /></label>
         {mode === 'up' && <p className="text-sm text-ink-muted">{t('network.passwordRule')}</p>}
+        {mode === 'up' && <AgreeCheckbox checked={agreed} onChange={setAgreed} />}
         {note && <p className="text-base text-ink">{note}</p>}
-        <button type="submit" disabled={busy} className={`btn-primary justify-center ${big}`}>{mode === 'in' ? t('network.signIn') : t('network.signUp')}</button>
+        <button type="submit" disabled={busy || (mode === 'up' && !agreed)} className={`btn-primary justify-center ${big}`}>{mode === 'in' ? t('network.signIn') : t('network.signUp')}</button>
         <button type="button" className="btn-ghost w-full justify-center text-base" onClick={() => { setMode(mode === 'in' ? 'up' : 'in'); setNote(null) }}>
           {mode === 'in' ? t('network.noAccount') : t('network.haveAccount')}
         </button>
@@ -228,6 +243,9 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
         country: /^[A-Za-z]{2}$/.test(country.trim()) ? country.trim().toUpperCase() : null, city: city.trim() || null,
         ...(hasMailChoice ? { email_notifications: mail } : {}),
         ...(hasBilling ? { billing_email: billing.trim() || null } : {}) }, !account)
+      // A new account: the terms accepted at sign-up go onto it (Network 005). Without
+      // 005, or without that acceptance, the acceptance screen asks instead.
+      if (!account && acceptedAtSignUp(await signInMetadata().catch(() => null))) await acceptTerms(TERMS_VERSION).catch(() => undefined)
       onSaved()
     } catch { setError(t('network.errInvalid')) }
   }
@@ -324,6 +342,9 @@ function Home() {
   }
 
   if (account.isLoading) return <Shell><p className="py-10 text-center text-ink-muted">…</p></Shell>
+  if (account.data && !editing && needsTermsAcceptance(account.data)) {
+    return <Shell><TermsGate onAccepted={() => void qc.invalidateQueries({ queryKey: ['network', 'account'] })} /></Shell>
+  }
   if (!account.data || editing) {
     return (
       <Shell onBack={account.data ? () => setEditing(false) : undefined}>
@@ -1608,5 +1629,87 @@ function OrderPrice({ api, orderId, detail, onDone, onError }: {
       {s === 'declined' && <p className="text-base text-ink-muted">{t('network.priceDeclined', { price })}</p>}
       {s === 'confirmed' && <p className="text-base">{t('network.priceConfirmed', { price })}</p>}
     </div>
+  )
+}
+
+// ── Terms of Use and Privacy Notice (lib/legal, docs/legal/) ────────────────
+
+/** "Terms of Use · Privacy Notice", for the footer. Each opens in a new tab, so a form in progress stays. */
+function LegalLinks() {
+  return (
+    <p className="space-x-2">
+      <a href={LEGAL_PATHS.terms} target="_blank" rel="noreferrer" className="underline underline-offset-2">{t('network.legalTerms')}</a>
+      <span aria-hidden="true">·</span>
+      <a href={LEGAL_PATHS.privacy} target="_blank" rel="noreferrer" className="underline underline-offset-2">{t('network.legalPrivacy')}</a>
+    </p>
+  )
+}
+
+/** "I agree to the Terms of Use and have read the Privacy Notice", the two names as links. */
+function AgreeCheckbox({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  const link = (doc: LegalDoc, key: number) => (
+    <a key={key} href={LEGAL_PATHS[doc]} target="_blank" rel="noreferrer" className="font-medium text-accent underline underline-offset-2">
+      {/* The sentence's own forms of the names (Estonian needs a case ending). */}
+      {doc === 'terms' ? t('network.legalAgreeTerms') : t('network.legalAgreePrivacy')}
+    </a>
+  )
+  const parts = t('network.legalAgree').split(/(\{terms\}|\{privacy\})/)
+  return (
+    <label className="flex items-start gap-3 text-base">
+      <input type="checkbox" required className="mt-1 h-5 w-5 shrink-0" checked={checked} onChange={e => onChange(e.target.checked)} />
+      <span>{parts.map((p, i) => (p === '{terms}' ? link('terms', i) : p === '{privacy}' ? link('privacy', i) : <span key={i}>{p}</span>))}</span>
+    </label>
+  )
+}
+
+/** An account that has not accepted the current version: once, before anything else. */
+function TermsGate({ onAccepted }: { onAccepted: () => void }) {
+  const [agreed, setAgreed] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  async function accept(e: React.FormEvent) {
+    e.preventDefault()
+    if (!agreed) return
+    setBusy(true); setError(null)
+    try { await acceptTerms(TERMS_VERSION); onAccepted() } catch { setError(t('network.errFailed')) } finally { setBusy(false) }
+  }
+  return (
+    <form onSubmit={accept} className="card space-y-4 p-5">
+      <h1 className="text-xl font-bold">{t('network.legalUpdatedTitle')}</h1>
+      <p className="text-base text-ink-muted">{t('network.legalUpdatedIntro')}</p>
+      <AgreeCheckbox checked={agreed} onChange={setAgreed} />
+      {error && <p className="text-base text-rose-600">{error}</p>}
+      <button type="submit" disabled={!agreed || busy} className={`btn-primary justify-center ${big}`}>{t('network.legalContinue')}</button>
+      <button type="button" className="btn-ghost w-full justify-center" onClick={() => void network!.auth.signOut()}>{t('network.signOut')}</button>
+    </form>
+  )
+}
+
+/** /network/terms and /network/privacy: the text from docs/legal/, a Draft banner until LEGAL_PUBLISHED. */
+function LegalPage({ doc }: { doc: LegalDoc }) {
+  const page = legalPage(doc)
+  const other: LegalDoc = doc === 'terms' ? 'privacy' : 'terms'
+  return (
+    <Shell onBack={() => location.assign('/network')}>
+      {!LEGAL_PUBLISHED && (
+        <p role="note" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm font-semibold text-ink">{t('network.legalDraft')}</p>
+      )}
+      <article className="card space-y-3 p-5">
+        <h1 className="text-xl font-bold">{page.title}</h1>
+        {page.blocks.map((b, i) => b.kind === 'heading' ? (
+          <h2 key={i} className="pt-2 text-base font-semibold text-ink"><RichText text={b.text} /></h2>
+        ) : b.kind === 'list' ? (
+          <ul key={i} className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-ink-soft">
+            {b.items.map((item, j) => <li key={j}><RichText text={item} /></li>)}
+          </ul>
+        ) : (
+          <p key={i} className="text-sm leading-relaxed text-ink-soft"><RichText text={b.text} /></p>
+        ))}
+      </article>
+      <p className="text-center text-sm">
+        <a href={LEGAL_PATHS[other]} className="font-medium text-accent underline underline-offset-2">
+          {other === 'terms' ? t('network.legalTerms') : t('network.legalPrivacy')}</a>
+      </p>
+    </Shell>
   )
 }

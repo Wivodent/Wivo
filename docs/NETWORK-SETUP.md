@@ -45,7 +45,10 @@ Dashboard → Authentication:
 
 SQL Editor (Networki projektis!) → kleebi `network/sql/001_network.sql` →
 Run; siis samamoodi `network/sql/002_clinic_key.sql` (kliiniku oma võti)
-ja `network/sql/003_account_email.sql` (kliendi e-kirjade valik tõendis).
+ja `network/sql/003_account_email.sql` (kliendi e-kirjade valik tõendis),
+`network/sql/004_billing_email.sql` (arvete e-post) ja
+`network/sql/005_terms_acceptance.sql` (kasutustingimuste nõusolek,
+docs/legal/).
 Siis eraldi päringuna:
 
 ```sql

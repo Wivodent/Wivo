@@ -65,7 +65,8 @@ describe('/network: notices (sql/142)', () => {
     for (const kind of ['message', 'accepted', 'rejected', 'ready', 'connected', 'declined'] as const) {
       expect(noticeText({ kind, ref: 'R1', reason: null }, 'Dentiks')).toContain('Dentiks')
     }
-  })
+    // Importing NetworkApp loads its whole module graph: under the full suite's load that took over 5 s.
+  }, 30_000)
   it('opening a notice marks it read and opens its order', () => {
     expect(SRC).toContain('readNotices([n.id])')
     expect(SRC).toMatch(/setScreen\(\{ name: 'clinic', conn: n\.conn, orderId: n\.order_id \?\? undefined \}\)/)
