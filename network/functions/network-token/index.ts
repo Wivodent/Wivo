@@ -40,6 +40,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (error || !Array.isArray(data) || data.length !== 1) return null
       return data[0] as ClaimsRow
     },
+    // Network 003: without it, the token simply carries no address.
+    contact: async (clinicId) => {
+      const { data, error } = await asAccount.rpc('token_contact', { p_clinic: clinicId })
+      if (error || !Array.isArray(data) || data.length !== 1) return null
+      return data[0] as { email: string | null; email_notifications: boolean }
+    },
   })
   return json(answer.status, answer.body)
 })

@@ -41,6 +41,13 @@ export interface NetworkTokenPayload {
   role: AccountRole
   company: string | null
   country: string | null
+  /**
+   * The account's sign-in address and whether it wants e-mails about its
+   * orders (Network 003): the clinic e-mails "New message on … from …" only
+   * then (the clinic's sql/142). Absent from older tokens.
+   */
+  email?: string | null
+  mail?: boolean
   iat: number
   exp: number
 }
@@ -75,6 +82,9 @@ export function payloadProblem(p: unknown): string | null {
   if (!ACCOUNT_ROLES.includes(x.role as AccountRole)) return 'role'
   if (x.company !== null && (typeof x.company !== 'string' || x.company.length > 160)) return 'company'
   if (x.country !== null && (typeof x.country !== 'string' || !/^[A-Z]{2}$/.test(x.country))) return 'country'
+  if (x.email !== undefined && x.email !== null
+    && (typeof x.email !== 'string' || x.email.length > 254 || !/^[^@\s]+@[^@\s]+$/.test(x.email))) return 'email'
+  if (x.mail !== undefined && typeof x.mail !== 'boolean') return 'mail'
   if (!Number.isInteger(x.iat) || !Number.isInteger(x.exp)) return 'times'
   if ((x.exp as number) <= (x.iat as number) || (x.exp as number) - (x.iat as number) > NETWORK_TOKEN_SECONDS) return 'lifetime'
   return null

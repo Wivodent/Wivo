@@ -53,6 +53,26 @@ describe('network-client', () => {
     expect(a).toEqual({ status: 200, body: { state: 'confirmed', session: SESSION } })
     const connect = calls.find(c => c.fn === 'network_connect')!
     expect(connect.args).toMatchObject({ p_network_clinic: CLINIC_A, p_account: 'cccccccc-0000-4000-8000-000000000003' })
+    // An older token (no e-mail fields): no contact is stored.
+    expect(calls.some(c => c.fn === 'client_set_contact')).toBe(false)
+  })
+
+  it('connect: the address and e-mail choice in the token are kept for the e-mails of the clinic (sql/142)', async () => {
+    const net = await makeNetworkKeyPair()
+    const { deps, calls } = await setup({ [CLINIC_A]: { key: net.publicKey } })
+    await handleNetworkClient({ action: 'connect', networkToken: await tokenFor(CLINIC_A, net.privateKey, { email: 'tess@fake.test', mail: false }) }, deps)
+    expect(calls.find(c => c.fn === 'client_set_contact')!.args).toEqual({
+      p_network_clinic: CLINIC_A, p_account: 'cccccccc-0000-4000-8000-000000000003', p_email: 'tess@fake.test', p_mail: false })
+  })
+
+  it('the notices of the client: read and marked through its session; ids must be ids', async () => {
+    const { deps, calls } = await setup({})
+    await handleNetworkClient({ action: 'notifications', session: SESSION }, deps)
+    await handleNetworkClient({ action: 'notifications_read', session: SESSION, ids: [ORDER_ID] }, deps)
+    await handleNetworkClient({ action: 'notifications_read', session: SESSION }, deps)
+    expect(calls.map(c => [c.fn, c.args.p_ids])).toEqual([
+      ['client_notifications', undefined], ['client_notifications_read', [ORDER_ID]], ['client_notifications_read', null]])
+    expect((await handleNetworkClient({ action: 'notifications_read', session: SESSION, ids: ['x'] }, deps)).status).toBe(400)
   })
 
   it('a token for another clinic opens nothing here', async () => {

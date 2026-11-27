@@ -52,3 +52,22 @@ describe('/network: final actions ask first', () => {
     expect(SRC).not.toMatch(/deleteOrder|cancelOrder|cancel_order|delete_order/)
   })
 })
+
+describe('/network: notices (sql/142)', () => {
+  it('say what happened, on which order and at which clinic, never a message text', async () => {
+    const { noticeText } = await import('./NetworkApp')
+    const message = noticeText({ kind: 'message', ref: 'TF-DE-261127-001', reason: null }, 'Dentiks')
+    expect(message).toContain('TF-DE-261127-001')
+    expect(message).toContain('Dentiks')
+    expect(noticeText({ kind: 'sent', ref: 'TF-DE-261127-001', reason: null }, 'Dentiks')).toContain('TF-DE-261127-001')
+    expect(noticeText({ kind: 'rejected', ref: 'R1', reason: 'We do not make these' }, 'Dentiks')).toContain('We do not make these')
+    // "Your order R1 is on its way" names the order, not the clinic, as asked.
+    for (const kind of ['message', 'accepted', 'rejected', 'ready', 'connected', 'declined'] as const) {
+      expect(noticeText({ kind, ref: 'R1', reason: null }, 'Dentiks')).toContain('Dentiks')
+    }
+  })
+  it('opening a notice marks it read and opens its order', () => {
+    expect(SRC).toContain('readNotices([n.id])')
+    expect(SRC).toMatch(/setScreen\(\{ name: 'clinic', conn: n\.conn, orderId: n\.order_id \?\? undefined \}\)/)
+  })
+})

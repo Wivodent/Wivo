@@ -36,6 +36,8 @@ export interface Account {
   company_name: string | null
   country: string | null
   city: string | null
+  /** Network 003: e-mails from clinics about orders. Absent before it. */
+  email_notifications?: boolean
 }
 
 export interface DirectoryClinic { id: string; name: string; country: string; city: string | null; api_url: string }
@@ -67,6 +69,17 @@ export interface ClientOrderDetail {
   reject_reason: string | null
   messages: { id: string; from_client: boolean; body: string; created_at: string }[] | null
   files: { id: string; file_name: string; size: number; created_at: string }[] | null
+}
+
+/** A notice to the client from one clinic (sql/142): what happened, never a message's text. */
+export interface ClientNotice {
+  id: string
+  kind: 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined'
+  order_id: string | null
+  ref: string | null
+  reason: string | null
+  created_at: string
+  read_at: string | null
 }
 
 export interface ClinicSession { session: string; expires_at: string; clinic: string; can_see: Record<string, boolean> }
@@ -205,6 +218,10 @@ export function clinicApi(clinicId: string, apiUrl: string, session: string) {
   return {
     catalog: () => call<CatalogueItem[]>(clinicId, apiUrl, session, 'catalog'),
     orders: () => call<ClientOrderSummary[]>(clinicId, apiUrl, session, 'orders'),
+    /** The client's notices from this clinic (sql/142); [] from a clinic before it. */
+    notices: () => call<ClientNotice[]>(clinicId, apiUrl, session, 'notifications').catch(() => [] as ClientNotice[]),
+    /** Marks these notices read, or (no ids) all of them. */
+    readNotices: (ids?: string[]) => call<number>(clinicId, apiUrl, session, 'notifications_read', ids ? { ids } : {}),
     /** The reference the clinic would give the next order (sql/140); given out only when it is sent. */
     nextRef: () => call<string>(clinicId, apiUrl, session, 'next_ref'),
     order: (orderId: string) => call<ClientOrderDetail>(clinicId, apiUrl, session, 'order', { orderId }),

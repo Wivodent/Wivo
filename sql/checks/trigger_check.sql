@@ -18,7 +18,7 @@
 -- No rows: this database matches the migrations in all of it.
 --
 -- Covered: trigger.
--- Expected rows: 58.
+-- Expected rows: 62.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -28,6 +28,8 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.audit_log.audit_log_names', 'CREATE TRIGGER audit_log_names BEFORE INSERT ON public.audit_log FOR EACH ROW EXECUTE FUNCTION audit_log_names()'),
     ('trigger', 'public.audit_log.audit_log_no_truncate', 'CREATE TRIGGER audit_log_no_truncate BEFORE TRUNCATE ON public.audit_log FOR EACH STATEMENT EXECUTE FUNCTION audit_log_no_truncate()'),
     ('trigger', 'public.channel_members.guard_channel_member_change', 'CREATE TRIGGER guard_channel_member_change BEFORE UPDATE ON public.channel_members FOR EACH ROW EXECUTE FUNCTION guard_channel_member_change()'),
+    ('trigger', 'public.client_order.client_order_decision_notices', 'CREATE TRIGGER client_order_decision_notices AFTER UPDATE OF status ON public.client_order FOR EACH ROW EXECUTE FUNCTION client_order_decision_notices()'),
+    ('trigger', 'public.client_order_message.client_order_message_notices', 'CREATE TRIGGER client_order_message_notices AFTER INSERT ON public.client_order_message FOR EACH ROW EXECUTE FUNCTION client_order_message_notices()'),
     ('trigger', 'public.clinic_settings.clinic_settings_touch', 'CREATE TRIGGER clinic_settings_touch BEFORE UPDATE ON public.clinic_settings FOR EACH ROW EXECUTE FUNCTION touch_clinic_settings()'),
     ('trigger', 'public.clinic_settings.stages_default_template', 'CREATE TRIGGER stages_default_template AFTER INSERT OR UPDATE OF pipeline_stages ON public.clinic_settings FOR EACH ROW EXECUTE FUNCTION on_clinic_default_template()'),
     ('trigger', 'public.clinics.clinic_default_template', 'CREATE TRIGGER clinic_default_template AFTER INSERT ON public.clinics FOR EACH ROW EXECUTE FUNCTION on_clinic_default_template()'),
@@ -41,6 +43,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.job_share.refuse_share_of_deleted_job', 'CREATE TRIGGER refuse_share_of_deleted_job BEFORE INSERT OR UPDATE ON public.job_share FOR EACH ROW EXECUTE FUNCTION refuse_share_of_deleted_job()'),
     ('trigger', 'public.job_stage.job_stage_pay_role', 'CREATE TRIGGER job_stage_pay_role BEFORE INSERT ON public.job_stage FOR EACH ROW EXECUTE FUNCTION job_stage_pay_role_from_template()'),
     ('trigger', 'public.jobs.audit_job_change', 'CREATE TRIGGER audit_job_change AFTER INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION audit_job_change()'),
+    ('trigger', 'public.jobs.client_job_notices', 'CREATE TRIGGER client_job_notices AFTER UPDATE OF status, delivery_status ON public.jobs FOR EACH ROW EXECUTE FUNCTION client_job_notices()'),
     ('trigger', 'public.jobs.guard_job_option_doers', 'CREATE TRIGGER guard_job_option_doers BEFORE INSERT OR UPDATE OF work_items, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_option_doers()'),
     ('trigger', 'public.jobs.guard_job_order_doctor', 'CREATE TRIGGER guard_job_order_doctor BEFORE INSERT OR UPDATE OF order_doctor, clinic_id ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_order_doctor()'),
     ('trigger', 'public.jobs.guard_job_orderer', 'CREATE TRIGGER guard_job_orderer BEFORE INSERT OR UPDATE OF ordered_by ON public.jobs FOR EACH ROW EXECUTE FUNCTION guard_job_orderer()'),
@@ -59,6 +62,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.messages.guard_partner_visible_message', 'CREATE TRIGGER guard_partner_visible_message BEFORE INSERT OR UPDATE OF body ON public.messages FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_message()'),
     ('trigger', 'public.messages.question_notify', 'CREATE TRIGGER question_notify AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION on_question_notify()'),
     ('trigger', 'public.messages.stamp_message_org', 'CREATE TRIGGER stamp_message_org BEFORE INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION stamp_message_org()'),
+    ('trigger', 'public.network_client.network_client_state_notices', 'CREATE TRIGGER network_client_state_notices AFTER UPDATE OF state ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_state_notices()'),
     ('trigger', 'public.patient_teeth.audit_patient_tooth', 'CREATE TRIGGER audit_patient_tooth AFTER INSERT OR DELETE OR UPDATE ON public.patient_teeth FOR EACH ROW EXECUTE FUNCTION audit_patient_tooth()'),
     ('trigger', 'public.patients.audit_patient_change', 'CREATE TRIGGER audit_patient_change AFTER INSERT OR DELETE OR UPDATE ON public.patients FOR EACH ROW EXECUTE FUNCTION audit_patient_change()'),
     ('trigger', 'public.profiles.audit_role_change', 'CREATE TRIGGER audit_role_change AFTER UPDATE OF role, org_role ON public.profiles FOR EACH ROW EXECUTE FUNCTION audit_role_change()'),

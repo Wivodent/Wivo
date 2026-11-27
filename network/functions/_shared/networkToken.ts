@@ -22,11 +22,16 @@ export interface ClaimsRow {
   country: string | null
   clinic_id: string
   api_url: string
+  /** Network 003; absent before it. */
+  email?: string | null
+  email_notifications?: boolean
 }
 
 export interface NetworkTokenDeps {
   /** token_claims(p_clinic), called AS THE ACCOUNT. */
   claims: (clinicId: string) => Promise<ClaimsRow | null>
+  /** token_contact(p_clinic) (Network 003), AS THE ACCOUNT; null when it is not there. */
+  contact?: (clinicId: string) => Promise<{ email: string | null; email_notifications: boolean } | null>
   key: CryptoKey
   nowSeconds: () => number
 }
@@ -34,12 +39,15 @@ export interface NetworkTokenDeps {
 export async function handleNetworkToken(body: unknown, deps: NetworkTokenDeps): Promise<{ status: number; body: Record<string, unknown> }> {
   const clinicId = (body as { clinicId?: unknown } | null)?.clinicId
   if (typeof clinicId !== 'string' || !UUID.test(clinicId)) return { status: 400, body: { error: 'bad request' } }
-  const row = await deps.claims(clinicId)
-  if (!row) return { status: 403, body: { error: 'not allowed' } }
+  const claims = await deps.claims(clinicId)
+  if (!claims) return { status: 403, body: { error: 'not allowed' } }
+  const contact = deps.contact ? await deps.contact(clinicId).catch(() => null) : null
+  const row: ClaimsRow = contact ? { ...claims, email: contact.email, email_notifications: contact.email_notifications } : claims
   const iat = deps.nowSeconds()
   const token = await signNetworkToken({
     v: 1, iss: NETWORK_ISSUER, aud: row.clinic_id, sub: row.account_id, conn: row.connection_id,
     name: row.name, kind: row.kind, role: row.role, company: row.company ?? null, country: row.country ?? null,
+    ...(row.email !== undefined ? { email: row.email ?? null, mail: row.email_notifications ?? true } : {}),
     iat, exp: iat + NETWORK_TOKEN_SECONDS,
   }, deps.key)
   return { status: 200, body: { token, expiresIn: NETWORK_TOKEN_SECONDS, apiUrl: row.api_url } }

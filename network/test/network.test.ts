@@ -83,6 +83,13 @@ describe('the Network project (network/sql)', () => {
     const claims = (id: string, clinic: string, mfa = true) =>
       rowsAs<{ account_id: string }>(db, { id, mfa }, `select * from public.token_claims($1)`, [clinic]).catch(() => [])
     expect(await claims(alice, listed)).toHaveLength(1)
+    // Network 003: the sign-in address and the e-mail choice, for the clinic's e-mails about orders.
+    const [c] = await rowsAs<{ email: string; email_notifications: boolean }>(db, { id: alice }, `select email, email_notifications from public.token_contact($1)`, [listed])
+    expect(c).toEqual({ email: 'alice@fake.test', email_notifications: true })
+    await rowsAs(db, { id: alice }, `update public.account set email_notifications = false where id = $1`, [alice])
+    expect((await rowsAs<{ email_notifications: boolean }>(db, { id: alice }, `select email_notifications from public.token_contact($1)`, [listed]))[0].email_notifications).toBe(false)
+    expect(await rowsAs(db, { id: bob }, `select * from public.token_contact($1)`, [listed])).toEqual([])
+    await rowsAs(db, { id: alice }, `update public.account set email_notifications = true where id = $1`, [alice])
     expect(await claims(alice, listed, false)).toEqual([])
     expect(await claims(bob, listed)).toEqual([])
     const [{ id }] = await rowsAs<{ id: string }>(db, { id: alice }, `select id from public.connection where clinic_id = $1`, [listed])

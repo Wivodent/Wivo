@@ -24,12 +24,12 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
-import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X, Undo2, Bolt } from 'lucide-react'
+import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X, Undo2, Bolt, Bell } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   network, networkConfigured, myAccount, saveAccount, directory, clinicByInvite, myConnections,
   requestConnection, endConnection, connect, clinicApi, NetworkError,
-  type Account, type Connection, type DirectoryClinic, type ClinicSession, type ClientOrderSummary, type ClientOrderDetail,
+  type Account, type Connection, type DirectoryClinic, type ClinicSession, type ClientOrderSummary, type ClientOrderDetail, type ClientNotice,
 } from '../../lib/network'
 import { emptyOrder, orderProblems, orderImplants, type CatalogueItem, type ClientOrderStatus, type WivoOrderV1 } from '@shared/network/order'
 import { InfoButton } from '../../components/ui/InfoButton'
@@ -203,13 +203,17 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
   const [country, setCountry] = useState(account?.country ?? '')
   const [city, setCity] = useState(account?.city ?? '')
   const [error, setError] = useState<string | null>(null)
+  // Network 003: e-mails from clinics about orders (subject and a link only). Shown once the Network has it.
+  const hasMailChoice = account?.email_notifications !== undefined
+  const [mail, setMail] = useState(account?.email_notifications ?? true)
   const roles: Account['role'][] = ['technician', 'doctor', 'clinic', 'lab']
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     try {
       await saveAccount({ kind, role, display_name: name.trim(), company_name: company.trim() || null,
-        country: /^[A-Za-z]{2}$/.test(country.trim()) ? country.trim().toUpperCase() : null, city: city.trim() || null }, !account)
+        country: /^[A-Za-z]{2}$/.test(country.trim()) ? country.trim().toUpperCase() : null, city: city.trim() || null,
+        ...(hasMailChoice ? { email_notifications: mail } : {}) }, !account)
       onSaved()
     } catch { setError(t('network.errInvalid')) }
   }
@@ -243,6 +247,12 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
         <label className="block"><span className="label">{t('network.city')}</span>
           <input className="input h-12 text-base" maxLength={120} value={city} onChange={e => setCity(e.target.value)} /></label>
       </div>
+      {hasMailChoice && (
+        <label className="flex items-start gap-3 text-base">
+          <input type="checkbox" className="mt-1 h-5 w-5 shrink-0" checked={mail} onChange={e => setMail(e.target.checked)} />
+          <span>{t('network.emailNotices')}<span className="block text-sm text-ink-muted">{t('network.emailNoticesHelp')}</span></span>
+        </label>
+      )}
       {error && <p className="text-base text-rose-600">{error}</p>}
       <button type="submit" disabled={!name.trim()} className={`btn-primary justify-center ${big}`}>{t('network.saveProfile')}</button>
     </form>
@@ -253,7 +263,7 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
 type LiveConn = Connection & { clinic: DirectoryClinic }
 
 /** What one clinic says right now: its state and, with a session, the account's orders there. */
-interface ClinicOverview { state: Connection['state']; session?: ClinicSession; orders?: ClientOrderSummary[] }
+interface ClinicOverview { state: Connection['state']; session?: ClinicSession; orders?: ClientOrderSummary[]; notices?: ClientNotice[] }
 
 const OPEN: readonly ClientOrderStatus[] = ['received', 'in_progress', 'ready']
 
@@ -266,8 +276,9 @@ function useClinicOverviews(conns: LiveConn[]) {
       queryFn: async (): Promise<ClinicOverview> => {
         const r = await connect(c)
         if (!r.session) return { state: r.state }
-        const orders = await clinicApi(c.clinic_id, c.clinic.api_url, r.session.session).orders()
-        return { state: r.state, session: r.session, orders }
+        const api = clinicApi(c.clinic_id, c.clinic.api_url, r.session.session)
+        const [orders, notices] = await Promise.all([api.orders(), api.notices()])
+        return { state: r.state, session: r.session, orders, notices }
       },
     })),
   })
@@ -282,6 +293,7 @@ function Home() {
   })
   const [editing, setEditing] = useState(false)
   const [menu, setMenu] = useState(false)
+  const [bell, setBell] = useState(false)
   const conns = useQuery({ queryKey: ['network', 'connections'], queryFn: myConnections, enabled: !!account.data })
   const live = (conns.data ?? []).filter((c): c is LiveConn => !!c.clinic && c.state !== 'ended')
   const overviews = useClinicOverviews(live)
@@ -312,6 +324,25 @@ function Home() {
   const ready = live.filter(c => stateOf(c) === 'confirmed')
   if (screen.name === 'pick') return <PickClinic conns={ready} onBack={home} onPick={c => setScreen({ name: 'clinic', conn: c, startNew: true, fromPick: true })} />
 
+  // The client's notices from every clinic, newest first (sql/142); the Network keeps none of them.
+  const allNotices: NoticeRow[] = live
+    .flatMap(c => (overviewOf(c)?.notices ?? []).map(n => ({ ...n, conn: c })))
+    .sort((x, y) => y.created_at.localeCompare(x.created_at))
+  const unread = allNotices.filter(n => !n.read_at).length
+  const apiOf = (c: LiveConn) => {
+    const session = overviewOf(c)?.session
+    return session ? clinicApi(c.clinic_id, c.clinic.api_url, session.session) : null
+  }
+  const openNotice = (n: NoticeRow) => {
+    setBell(false)
+    void apiOf(n.conn)?.readNotices([n.id]).catch(() => 0).then(() => qc.invalidateQueries({ queryKey: ['network', 'overview', n.conn.clinic_id] }))
+    setScreen({ name: 'clinic', conn: n.conn, orderId: n.order_id ?? undefined })
+  }
+  const readAll = () => {
+    for (const c of live) if ((overviewOf(c)?.notices ?? []).some(n => !n.read_at)) void apiOf(c)?.readNotices().catch(() => 0)
+    void qc.invalidateQueries({ queryKey: ['network', 'overview'] })
+  }
+
   const known = live.filter(c => overviewOf(c)?.orders)
   const openTotal = known.reduce((n, c) => n + (overviewOf(c)!.orders!.filter(o => OPEN.includes(o.status)).length), 0)
   const recent = known
@@ -326,8 +357,17 @@ function Home() {
         <div className="mx-auto max-w-2xl space-y-4">
           <div className="relative flex items-center justify-between">
             <span className="text-base font-bold tracking-wide">{t('network.brand')}</span>
-            <button type="button" onClick={() => setMenu(m => !m)} aria-expanded={menu} aria-label={t('network.accountMenu')}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-sm font-bold">{initials(a.display_name)}</button>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => { setBell(b => !b); setMenu(false) }} aria-expanded={bell}
+                aria-label={unread > 0 ? t('network.noticesUnread', { n: unread }) : t('network.notices')}
+                className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white/20">
+                <Bell size={18} aria-hidden="true" />
+                {unread > 0 && <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[11px] font-bold">{unread > 99 ? '99+' : unread}</span>}
+              </button>
+              <button type="button" onClick={() => { setMenu(m => !m); setBell(false) }} aria-expanded={menu} aria-label={t('network.accountMenu')}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-sm font-bold">{initials(a.display_name)}</button>
+            </div>
+            {bell && <NoticeList notices={allNotices} onOpen={openNotice} onReadAll={readAll} />}
             {menu && (
               <div className="absolute right-0 top-12 z-50 w-48 overflow-hidden rounded-xl bg-bg-card text-ink shadow-lg">
                 <button type="button" className="block w-full px-4 py-3 text-left text-base hover:bg-bg-sidebar" onClick={() => { setMenu(false); setEditing(true) }}>{t('network.editProfile')}</button>
@@ -380,6 +420,10 @@ function Home() {
                   {c.clinic.city ?? c.clinic.country}{open !== null ? ` · ${open === 1 ? t('network.oneOpenOrder') : t('network.nOpenOrders', { n: open })}` : ''}
                 </span>
               </span>
+              {(o?.notices ?? []).some(x => !x.read_at) && (
+                <span className="rounded-full bg-rose-500 px-2 py-1 text-xs font-bold text-white">
+                  {t('network.nNew', { n: (o?.notices ?? []).filter(x => !x.read_at).length })}</span>
+              )}
               <span className={`flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${confirmed ? 'bg-emerald-500/15 text-emerald-700' : 'bg-amber-500/15 text-amber-700'}`}>
                 {confirmed ? <Check size={14} aria-hidden="true" /> : <Clock size={14} aria-hidden="true" />}
                 {confirmed ? t('network.connected') : t('network.waiting')}
@@ -404,6 +448,50 @@ function Home() {
           </>
         )}
       </main>
+    </div>
+  )
+}
+
+type NoticeRow = ClientNotice & { conn: LiveConn }
+
+/** What a notice says: what happened, on which order, at which clinic. Never a message's text. */
+export function noticeText(n: Pick<ClientNotice, 'kind' | 'ref' | 'reason'>, clinic: string): string {
+  const ref = n.ref ?? ''
+  switch (n.kind) {
+    case 'message': return t('network.noticeMessage', { ref, clinic })
+    case 'accepted': return t('network.noticeAccepted', { ref, clinic })
+    case 'rejected': return n.reason ? t('network.noticeRejectedWhy', { ref, clinic, reason: n.reason }) : t('network.noticeRejected', { ref, clinic })
+    case 'ready': return t('network.noticeReady', { ref, clinic })
+    case 'sent': return t('network.noticeSent', { ref, clinic })
+    case 'connected': return t('network.noticeConnected', { clinic })
+    case 'declined': return t('network.noticeDeclined', { clinic })
+  }
+}
+
+function NoticeList({ notices, onOpen, onReadAll }: { notices: NoticeRow[]; onOpen: (n: NoticeRow) => void; onReadAll: () => void }) {
+  return (
+    <div className="absolute right-0 top-12 z-50 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl bg-bg-card text-ink shadow-lg" role="dialog" aria-label={t('network.notices')}>
+      <div className="flex items-center px-4 py-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-ink-muted">{t('network.notices')}</span>
+        {notices.some(n => !n.read_at) && (
+          <button type="button" onClick={onReadAll} className="ml-auto text-xs font-semibold text-accent">{t('network.markAllRead')}</button>
+        )}
+      </div>
+      {notices.length === 0
+        ? <p className="px-4 pb-4 text-sm text-ink-muted">{t('network.noNotices')}</p>
+        : (
+          <ul className="max-h-96 overflow-y-auto">
+            {notices.map(n => (
+              <li key={`${n.conn.clinic_id}:${n.id}`}>
+                <button type="button" onClick={() => onOpen(n)}
+                  className={`w-full px-4 py-3 text-left text-sm hover:bg-bg-sidebar ${n.read_at ? 'text-ink-muted' : 'font-semibold text-ink'}`}>
+                  {noticeText(n, n.conn.clinic.name)}
+                  <span className="block text-xs font-normal text-ink-muted">{format(new Date(n.created_at), 'd MMM HH:mm', { locale: dateLocale })}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
     </div>
   )
 }
@@ -502,6 +590,19 @@ function ClinicScreen({ conn, startNew, fromPick, startOrder, onBack, onBackToPi
   useEffect(() => { void tryConnect() }, [conn.id]) // eslint-disable-line react-hooks/exhaustive-deps
   const api = useMemo(() => state?.session ? clinicApi(conn.clinic_id, conn.clinic.api_url, state.session.session) : null, [state, conn])
   const detail = useQuery({ queryKey: ['network', 'order', openOrder], queryFn: () => api!.order(openOrder!), enabled: !!api && !!openOrder, refetchInterval: 30_000 })
+  // Opening an order marks what it was told about it read (sql/142).
+  const qcClinic = useQueryClient()
+  useEffect(() => {
+    if (!api || !openOrder) return
+    void (async () => {
+      const notices = await api.notices()
+      const ids = notices.filter(n => n.order_id === openOrder && !n.read_at).map(n => n.id)
+      if (ids.length) {
+        await api.readNotices(ids).catch(() => 0)
+        void qcClinic.invalidateQueries({ queryKey: ['network', 'overview', conn.clinic_id] })
+      }
+    })()
+  }, [api, openOrder]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function endIt() {
     setMenu(false)

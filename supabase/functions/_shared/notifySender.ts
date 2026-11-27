@@ -44,17 +44,21 @@ export interface SenderResult {
   dry: boolean
   email: { status: 'sent' | 'skipped' | 'error'; sent: number; failed: { id: string; error: string }[]; error?: string; limit?: QuotaKind }
   bugs: { sent: number; error?: string; limit?: QuotaKind }
+  /** sql/142: the Network clients' e-mails (subject and a link only). A database before 142: an error here, nothing else. */
+  clients: { sent: number; error?: string; limit?: QuotaKind }
   pushes: { sent: number; gone: number; error?: string }
 }
 
 type Lang = 'en' | 'et' | 'ru'
 type Kind = 'job_shared' | 'stage_handover' | 'question' | 'files_added' | 'stage_reached' | 'assigned' | 'mfa_removed' | 'mfa_reset'
   | 'update_installed' | 'update_failed' | 'update_stale' | 'stage_progress'
+  // sql/138, 142, 143: orders from outside. No reference in the subject: the notice's detail is not read here.
+  | 'client_order' | 'client_request' | 'client_message' | 'client_review'
 
 const SUBJECT: Record<Lang, Record<Kind, string>> = {
-  en: { job_shared: 'Job {code} was shared with you', stage_handover: 'Job {code} was handed over to you', question: 'New question on job {code}', files_added: 'New files on job {code}', stage_reached: 'Job {code} moved to a new stage', assigned: 'You were put on job {code}', mfa_removed: 'An authenticator was removed from your Wivo account', mfa_reset: 'Your Wivo two-factor sign-in was reset', update_installed: 'Wivo was updated', update_failed: 'A Wivo update failed; nothing was changed', update_stale: 'Wivo can\'t confirm that your clinic has the latest updates', stage_progress: 'Job {code} changed stage' },
-  et: { job_shared: 'Töö {code} jagati teiega', stage_handover: 'Töö {code} anti teile üle', question: 'Uus küsimus tööl {code}', files_added: 'Tööle {code} lisati faile', stage_reached: 'Töö {code} liikus uude etappi', assigned: 'Sind määrati tööle {code}', mfa_removed: 'Sinu Wivo kontolt eemaldati autentimisrakendus', mfa_reset: 'Sinu Wivo kaheastmeline sisselogimine lähtestati', update_installed: 'Wivo uuendati', update_failed: 'Wivo uuendus ebaõnnestus, midagi ei muutunud', update_stale: 'Wivo ei saa kinnitada, et sinu kliinikul on viimased uuendused', stage_progress: 'Töö {code} vahetas etappi' },
-  ru: { job_shared: 'Работа {code} передана вам', stage_handover: 'Этап работы {code} передан вам', question: 'Новый вопрос по работе {code}', files_added: 'Новые файлы в работе {code}', stage_reached: 'Работа {code} перешла на новый этап', assigned: 'Вас назначили на работу {code}', mfa_removed: 'Из вашей учётной записи Wivo удалён аутентификатор', mfa_reset: 'Двухфакторный вход в Wivo для вас сброшен', update_installed: 'Wivo обновлён', update_failed: 'Обновление Wivo не удалось, ничего не изменено', update_stale: 'Wivo не может подтвердить, что у вашей клиники последние обновления', stage_progress: 'Работа {code} сменила этап' },
+  en: { job_shared: 'Job {code} was shared with you', stage_handover: 'Job {code} was handed over to you', question: 'New question on job {code}', files_added: 'New files on job {code}', stage_reached: 'Job {code} moved to a new stage', assigned: 'You were put on job {code}', mfa_removed: 'An authenticator was removed from your Wivo account', mfa_reset: 'Your Wivo two-factor sign-in was reset', update_installed: 'Wivo was updated', update_failed: 'A Wivo update failed; nothing was changed', update_stale: 'Wivo can\'t confirm that your clinic has the latest updates', stage_progress: 'Job {code} changed stage', client_order: 'A new order from outside', client_request: 'Someone asks to connect through Wivo Network', client_message: 'A client wrote on an order', client_review: 'A client answered a review' },
+  et: { job_shared: 'Töö {code} jagati teiega', stage_handover: 'Töö {code} anti teile üle', question: 'Uus küsimus tööl {code}', files_added: 'Tööle {code} lisati faile', stage_reached: 'Töö {code} liikus uude etappi', assigned: 'Sind määrati tööle {code}', mfa_removed: 'Sinu Wivo kontolt eemaldati autentimisrakendus', mfa_reset: 'Sinu Wivo kaheastmeline sisselogimine lähtestati', update_installed: 'Wivo uuendati', update_failed: 'Wivo uuendus ebaõnnestus, midagi ei muutunud', update_stale: 'Wivo ei saa kinnitada, et sinu kliinikul on viimased uuendused', stage_progress: 'Töö {code} vahetas etappi', client_order: 'Uus tellimus väljast', client_request: 'Keegi soovib Wivo Networki kaudu ühendust', client_message: 'Klient kirjutas tellimuse juures', client_review: 'Klient vastas ülevaatusele' },
+  ru: { job_shared: 'Работа {code} передана вам', stage_handover: 'Этап работы {code} передан вам', question: 'Новый вопрос по работе {code}', files_added: 'Новые файлы в работе {code}', stage_reached: 'Работа {code} перешла на новый этап', assigned: 'Вас назначили на работу {code}', mfa_removed: 'Из вашей учётной записи Wivo удалён аутентификатор', mfa_reset: 'Двухфакторный вход в Wivo для вас сброшен', update_installed: 'Wivo обновлён', update_failed: 'Обновление Wivo не удалось, ничего не изменено', update_stale: 'Wivo не может подтвердить, что у вашей клиники последние обновления', stage_progress: 'Работа {code} сменила этап', client_order: 'Новый заказ извне', client_request: 'Кто-то просит подключения через Wivo Network', client_message: 'Клиент написал по заказу', client_review: 'Клиент ответил на проверку' },
 }
 const OPEN: Record<Lang, string> = { en: 'Open in Wivo', et: 'Ava Wivos', ru: 'Открыть в Wivo' }
 
@@ -73,9 +77,12 @@ export async function runSender(deps: SenderDeps, dry: boolean): Promise<SenderR
   const bugs = !emailReady ? { sent: 0, error: 'e-mail not set up' }
     : email.limit ? { sent: 0, limit: email.limit }
       : await sendBugReports(deps, dry, key, from)
+  const clients = !emailReady ? { sent: 0, error: 'e-mail not set up' }
+    : email.limit || bugs.limit ? { sent: 0, limit: email.limit ?? bugs.limit }
+      : await sendClientEmails(deps, dry, key, from)
   const pushes = await sendPushes(deps, dry)
   if (pushes.error) deps.warn(`push: ${pushes.error}`)
-  return { ok: email.status !== 'error' && !pushes.error, dry, email, bugs, pushes }
+  return { ok: email.status !== 'error' && !pushes.error, dry, email, bugs, clients, pushes }
 }
 
 async function sendEmails(deps: SenderDeps, dry: boolean, key: string | undefined, from: string | undefined): Promise<SenderResult['email']> {
@@ -92,7 +99,8 @@ async function sendEmails(deps: SenderDeps, dry: boolean, key: string | undefine
     // A kind this build does not know yet is still worth an e-mail: never let it
     // stop the loop (and with it every other e-mail).
     const subject = (SUBJECT[lang][n.kind] ?? SUBJECT[lang].files_added).replace('{code}', code)
-    const url = n.job_id ? link.replace('{id}', n.job_id) : appPage(link, n.kind.startsWith('mfa_') || n.kind.startsWith('update_') ? '/settings' : '/')
+    const url = n.job_id ? link.replace('{id}', n.job_id)
+      : appPage(link, n.kind.startsWith('mfa_') || n.kind.startsWith('update_') ? '/settings' : n.kind.startsWith('client_') ? '/orders' : '/')
     const text = url ? `${subject}\n\n${OPEN[lang]}: ${url}\n` : `${subject}\n`
     if (dry || !mayMail(n.email, deps.env('EMAIL_ALLOW_ONLY'))) { sent.push(n.id); continue }
     const res = await deps.fetch('https://api.resend.com/emails', {
@@ -113,6 +121,54 @@ async function sendEmails(deps: SenderDeps, dry: boolean, key: string | undefine
     if (markErr) return { status: 'error', sent: sent.length, failed, error: markErr.message, ...(limit ? { limit } : {}) }
   }
   return { status: 'sent', sent: sent.length, failed, ...(limit ? { limit } : {}) }
+}
+
+// ── The Network clients' e-mails (sql/142) ──────────────────────────────────
+type ClientKind = 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined'
+interface ClientPending { id: string; email: string; kind: ClientKind; ref: string | null; clinic: string }
+
+/**
+ * The subject, and nothing more: never the message, the reason, a name or
+ * anything about the patient. In English: the client's language is not known
+ * here (the Network keeps the account).
+ */
+export function clientSubject(n: Pick<ClientPending, 'kind' | 'ref' | 'clinic'>): string {
+  const ref = n.ref ?? 'your order'
+  switch (n.kind) {
+    case 'message': return `New message on ${ref} from ${n.clinic}`
+    case 'accepted': return `${n.clinic} accepted ${ref}`
+    case 'rejected': return `${n.clinic} could not take ${ref}`
+    case 'ready': return `${ref} is ready at ${n.clinic}`
+    case 'sent': return `Your order ${ref} is on its way`
+    case 'connected': return `${n.clinic} confirmed your connection`
+    case 'declined': return `${n.clinic} did not confirm your connection`
+  }
+}
+
+async function sendClientEmails(deps: SenderDeps, dry: boolean, key: string | undefined, from: string | undefined): Promise<SenderResult['clients']> {
+  const link = deps.env('NETWORK_LINK') ?? 'https://app.wivodent.com/network'
+  const { data, error } = await deps.rpc('pending_client_emails', { p_limit: 200 })
+  if (error) return { sent: 0, error: error.message }
+  const sent: string[] = []
+  let limit: QuotaKind | null = null
+  for (const n of (data ?? []) as ClientPending[]) {
+    const subject = clientSubject(n)
+    if (dry || !mayMail(n.email, deps.env('EMAIL_ALLOW_ONLY'))) { sent.push(n.id); continue }
+    const res = await deps.fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: n.email, subject, text: `${subject}\n\nOpen Wivo Network: ${link}\n` }),
+    })
+    if (res.ok) { sent.push(n.id); continue }
+    limit = quotaLimit(res.status, await res.text())
+    if (limit) break
+  }
+  if (limit) await recordQuota(deps, limit, 'client-notifications')
+  if (!dry && sent.length > 0) {
+    const { error: markErr } = await deps.rpc('mark_client_notifications_emailed', { p_ids: sent })
+    if (markErr) return { sent: sent.length, error: markErr.message, ...(limit ? { limit } : {}) }
+  }
+  return { sent: sent.length, ...(limit ? { limit } : {}) }
 }
 
 /** In the function's log, and in mail_quota_hit (sql/125) for the owner. Never throws. */

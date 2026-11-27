@@ -526,3 +526,12 @@ sees any of §5.
    Dentas stays, T1 shrinks to what Dentas lacks.
 5. **SMS reminders:** a provider, or e-mail only.
 6. **The admin console:** in 2.6 alongside the test pair, or later.
+
+## Later: Wivo Network notices as phone pushes
+
+The Network client hears a clinic through its bell in /network and, if it
+keeps e-mails on, a one-line e-mail (sql/142, 2026-11-27). A push to the
+phone (the web app at app.wivodent.com/network) comes later: it needs the
+client's push subscription kept by each clinic it is connected to (the
+Network keeps no notices), and the push text in the client's language. Not
+before the e-mails have been used for real.

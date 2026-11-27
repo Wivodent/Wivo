@@ -92,6 +92,12 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
       p_profile: { name: p.name, kind: p.kind, role: p.role, company: p.company, country: p.country },
     })
     if (r.error) return refusal(r.error)
+    // The address and the e-mail choice the token carries (Network 003), for the
+    // clinic's e-mails about orders (sql/142). A database without 142 says no:
+    // that changes nothing about the connection.
+    if (p.email !== undefined) {
+      await deps.rpc('client_set_contact', { p_network_clinic: p.aud, p_account: p.sub, p_email: p.email, p_mail: p.mail ?? true }).catch(() => null)
+    }
     return { status: 200, body: r.data as Record<string, unknown> }
   }
 
@@ -107,6 +113,13 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
   switch (action) {
     case 'catalog': return call('client_catalog')
     case 'orders': return call('client_orders')
+    // The client's notices here (sql/142), and marking them read.
+    case 'notifications': return call('client_notifications')
+    case 'notifications_read': {
+      const ids = Array.isArray(b.ids) ? b.ids.filter(x => typeof x === 'string' && UUID.test(x)).slice(0, 100) : null
+      if (Array.isArray(b.ids) && ids!.length !== b.ids.length) return bad
+      return call('client_notifications_read', { p_ids: ids })
+    }
     // The reference the New order form shows filled in (sql/140); given out only when the order is sent.
     case 'next_ref': return call('client_reference_preview')
     case 'order': {

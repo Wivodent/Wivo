@@ -234,3 +234,42 @@ describe("Resend's sending limit (sql/125)", () => {
     expect(r.email.status).toBe('sent')
   })
 })
+
+describe('the Network clients’ e-mails (sql/142)', () => {
+  it('subject and a link to the Network only; marked done; a database before 142 changes nothing else', async () => {
+    const h = harness({ env: { ...EMAIL, ...VAPID } })
+    const rpc = h.deps.rpc
+    h.deps.rpc = async (fn, args) => fn === 'pending_client_emails'
+      ? { data: [{ id: 'c1', email: 'tess@fake.test', kind: 'message', ref: 'TF-DE-261127-001', clinic: 'Dentiks' }], error: null }
+      : rpc(fn, args)
+    const bodies: string[] = []
+    const fetch = h.deps.fetch
+    h.deps.fetch = async (url, init) => { bodies.push(init.body); return fetch(url, init) }
+    const r = await runSender(h.deps, false)
+    expect(r.clients).toEqual({ sent: 1 })
+    expect(h.mailed).toContainEqual({ to: 'tess@fake.test', subject: 'New message on TF-DE-261127-001 from Dentiks' })
+    const sent = JSON.parse(bodies.find(b => b.includes('tess@fake.test'))!) as { text: string }
+    expect(sent.text).toBe('New message on TF-DE-261127-001 from Dentiks\n\nOpen Wivo Network: https://app.wivodent.com/network\n')
+    expect(h.called('mark_client_notifications_emailed')[0].args).toEqual({ p_ids: ['c1'] })
+
+    const old = harness({ env: { ...EMAIL, ...VAPID }, rpcError: 'pending_client_emails' })
+    const r2 = await runSender(old.deps, false)
+    expect(r2.ok).toBe(true)
+    expect(r2.clients.error).toMatch(/broke/)
+  })
+
+  it('every kind has its subject; the order is "on its way" once sent', async () => {
+    const { clientSubject } = await import('./notifySender')
+    const n = (kind: string) => clientSubject({ kind: kind as never, ref: 'TF-DE-261127-001', clinic: 'Dentiks' })
+    expect(n('sent')).toBe('Your order TF-DE-261127-001 is on its way')
+    expect(n('accepted')).toBe('Dentiks accepted TF-DE-261127-001')
+    expect(n('connected')).toBe('Dentiks confirmed your connection')
+    for (const k of ['message', 'accepted', 'rejected', 'ready', 'sent', 'connected', 'declined']) expect(n(k)).toBeTruthy()
+  })
+
+  it('the clinic’s own notices about orders have their subjects and open Orders', async () => {
+    const h = harness({ env: { ...EMAIL, ...VAPID }, emails: [{ id: 'n1', email: 'owner@fake.test', job_id: null, job_code: null, kind: 'client_message', language: 'en' }] })
+    await runSender(h.deps, false)
+    expect(h.mailed[0].subject).toBe('A client wrote on an order')
+  })
+})

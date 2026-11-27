@@ -44,8 +44,9 @@ Dashboard → Authentication:
 ### A3. Migratsioon
 
 SQL Editor (Networki projektis!) → kleebi `network/sql/001_network.sql` →
-Run; siis samamoodi `network/sql/002_clinic_key.sql` (kliiniku oma võti,
-samm A8). Siis eraldi päringuna:
+Run; siis samamoodi `network/sql/002_clinic_key.sql` (kliiniku oma võti)
+ja `network/sql/003_account_email.sql` (kliendi e-kirjade valik tõendis).
+Siis eraldi päringuna:
 
 ```sql
 notify pgrst, 'reload schema';
@@ -181,6 +182,16 @@ kettale. Seejärel teeb järjest, iga sammu ainult siis, kui see on tegemata
 | f | kõik üle kontrollitud; kokkuvõte, Networki number ja kutse link |
 
 Lisavalikud: `--rotate-key` (uus kliiniku võti), `--skip-deploy`.
+
+### B2b. Kliendi teavitused (kliiniku sql/142)
+
+Kliendi kelluke `/network`-is ja e-kiri kliiniku enda Resendi kaudu tulevad
+kliiniku andmebaasist (Network ei hoia teavitusi). E-kirjad saadab sama
+`send-notifications` mis töötajatele; link on vaikimisi
+`https://app.wivodent.com/network` (muuta saladusega `NETWORK_LINK`).
+E-kirjas on ainult rida nagu "New message on TF-DE-261127-001 from Dentiks"
+ja link. Pärast 142-t deploy uuesti `network-client` ja `send-notifications`,
+Networki projektis `network-token` (kannab aadressi ja valiku).
 
 ### B3. Omanik
 
