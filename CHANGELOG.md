@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.2.6] — 2026-11-27
+
+**Hotfix: a job in a skipped stage**
+
+"What's new": release-notes/2.2.6. No database change.
+
+- **The stage bar** (lib/jobStages): the stage a job is at stays the current
+  one even when it is skipped on the job, so Next (the next active stage) and
+  Previous (the previous active one) show again. Before, such a job (moved
+  there from the board, say) had neither.
+- **The job page** warns "This job is in a skipped stage", with "Move to next
+  active stage".
+- **Skipping the stage a job is at** (the stage bar, and a new job whose
+  starting stage the form skipped) moves the job to the next active stage;
+  the database still refuses to skip the stage a job is at, so the stage left
+  is marked done, not skipped.
+- **Phone:** a big "Move to next stage →" under the stage bar, a smaller
+  "← Back".
+
 ## [2.2.5] — 2026-11-27
 
 **The security review's fixes (docs/SECURITY-REVIEW-2026-11.md, plan steps 1–8)**

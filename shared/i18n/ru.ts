@@ -1291,6 +1291,10 @@ export const ru: Partial<Record<MessageKey, Message>> = {
   'network.errInvalid': "Что-то в форме неверно. Проверьте и попробуйте снова.",
   'network.errTooMany': "Слишком много сразу. Подождите и попробуйте снова.",
   'network.errFailed': "Не получилось. Попробуйте через минуту.",
+  "workflow.inSkippedStage": "Эта работа на пропущенном этапе",
+  "workflow.moveToNextActive": "Перейти к следующему активному этапу",
+  "workflow.moveToNextStage": "Перейти к следующему этапу",
+  "workflow.back": "Назад",
   // A push without its own words shows this as its title (sw.js); the sender's
   // words are already Russian (supabase/functions/_shared/pushText.ts).
   'mobile.pushFallbackTitle': "Новое уведомление",
