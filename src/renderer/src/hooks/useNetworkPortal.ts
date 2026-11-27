@@ -55,6 +55,11 @@ export interface ClientOrderRow {
   /** sql/146: the clinic deleted the job; the client was told, with the reason. */
   cancelled_at?: string | null
   cancel_reason?: string | null
+  /** sql/153: what the catalogue's prices made of it; the clinic's price; its state (quoted: waiting for the client). */
+  estimated_price?: number | null
+  price?: number | null
+  price_state?: 'estimated' | 'needs_quote' | 'quoted' | 'approved' | 'declined' | 'confirmed' | null
+  quoted_at?: string | null
 }
 
 export interface OrderMessage { id: string; from_client: boolean; body: string; created_at: string; author_id: string | null }
@@ -140,7 +145,12 @@ export const useSaveNetworkSettings = () =>
 export const useConfirmClient = () => useRpc<{ p_client: string; p_list: 'clients' | 'clinics'; p_can_see: CanSee }, string>('network_confirm_client')
 export const useClientVisibility = () => useRpc<{ p_client: string; p_can_see: CanSee }>('network_set_client_visibility')
 export const useEndClient = () => useRpc<{ p_client: string }>('network_end_client')
-export const useAcceptOrder = () => useRpc<{ p_order: string; p_template: string | null }, string>('accept_client_order')
+/** sql/153: with the price the job gets (the price engine with the client's prices, or what the clinic typed). */
+export const useAcceptOrder = () => useRpc<{ p_order: string; p_template: string | null; p_price: number | null }, string>('accept_client_order')
+/** sql/153: the clinic's price for an order the client approves first (on request, a custom request). */
+export const useQuoteOrder = () => useRpc<{ p_order: string; p_price: number; p_template: string | null }>('quote_client_order')
+/** sql/153: the price of an accepted order whose job has none (accepted before 153). */
+export const useSetOrderPrice = () => useRpc<{ p_order: string; p_price: number }>('set_order_price')
 export const useRejectOrder = () => useRpc<{ p_order: string; p_reason: string }>('reject_client_order')
 export const usePostOrderMessage = () => useRpc<{ p_order: string; p_body: string }, string>('post_order_message')
 
@@ -230,7 +240,7 @@ export function useOrderJobs(jobIds: readonly string[]) {
       // sql/145: when it left and arrived, and which have an open delivery problem. A database before it: the board state only.
       let list: OrderJobState[]
       try {
-        list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status, assigned_to, designed_by, sent_at, received_at, received_via, received_note').in('id', part).is('deleted_at', null)))
+        list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status, assigned_to, designed_by, sent_at, received_at, received_via, received_note, hind').in('id', part).is('deleted_at', null)))
       } catch (e) {
         if ((e as { code?: string }).code !== '42703') throw e
         list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status, assigned_to, designed_by').in('id', part).is('deleted_at', null)))

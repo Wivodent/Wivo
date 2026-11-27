@@ -10,6 +10,7 @@ import { AnimatePresence } from 'framer-motion'
 import { Plus, Search, Building2, Archive, ArchiveRestore, Pencil, Trash2, Loader2, X, Download, FileText } from 'lucide-react'
 import { InvoiceForm } from '../Invoices/InvoiceForm'
 import { ClientAutoInvoiceFields } from './ClientAutoInvoice'
+import { ClientPricesFields } from './ClientPricesFields'
 import { billedKeys, unbilledCandidates } from '../../lib/invoiceCandidates'
 import { priceBookOf, useSettings } from '../../stores/useSettings'
 import type { Customer, CustomerInput } from '../../types/customer'
@@ -345,6 +346,9 @@ function CustomerForm({ customer, history, onClose, focusEmail = false }: {
 
           {/* sql/151: this client's automatic invoicing, over the clinic's. */}
           <ClientAutoInvoiceFields value={form} onChange={patch => setForm(f => ({ ...f, ...patch }))} />
+
+          {/* sql/153: this client's own prices: a discount and/or its own price per work type. */}
+          <ClientPricesFields discount={form.discount_pct} prices={form.client_prices} onChange={patch => setForm(f => ({ ...f, ...patch }))} />
 
           <div className="grid grid-cols-2 gap-3">
             <div>

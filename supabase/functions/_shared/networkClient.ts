@@ -133,6 +133,11 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
       const orderId = id(b.orderId)
       return orderId ? call('client_order_detail', { p_order: orderId }) : bad
     }
+    // sql/153: the client approves or declines the clinic's price for its order.
+    case 'price_decision': {
+      const orderId = id(b.orderId)
+      return orderId && typeof b.approve === 'boolean' ? call('client_price_decision', { p_order: orderId, p_approve: b.approve }) : bad
+    }
     case 'new_order': {
       if (orderProblems(b.order).length > 0) return { status: 400, body: { error: 'invalid', problems: orderProblems(b.order) } }
       return call('client_new_order', { p_payload: b.order })

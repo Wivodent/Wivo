@@ -32,6 +32,9 @@ export interface Customer {
   email: string | null
   /** sql/152: where invoices go, before `email` (the card, or the client's own Network profile). */
   billing_email?: string | null
+  /** sql/153: off every price of the clinic's list for this client (0–100), and its own price per work type. */
+  discount_pct?: number | null
+  client_prices?: Record<string, number>
   cc_emails: string[]
   phone: string | null
   contact_name: string | null
@@ -67,6 +70,8 @@ export const EMPTY_CUSTOMER: CustomerInput = {
   address: null,
   email: null,
   billing_email: null,
+  discount_pct: null,
+  client_prices: {},
   cc_emails: [],
   phone: null,
   contact_name: null,

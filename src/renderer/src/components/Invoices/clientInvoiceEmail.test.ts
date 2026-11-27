@@ -45,7 +45,7 @@ describe('the screens', () => {
     const card = read('src/renderer/src/components/Customers/CustomersView.tsx')
     expect(card).toContain("t('customers.invoiceEmail')")
     expect(card).toContain("set('billing_email', e.target.value.trim() || null)")
-    expect(read('src/renderer/src/hooks/useCustomers.ts')).toContain("'billing_email'] as const")
+    expect(read('src/renderer/src/hooks/useCustomers.ts')).toContain("'billing_email',")
   })
 
   it('an automatic draft without an address: "Not sent" and "Add e-mail", which opens the client’s card', () => {

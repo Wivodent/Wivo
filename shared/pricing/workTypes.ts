@@ -121,6 +121,10 @@ export interface WorkType {
    * a type nobody has touched keeps the kind it had.
    */
   liik?: TeethKind
+  /** Wivo Network (sql/153): false = not offered to clients. Absent: offered, as before. */
+  klientidele?: boolean
+  /** How its price shows to clients: the price, "from" its lowest price, or "on request" (quoted). Absent: the price. */
+  kliendiHind?: 'exact' | 'from' | 'request'
 }
 
 /** A work type's kind on the new-job form (WorkType.liik). */

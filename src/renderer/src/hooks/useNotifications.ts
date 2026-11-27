@@ -29,6 +29,8 @@ export interface AppNotification {
     | 'delivery_problem' | 'problem_resolved' | 'received_reminder'
     // sql/151: an automatic invoice to check (owners), or one that could not be made.
     | 'invoice_ready'
+    // sql/153: a client approved (the job started) or declined the clinic's price.
+    | 'client_price'
   detail: Record<string, unknown>
   created_at: string
   read_at: string | null

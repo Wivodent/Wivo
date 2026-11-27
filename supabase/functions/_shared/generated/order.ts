@@ -53,6 +53,12 @@ export interface WivoOrderV2 extends Omit<WivoOrderV1, 'version'> {
   /** FDI numbers among `teeth` that sit on an implant, comma-separated; "" for none. */
   implants: string
   abutment: OrderAbutment | null
+  /**
+   * "Other / custom request" (sql/153): not from the catalogue. `work_type` is
+   * the client's own title, `notes` what is wanted; the clinic quotes a price
+   * and the work starts once the client approves it.
+   */
+  custom?: boolean
 }
 
 export type WivoOrder = WivoOrderV1 | WivoOrderV2
@@ -65,10 +71,13 @@ export const orderImplants = (o: Pick<WivoOrder, 'version'> & { implants?: strin
 export interface CatalogueItem {
   name: string
   teeth: 'tooth' | 'arch' | 'none'
-  groups: { key: string; name: string; multi: boolean; options: { id: string; name: string }[] }[]
-  /** Only when the owner lets this client see prices. */
+  /** An option's price: only when this client sees prices and the type has one (sql/153), this client's own amount. */
+  groups: { key: string; name: string; multi: boolean; options: { id: string; name: string; price?: number; unit?: 'too' | 'hammas' }[] }[]
+  /** Only when the owner lets this client see prices: this client's own (sql/153: its discount or own price). */
   price?: number | null
   unit?: 'too' | 'hammas'
+  /** sql/153: how the price shows — the price, "from" it, or "on request" (none; the clinic quotes). Absent: as `price`. */
+  price_form?: 'exact' | 'from' | 'request'
   /**
    * The type's own words, as the clinic set them (sql/141): the phone reads
    * from them what the new-job form reads (shared/wizard/workTypeRules: built
@@ -88,12 +97,14 @@ const FDI = /^(?:[1-8][1-8])(?:,[1-8][1-8])*$/
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const OPTION_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/
 const KEYS_V1 = ['format', 'version', 'work_type', 'teeth', 'options', 'shade', 'due', 'patient_ref', 'notes']
-const KEYS: Record<number, Set<string>> = { 1: new Set(KEYS_V1), 2: new Set([...KEYS_V1, 'implants', 'abutment']) }
+const KEYS: Record<number, Set<string>> = { 1: new Set(KEYS_V1), 2: new Set([...KEYS_V1, 'implants', 'abutment', 'custom']) }
 
 export type OrderProblem =
   | 'format' | 'unknown_field' | 'work_type' | 'teeth' | 'options' | 'shade' | 'due' | 'patient_ref' | 'notes'
   | 'implants' | 'abutment'
   | 'not_in_catalogue' | 'option_not_offered' | 'one_option_only'
+  /** sql/153: a custom request needs its title (work_type, at most 80) and what is wanted (notes). */
+  | 'custom'
 
 /** What is wrong with an order, or [] when it may be sent. With the catalogue, its choices are checked too. */
 export function orderProblems(o: unknown, catalogue?: readonly CatalogueItem[], today?: string): OrderProblem[] {
@@ -132,7 +143,12 @@ export function orderProblems(o: unknown, catalogue?: readonly CatalogueItem[], 
   if (typeof x.patient_ref !== 'string' || !x.patient_ref.trim() || x.patient_ref.length > LIMITS.patientRef) out.push('patient_ref')
   if (x.notes !== null && (typeof x.notes !== 'string' || x.notes.length > LIMITS.notes)) out.push('notes')
 
-  if (catalogue && typeof x.work_type === 'string') {
+  // sql/153: "Other / custom request": outside the catalogue, a title and what is wanted.
+  const custom = x.version === 2 && x.custom === true
+  if (x.custom !== undefined && (x.version !== 2 || typeof x.custom !== 'boolean')) out.push('custom')
+  if (custom && ((typeof x.work_type === 'string' && x.work_type.trim().length > 80) || typeof x.notes !== 'string' || !x.notes.trim())) out.push('custom')
+
+  if (catalogue && typeof x.work_type === 'string' && !custom) {
     const item = catalogue.find(c => c.name === x.work_type)
     if (!item) out.push('not_in_catalogue')
     else if (optsOk) {

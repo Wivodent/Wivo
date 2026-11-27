@@ -93,6 +93,12 @@ export const text = (n: AppNotification, stageLabel: (key: string) => string): s
     const client = String(n.detail.client ?? '')
     return reasons.length ? t('notifications.invoiceReadyWhy', { client, why: reasons.map(autoReasonText).join('; ') }) : t('notifications.invoiceReady', { client })
   }
+  // sql/153: a client's answer to the clinic's price for an order.
+  if (n.kind === 'client_price') {
+    const ref = String(n.detail.ref ?? '')
+    const price = n.detail.price != null ? `${n.detail.price} €` : ''
+    return n.detail.decision === 'approved' ? t('notifications.clientPriceApproved', { ref, price }) : t('notifications.clientPriceDeclined', { ref, price })
+  }
   if (n.kind === 'mail_quota') return n.detail.limit === 'monthly' ? t('notifications.mailQuotaMonthly') : t('notifications.mailQuotaDaily')
   return t('notifications.question', { code })
 }

@@ -16,14 +16,16 @@ import { format, formatDistanceToNow } from 'date-fns'
 import {
   useNetworkSettings, useNetworkClients, useClientOrders, useOrderThread, usePortalLive,
   useSaveNetworkSettings, useConfirmClient, useClientVisibility, useEndClient,
-  useAcceptOrder, useRejectOrder, usePostOrderMessage, defaultList, clientName,
+  useAcceptOrder, useRejectOrder, usePostOrderMessage, defaultList, clientName, useQuoteOrder, useSetOrderPrice,
   useDirectoryEntry, useSetDirectoryListed, useOrderCounts, useOrderJobs, useOrderJobsLive,
   type NetworkClientRow, type ClientOrderRow, type CanSee, type OrderCounts, PORTAL_KEY,
 } from '../../hooks/useNetworkPortal'
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates'
 import { usePermissions } from '../../hooks/usePermissions'
 import { usePipeline } from '../../context/PipelineContext'
-import { useSettings, useWorkTypes } from '../../stores/useSettings'
+import { useSettings, useWorkTypes, priceBookOf } from '../../stores/useSettings'
+import { useCustomers } from '../../hooks/useCustomers'
+import { orderPriceFor, clientPricingOf, parsePrice, type OrderPriceSuggestion } from '../../lib/orderPrice'
 import { saveOrderFile } from '../../lib/fileLink'
 import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
 import { MarkSentButton } from './MarkSent'
@@ -476,6 +478,11 @@ function OrderRow({ order, tab, client, counts, canAccept, onOpen, job }: {
   const accept = useAcceptOrder()
   const optionLabels = useOptionLabels()
   const days = reminderDays(useSettings().settings.vastuvotuPaevad)
+  // sql/153: accepted here only with a price the engine could work out and nothing for the client to approve.
+  const suggestion = useOrderPriceSuggestion(order, client)
+  const waitsForPrice = suggestion.needsQuote || isQuoteState(order.price_state)
+  const quickAccept = tab === 'new' && canAccept && !waitsForPrice && suggestion.amount != null
+  const noPrice = order.status === 'accepted' && !!job && !(Number(job.hind ?? 0) > 0) && !order.cancelled_at
   const late = !!job && notConfirmed(job, !!job.problem, days)
   const [error, setError] = useState<string | null>(null)
   const p = order.payload
@@ -502,17 +509,23 @@ function OrderRow({ order, tab, client, counts, canAccept, onOpen, job }: {
           {messages > 0 && <Chip tone="blue">{messages === 1 ? t('orders.oneMessage') : t('orders.nMessages', { n: messages })}</Chip>}
           {tab === 'problem' && <span className="rounded-lg bg-rose-600 px-2 py-0.5 text-sm font-bold text-white">{t('delivery.problemBadge')}</span>}
           {late && <span className="rounded-lg bg-amber-500/20 px-2 py-0.5 text-sm font-bold text-amber-800">{t('delivery.notConfirmed')}</span>}
+          {/* sql/153: the price: one to give, one the client is deciding on, one it declined; or a job without one. */}
+          {tab === 'new' && <PriceChip order={order} suggestion={suggestion} />}
+          {noPrice && <span className="rounded-lg bg-amber-500/20 px-2 py-0.5 text-sm font-bold text-amber-800">{t('orders.noPrice')}</span>}
         </div>
         {tab === 'rejected' && order.reject_reason && <p className="text-sm text-rose-700">{t('orders.rejectedBecause', { reason: order.reject_reason })}</p>}
         {tab === 'cancelled' && <p className="text-sm text-rose-700">{order.cancel_reason ? t('orders.cancelledBecause', { reason: order.cancel_reason }) : t('orders.statusCancelled')}</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
       </div>
       <div className="flex shrink-0 flex-col gap-2">
-        {tab === 'new' && canAccept && (
+        {quickAccept && (
           <button type="button" disabled={accept.isPending} className="btn-primary h-10 justify-center px-4 text-sm"
-            onClick={async () => { setError(null); try { await accept.mutateAsync({ p_order: order.id, p_template: null }) } catch (e) { setError(describeError(e)) } }}>
-            {t('orders.acceptShort')}
+            onClick={async () => { setError(null); try { await accept.mutateAsync({ p_order: order.id, p_template: null, p_price: suggestion.amount }) } catch (e) { setError(describeError(e)) } }}>
+            {t('orders.acceptForPrice', { price: euros(suggestion.amount!) })}
           </button>
+        )}
+        {noPrice && canAccept && (
+          <button type="button" onClick={onOpen} className="btn-primary h-10 justify-center px-4 text-sm">{t('orders.setPrice')}</button>
         )}
         {tab === 'ready' && order.job_id && job && <MarkSentButton job={job} orderId={order.id} />}
         <button type="button" onClick={onOpen} className="btn-ghost h-10 justify-center border border-ink-faint/30 px-4 text-sm">{t('orders.open')}</button>
@@ -525,7 +538,21 @@ function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { ord
   const templates = (useWorkflowTemplates().data ?? []).filter(tpl => !tpl.archived)
   const accept = useAcceptOrder()
   const reject = useRejectOrder()
+  const quote = useQuoteOrder()
+  const setOrderPrice = useSetOrderPrice()
   const [template, setTemplate] = useState<string>('')
+  // sql/153: the job's price: the engine's, with the client's prices; the clinic may change it, and must give one where there is none.
+  const suggestion = useOrderPriceSuggestion(order, client)
+  const quoteFlow = suggestion.needsQuote || isQuoteState(order.price_state)
+  const [priceText, setPriceText] = useState(() => (order.price != null ? String(order.price) : suggestion.amount != null ? String(suggestion.amount) : ''))
+  const typedPrice = parsePrice(priceText)
+  // The client's prices may arrive after the dialog opened: the engine's price fills in until the clinic types its own.
+  const touched = useRef(false)
+  const typePrice = (v: string) => { touched.current = true; setPriceText(v) }
+  useEffect(() => {
+    if (!touched.current && order.price == null && suggestion.amount != null) setPriceText(String(suggestion.amount))
+  }, [suggestion.amount, order.price])
+  const noPrice = order.status === 'accepted' && !!job && !(Number(job.hind ?? 0) > 0) && !order.cancelled_at
   const [reason, setReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -562,6 +589,20 @@ function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { ord
           {p?.notes && <div className="sm:col-span-2"><Field label={t('orders.notes')} value={p.notes} /></div>}
         </dl>
 
+        {/* sql/153: accepted before prices: the job has none. Its price, once. */}
+        {noPrice && canDecide && (
+          <div className="mt-5 space-y-2 rounded-xl border-2 border-amber-400/60 bg-amber-50 p-4">
+            <p className="text-base font-semibold text-amber-900">{t('orders.noPriceHelp')}</p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="block"><span className="label">{t('orders.priceLabel')}</span>
+                <input className="input h-12 w-40 text-base" inputMode="decimal" value={priceText} onChange={e => typePrice(e.target.value)} /></label>
+              <button type="button" disabled={setOrderPrice.isPending || !(typedPrice != null && typedPrice > 0)} className="btn-primary h-12 px-5 text-base"
+                onClick={() => run(async () => { await setOrderPrice.mutateAsync({ p_order: order.id, p_price: typedPrice! }); onClose() })}>
+                {t('orders.setPrice')}</button>
+            </div>
+          </div>
+        )}
+
         {/* sql/145: Sent → Received, or a delivery problem until the clinic resolves it. */}
         {order.status === 'accepted' && job && <div className="mt-5 empty:hidden"><JobDelivery job={job} orderId={order.id} /></div>}
 
@@ -583,6 +624,7 @@ function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { ord
           <div className="mt-6 space-y-4 rounded-xl border-2 border-ink-faint/20 p-4">
             {!rejecting ? (
               <>
+                <PriceField order={order} suggestion={suggestion} quoteFlow={quoteFlow} value={priceText} onChange={typePrice} valid={typedPrice != null} />
                 <div>
                   <span className="label flex items-center gap-1">{t('orders.template')} <InfoButton label={t('orders.template')} text={t('orders.templateInfo')} /></span>
                   <select className="input h-12 text-base" value={template} onChange={e => setTemplate(e.target.value)}>
@@ -591,10 +633,17 @@ function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { ord
                   </select>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <button type="button" disabled={accept.isPending} className="btn-primary h-12 px-6 text-base"
-                    onClick={() => run(async () => { await accept.mutateAsync({ p_order: order.id, p_template: template || null }); onClose() })}>
-                    <Check size={18} aria-hidden="true" /> {t('orders.accept')}
-                  </button>
+                  {quoteFlow ? (
+                    <button type="button" disabled={quote.isPending || typedPrice == null} className="btn-primary h-12 px-6 text-base"
+                      onClick={() => run(async () => { await quote.mutateAsync({ p_order: order.id, p_price: typedPrice!, p_template: template || null }); onClose() })}>
+                      <Send size={18} aria-hidden="true" /> {order.price_state === 'quoted' ? t('orders.sendNewPrice') : t('orders.sendPrice')}
+                    </button>
+                  ) : (
+                    <button type="button" disabled={accept.isPending || typedPrice == null} className="btn-primary h-12 px-6 text-base"
+                      onClick={() => run(async () => { await accept.mutateAsync({ p_order: order.id, p_template: template || null, p_price: typedPrice }); onClose() })}>
+                      <Check size={18} aria-hidden="true" /> {t('orders.accept')}
+                    </button>
+                  )}
                   <button type="button" className="btn-ghost h-12 px-5 text-base" onClick={() => setRejecting(true)}>
                     <X size={18} aria-hidden="true" /> {t('orders.reject')}
                   </button>
@@ -617,6 +666,49 @@ function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { ord
         )}
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
       </div>
+    </div>
+  )
+}
+
+// ── Prices (sql/153) ────────────────────────────────────────────────────────
+
+const euros = (n: number): string => `${Number.isInteger(n) ? n : n.toFixed(2)} €`
+/** The order waits for a price to be given or approved by the client. */
+const isQuoteState = (s: ClientOrderRow['price_state']): boolean => s === 'needs_quote' || s === 'quoted' || s === 'declined'
+
+/** What accepting this order would put on the job: the price engine with this client's prices. */
+function useOrderPriceSuggestion(order: ClientOrderRow, client?: NetworkClientRow): OrderPriceSuggestion {
+  const { settings } = useSettings()
+  const customers = useCustomers().data ?? []
+  const customer = client?.customer_id ? customers.find(c => c.id === client.customer_id) : undefined
+  return useMemo(() => orderPriceFor(order, priceBookOf(settings), clientPricingOf(customer)),
+    [order, settings, customer])
+}
+
+/** The price an order waits on, in a word, on the list. */
+function PriceChip({ order, suggestion }: { order: ClientOrderRow; suggestion: OrderPriceSuggestion }) {
+  if (order.price_state === 'quoted') return <span className="rounded-lg bg-accent/15 px-2 py-0.5 text-sm font-bold text-accent">{t('orders.priceWaiting', { price: euros(Number(order.price ?? 0)) })}</span>
+  if (order.price_state === 'declined') return <span className="rounded-lg bg-rose-500/15 px-2 py-0.5 text-sm font-bold text-rose-700">{t('orders.priceDeclinedChip')}</span>
+  if (suggestion.needsQuote || order.price_state === 'needs_quote') return <span className="rounded-lg bg-amber-500/20 px-2 py-0.5 text-sm font-bold text-amber-800">{t('orders.needsPrice')}</span>
+  if (suggestion.amount == null) return <span className="rounded-lg bg-amber-500/20 px-2 py-0.5 text-sm font-bold text-amber-800">{t('orders.noPriceInList')}</span>
+  return <span className="rounded-lg bg-bg-sidebar px-2 py-0.5 text-sm font-semibold text-ink">{euros(suggestion.amount)}</span>
+}
+
+/** The price field of the Accept box: filled in from the engine; required where there is none; a quote for the client to approve. */
+function PriceField({ order, suggestion, quoteFlow, value, onChange, valid }: {
+  order: ClientOrderRow; suggestion: OrderPriceSuggestion; quoteFlow: boolean; value: string; onChange: (v: string) => void; valid: boolean
+}) {
+  return (
+    <div className="space-y-1">
+      <label className="block"><span className="label">{quoteFlow ? t('orders.priceForClient') : t('orders.priceLabel')} *</span>
+        <input className="input h-12 w-48 text-base" inputMode="decimal" value={value} aria-invalid={!valid} onChange={e => onChange(e.target.value)} /></label>
+      {quoteFlow
+        ? <p className="text-sm text-ink-muted">{order.price_state === 'quoted' ? t('orders.quotedWaiting', { price: euros(Number(order.price ?? 0)) })
+            : order.price_state === 'declined' ? t('orders.quotedDeclined', { price: euros(Number(order.price ?? 0)) }) : t('orders.quoteHelp')}</p>
+        : suggestion.amount != null
+          ? <p className="text-sm text-ink-muted">{t('orders.priceFromEngine', { price: euros(suggestion.amount) })}</p>
+          : <p className="text-sm font-semibold text-amber-800">{t('orders.priceMissing')}</p>}
+      {order.estimated_price != null && <p className="text-sm text-ink-muted">{t('orders.clientEstimate', { price: euros(Number(order.estimated_price)) })}</p>}
     </div>
   )
 }

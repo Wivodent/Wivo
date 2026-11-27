@@ -45,7 +45,7 @@ import { useThreadFold, ThreadHeader } from '../../components/Network/ThreadFold
 import { teethCountLabel } from '../../components/NewJobWizard/teeth/WorkTypeTabs'
 import {
   teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
-  catalogueRules, expectedImplants, withAutoImplants, implantSummary, wireOrder,
+  catalogueRules, expectedImplants, withAutoImplants, implantSummary, wireOrder, catalogueEstimate,
   threadItems, reviewAnswer, isImageFile, type ThreadMessage, type ThreadFile,
   UPPER_TEETH, LOWER_TEETH, type FormStep,
 } from '../../lib/orderView'
@@ -487,6 +487,8 @@ export function noticeText(n: Pick<ClientNotice, 'kind' | 'ref' | 'reason'>, cli
     // sql/146: the clinic deleted the job (with its reason), or restored it.
     case 'cancelled': return n.reason ? t('network.noticeCancelledWhy', { ref, clinic, reason: n.reason }) : t('network.noticeCancelled', { ref, clinic })
     case 'reinstated': return t('network.noticeReinstated', { ref, clinic })
+    // sql/153: the clinic's price, to approve or decline.
+    case 'quoted': return t('network.noticeQuoted', { ref, clinic, price: n.reason ?? '' })
   }
 }
 
@@ -780,17 +782,24 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
   const [implants, setImplants] = useState<number[]>([])
   const [abutmentAll, setAbutmentAll] = useState('')
   const [abutmentTeeth, setAbutmentTeeth] = useState<Record<string, string>>({})
+  // sql/153: "Other / custom request": the client's own title and description, quoted by the clinic.
+  const [custom, setCustom] = useState(false)
   // The clinic's next reference (sql/140), filled in once; the client may write its own instead.
   const nextRef = useQuery<string>({ queryKey: ['network', 'next_ref', clinicId], queryFn: api.nextRef, staleTime: 0, retry: false })
   const autoRef = nextRef.data ?? null
   useEffect(() => {
     if (autoRef) setOrder(o => (o.patient_ref === '' ? { ...o, patient_ref: autoRef } : o))
   }, [autoRef])
-  const item = (catalog.data ?? []).find(c => c.name === order.work_type)
+  const item = custom ? undefined : (catalog.data ?? []).find(c => c.name === order.work_type)
   const today = new Date().toISOString().slice(0, 10)
-  const problems = orderProblems(order, catalog.data, today)
-  const needsTeeth = !!item && item.teeth !== 'none'
-  const workOk = !!item && !problems.some(p => WORK_PROBLEMS.has(p)) && (!needsTeeth || order.teeth !== '')
+  const problems = orderProblems(custom ? { ...order, version: 2, implants: '', abutment: null, custom: true } : order, catalog.data, today)
+  const needsTeeth = custom || (!!item && item.teeth !== 'none')
+  const workOk = custom
+    ? order.work_type.trim().length > 0 && order.work_type.trim().length <= 80 && !problems.includes('teeth')
+    : !!item && !problems.some(p => WORK_PROBLEMS.has(p)) && (!needsTeeth || order.teeth !== '')
+  // What it comes to at the prices shown (sql/153), or that the clinic will send a price to approve.
+  const estimate = prices && !custom ? catalogueEstimate(item, order.teeth, order.options) : null
+  const quoted = custom || item?.price_form === 'request'
   const detailsOk = problems.length === 0
   const set = (patch: Partial<WivoOrderV1>) => setOrder(o => ({ ...o, ...patch }))
   const { number, total } = stepNumber(step, withClinicStep)
@@ -817,7 +826,7 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
   async function send() {
     setBusy(true); setError(null)
     try {
-      const id = await api.newOrder(wireOrder(order, { implants, abutmentAll, abutmentTeeth }, v2))
+      const id = await api.newOrder(wireOrder(order, { implants, abutmentAll, abutmentTeeth, custom }, v2))
       for (const f of files) await api.upload(id, f)
       onSent(id)
     } catch (e) {
@@ -847,7 +856,8 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
               return (
                 <button key={c.name} type="button" aria-pressed={on}
                   onClick={() => {
-                    if (c.name === order.work_type) return
+                    setCustom(false)
+                    if (c.name === order.work_type && !custom) return
                     const keep = c.teeth === 'none' ? '' : order.teeth
                     set({ work_type: c.name, options: {}, teeth: keep })
                     // Implants follow the new work's own rule: built on implants, its teeth are implants at once.
@@ -857,11 +867,27 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
                   className={`flex flex-col items-center gap-1.5 rounded-2xl bg-bg-card px-1.5 py-2.5 ${on ? 'border-2 border-accent' : 'border border-ink-faint/30'}`}>
                   <TypeArt name={c.name} size={44} />
                   <span className={`text-center text-xs leading-tight ${on ? 'font-bold' : ''}`}>{c.name}</span>
-                  {prices && c.price != null && <span className="text-xs text-ink-muted">{c.price} €{c.unit === 'hammas' ? ` / ${t('network.perTooth')}` : ''}</span>}
+                  {prices && <span className="text-xs text-ink-muted">{catalogPriceText(c)}</span>}
                 </button>
               )
             })}
+            {/* sql/153: anything the catalogue does not have: described, the clinic sends a price to approve. */}
+            {v2 && (
+              <button type="button" aria-pressed={custom}
+                onClick={() => { if (!custom) { setCustom(true); set({ work_type: '', options: {} }); setImplants([]) } }}
+                className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-bg-card px-1.5 py-2.5 ${custom ? 'border-2 border-accent' : 'border border-dashed border-ink-faint/50'}`}>
+                <Plus size={28} className="text-accent" aria-hidden="true" />
+                <span className={`text-center text-xs leading-tight ${custom ? 'font-bold' : ''}`}>{t('network.customRequest')}</span>
+              </button>
+            )}
           </div>
+          {custom && (
+            <div className="card space-y-2 rounded-2xl p-3">
+              <label className="block"><span className="label">{t('network.customTitle')}</span>
+                <input className="input h-12 text-base" maxLength={80} value={order.work_type} onChange={e => set({ work_type: e.target.value })} /></label>
+              <p className="text-sm text-ink-muted">{t('network.customHelp')}</p>
+            </div>
+          )}
           {catalog.isFetched && (catalog.data ?? []).length === 0 && <p className="card p-4 text-base text-ink-muted">{t('network.noCatalogue')}</p>}
 
           {item?.groups.map(g => (
@@ -879,6 +905,8 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
                       }}
                       className={`min-h-10 rounded-xl px-3 text-sm ${chosen ? 'border-2 border-accent bg-accent/10 font-semibold' : 'border border-ink-faint/40'}`}>
                       {op.name}
+                      {/* sql/153: its price for this client, as the type's own price shows. */}
+                      {prices && op.price ? <span className="ml-1 text-xs text-ink-muted">+{op.price} €{op.unit === 'hammas' ? ` / ${t('network.perTooth')}` : ''}</span> : null}
                     </button>
                   )
                 })}
@@ -887,8 +915,8 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
           ))}
 
           {needsTeeth && (
-            <TeethPicker value={order.teeth} implants={implants} arch={item!.teeth === 'arch'} workType={order.work_type}
-              canMarkImplants={v2} autoImplants={!!rules?.implantBased && rules.toothMode === 'tooth'}
+            <TeethPicker value={order.teeth} implants={implants} arch={item?.teeth === 'arch'} workType={order.work_type}
+              canMarkImplants={v2 && !custom} autoImplants={!custom && !!rules?.implantBased && rules.toothMode === 'tooth'}
               onChange={(teeth, nextImplants) => { set({ teeth }); setImplants(nextImplants) }} />
           )}
           {needsTeeth && v2 && rules?.implantBased && rules.toothMode === 'arch' && (
@@ -933,7 +961,7 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
               <input className="input h-12 text-base" maxLength={20} placeholder="A2" value={order.shade ?? ''} onChange={e => set({ shade: e.target.value || null })} /></label>
             <label className="block"><span className="label">{t('network.due')}</span>
               <input className="input h-12 text-base" type="date" min={today} value={order.due ?? ''} onChange={e => set({ due: e.target.value || null })} /></label>
-            <label className="block sm:col-span-2"><span className="label">{t('network.notes')}</span>
+            <label className="block sm:col-span-2"><span className="label">{custom ? t('network.customDescription') : t('network.notes')}</span>
               <textarea className="input min-h-24 text-base" maxLength={2000} value={order.notes ?? ''} onChange={e => set({ notes: e.target.value || null })} /></label>
           </div>
           <div className="card space-y-2 rounded-2xl p-3">
@@ -979,6 +1007,10 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
               {files.length > 0 && <><dt className="text-ink-muted">{t('network.files')}</dt><dd>{files.map(f => f.name).join(', ')}</dd></>}
             </dl>
             {order.notes && <p className="whitespace-pre-wrap text-sm text-ink-muted">{order.notes}</p>}
+            {/* sql/153: what it comes to at the prices shown, or that a price comes to approve first. */}
+            {quoted
+              ? <p className="rounded-xl bg-accent/10 p-3 text-sm text-ink">{t('network.priceToApprove')}</p>
+              : estimate && <p className="text-base font-semibold">{estimate.from ? t('network.estimateFrom', { price: money(estimate.amount) }) : t('network.estimate', { price: money(estimate.amount) })}</p>}
           </div>
           {error && <p className="text-base text-rose-600">{error}</p>}
           {footer(
@@ -1517,10 +1549,62 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
 
       {p.notes && <p className="card whitespace-pre-wrap rounded-2xl p-4 text-base text-ink-muted">{p.notes}</p>}
 
+      {/* sql/153: the price and its state; a price to approve, with Approve / Decline. */}
+      <OrderPrice api={api} orderId={orderId} detail={d} onDone={() => void detail.refetch()} onError={setError} />
+
       {(d.status === 'sent' || d.status === 'problem') && <ClientDelivery api={api} orderId={orderId} clinicName={clinicName} status={d.status} onDone={() => void detail.refetch()} />}
       {d.status === 'arrived' && <ClientFeedback api={api} orderId={orderId} clinicName={clinicName} onDone={() => void detail.refetch()} />}
       <ClientThread api={api} orderId={orderId} clinicName={clinicName} detail={detail} onError={setError} />
       {error && <p className="text-base text-rose-600">{error}</p>}
+    </div>
+  )
+}
+
+// ── Prices (sql/153) ────────────────────────────────────────────────────────
+
+/** An amount as the order shows it: two decimals only when it has cents. */
+const money = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(2))
+
+/** A work type's price as the catalogue shows it to this client: the price, "from" it, or on request. */
+function catalogPriceText(c: CatalogueItem): string {
+  if (c.price_form === 'request') return t('network.priceOnRequest')
+  if (c.price == null) return ''
+  const unit = c.unit === 'hammas' ? ` / ${t('network.perTooth')}` : ''
+  return c.price_form === 'from' ? t('network.priceFrom', { price: `${money(c.price)} €${unit}` }) : `${money(c.price)} €${unit}`
+}
+
+/** The order's price and its state; the clinic's price to approve or decline. */
+function OrderPrice({ api, orderId, detail, onDone, onError }: {
+  api: Api; orderId: string; detail: ClientOrderDetail; onDone: () => void; onError: (e: string | null) => void
+}) {
+  const [busy, setBusy] = useState(false)
+  const s = detail.price_state
+  if (!s) return null
+  const price = detail.price != null ? `${money(detail.price)} €` : ''
+  async function decide(approve: boolean) {
+    setBusy(true); onError(null)
+    try { await api.priceDecision(orderId, approve); onDone() } catch (e) { onError(errorText(e)) } finally { setBusy(false) }
+  }
+  return (
+    <div className={`card space-y-2 rounded-2xl p-4 ${s === 'quoted' ? 'border-2 border-accent' : ''}`}>
+      <p className="text-sm font-bold">{t('network.price')}</p>
+      {s === 'estimated' && <p className="text-base">{t('network.priceEstimated', { price })}</p>}
+      {s === 'needs_quote' && <p className="text-base text-ink-muted">{t('network.priceWaiting')}</p>}
+      {s === 'quoted' && (
+        <>
+          <p className="text-lg font-bold">{t('network.priceQuoted', { price })}</p>
+          <p className="text-sm text-ink-muted">{t('network.priceQuotedHelp')}</p>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={() => void decide(true)} className="btn-primary min-h-12 flex-1 justify-center rounded-2xl text-base font-bold">
+              <Check size={18} aria-hidden="true" /> {t('network.approvePrice')}</button>
+            <button type="button" disabled={busy} onClick={() => void decide(false)} className="min-h-12 flex-1 rounded-2xl border border-ink-faint/40 text-base font-semibold">
+              {t('network.declinePrice')}</button>
+          </div>
+        </>
+      )}
+      {s === 'approved' && <p className="text-base">{t('network.priceApproved', { price })}</p>}
+      {s === 'declined' && <p className="text-base text-ink-muted">{t('network.priceDeclined', { price })}</p>}
+      {s === 'confirmed' && <p className="text-base">{t('network.priceConfirmed', { price })}</p>}
     </div>
   )
 }

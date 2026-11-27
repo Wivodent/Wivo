@@ -25,6 +25,8 @@ export interface OrderJobState {
   assigned_to?: string | null; designed_by?: string | null
   /** sql/145: an open delivery problem on the job. */
   problem?: boolean
+  /** The job's price (sql/153: an accepted order without one shows "No price"). */
+  hind?: number | null
 }
 
 /**
@@ -195,8 +197,10 @@ export function implantSummary(teeth: readonly number[], implants: readonly numb
 }
 
 /** The order as it is sent: version 2 with the implants and abutment when the clinic takes it, else version 1 without them. */
-export function wireOrder(form: WivoOrderV1, extra: { implants: readonly number[]; abutmentAll: string; abutmentTeeth: Record<string, string> }, v2: boolean): WivoOrder {
+export function wireOrder(form: WivoOrderV1, extra: { implants: readonly number[]; abutmentAll: string; abutmentTeeth: Record<string, string>; custom?: boolean }, v2: boolean): WivoOrder {
   if (!v2) return { ...form, version: 1 }
+  // sql/153: "Other / custom request": no implants or abutment of the catalogue's types, flagged.
+  if (extra.custom) return { ...form, version: 2, implants: '', abutment: null, custom: true }
   const implants = parseTeeth(formatTeeth([...extra.implants])).filter(t => parseTeeth(form.teeth).includes(t))
   const all = extra.abutmentAll.trim()
   const teeth: Record<string, string> = {}
@@ -206,6 +210,29 @@ export function wireOrder(form: WivoOrderV1, extra: { implants: readonly number[
   }
   const abutment = implants.length && (all || Object.keys(teeth).length) ? { all: all || null, teeth } : null
   return { ...form, version: 2, implants: formatTeeth(implants), abutment }
+}
+
+/**
+ * What an order comes to at the catalogue's prices (sql/153), as the clinic's
+ * client_order_estimate counts it: the type's price (its "from" price when it
+ * shows one) times the teeth for a per-tooth type, plus each chosen option per
+ * job or per tooth. Null: no price shown (on request, prices hidden, or no
+ * teeth yet for a per-tooth type).
+ */
+export function catalogueEstimate(item: Pick<CatalogueItem, 'price' | 'unit' | 'price_form' | 'groups'> | undefined, teeth: string,
+  options: Record<string, string[]>): { amount: number; from: boolean } | null {
+  if (!item || item.price == null || item.price_form === 'request') return null
+  const count = parseTeeth(teeth).length
+  if (item.unit === 'hammas' && count === 0) return null
+  let total = item.price * (item.unit === 'hammas' ? count : 1)
+  for (const [key, ids] of Object.entries(options)) {
+    const g = item.groups.find(x => x.key === key)
+    for (const id of ids) {
+      const o = g?.options.find(x => x.id === id)
+      if (o?.price) total += o.price * (o.unit === 'hammas' ? count : 1)
+    }
+  }
+  return { amount: Math.round(total * 100) / 100, from: item.price_form === 'from' }
 }
 
 /**

@@ -47,7 +47,7 @@ export function useCustomers() {
  * so a client can still be added and changed there (as a clinic).
  */
 /** Columns a database may not have yet: kind (sql/128), invoice_language and country (sql/149), automatic invoicing (sql/151). */
-const LATER_COLUMNS = ['kind', 'invoice_language', 'country', 'auto_invoice_on', 'auto_invoice_trigger', 'auto_invoice_mode', 'auto_invoice_send', 'billing_email'] as const
+const LATER_COLUMNS = ['kind', 'invoice_language', 'country', 'auto_invoice_on', 'auto_invoice_trigger', 'auto_invoice_mode', 'auto_invoice_send', 'billing_email', 'discount_pct', 'client_prices'] as const
 
 const lacksKind = (error: { code?: string; message?: string } | null): boolean =>
   !!error && (error.code === 'PGRST204' || error.code === '42703') && LATER_COLUMNS.some(c => (error.message ?? '').includes(c))

@@ -922,6 +922,28 @@ function WorkTypePriceCard({ type, onPatch, focused = false }: {
         </div>
       </div>
 
+      {/* Wivo Network (sql/153): whether clients may order it, and how its price shows to them. */}
+      <div className="flex flex-col gap-2.5 border-t border-ink-faint/15 pt-4">
+        <h4 className={blockTitle}>{t('settingsPage.networkClients')}</h4>
+        <label className="flex items-center gap-2 text-sm text-ink">
+          <input type="checkbox" className="h-4 w-4" checked={type.klientidele !== false}
+            onChange={e => onPatch({ klientidele: e.target.checked ? undefined : false })} />
+          {t('settingsPage.availableToClients')}
+        </label>
+        {type.klientidele !== false && (
+          <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink-soft">
+            {t('settingsPage.priceShownToClients')}
+            <select className="input" value={type.kliendiHind ?? 'exact'}
+              onChange={e => onPatch({ kliendiHind: e.target.value === 'exact' ? undefined : e.target.value as 'from' | 'request' })}>
+              <option value="exact">{t('settingsPage.clientPriceExact')}</option>
+              <option value="from">{t('settingsPage.clientPriceFrom')}</option>
+              <option value="request">{t('settingsPage.clientPriceRequest')}</option>
+            </select>
+            <span className="text-xs font-normal text-ink-muted">{t('settingsPage.clientPriceHint')}</span>
+          </label>
+        )}
+      </div>
+
       {/* Two kinds of number on one card, and the costs below are NOT added to
           these: 400 € billed next to a 300 € abutment is 400 € billed. */}
       <div className="flex flex-col gap-2.5 border-t border-ink-faint/15 pt-4">

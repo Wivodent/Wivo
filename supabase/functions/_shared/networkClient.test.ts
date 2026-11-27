@@ -77,6 +77,14 @@ describe('network-client', () => {
       p_network_clinic: CLINIC_A, p_account: 'cccccccc-0000-4000-8000-000000000003', p_email: 'tess@fake.test', p_mail: false })
   })
 
+  it('price_decision (sql/153): approve or decline through the session; a yes or no only', async () => {
+    const { deps, calls } = await setup({})
+    await handleNetworkClient({ action: 'price_decision', session: SESSION, orderId: 'eeeeeeee-0000-4000-8000-000000000005', approve: true }, deps)
+    expect(calls.find(c => c.fn === 'client_price_decision')!.args).toEqual({ p_session: SESSION, p_order: 'eeeeeeee-0000-4000-8000-000000000005', p_approve: true })
+    expect((await handleNetworkClient({ action: 'price_decision', session: SESSION, orderId: 'eeeeeeee-0000-4000-8000-000000000005', approve: 'yes' }, deps)).status).toBe(400)
+    expect((await handleNetworkClient({ action: 'price_decision', session: SESSION, orderId: 'x', approve: true }, deps)).status).toBe(400)
+  })
+
   it('the notices of the client: read and marked through its session; ids must be ids', async () => {
     const { deps, calls } = await setup({})
     await handleNetworkClient({ action: 'notifications', session: SESSION }, deps)

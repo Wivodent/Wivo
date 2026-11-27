@@ -64,7 +64,13 @@ export interface ClientOrderSummary {
   /** sql/146: why the clinic cancelled it. */
   cancel_reason?: string | null
   messages: number
+  /** sql/153: the price as the client may see it, and its state. */
+  price?: number | null
+  price_state?: OrderPriceState
 }
+
+/** sql/153: an estimate at the catalogue's prices; needs a quote; quoted (to approve); approved; declined; the confirmed price. */
+export type OrderPriceState = 'estimated' | 'needs_quote' | 'quoted' | 'approved' | 'declined' | 'confirmed'
 
 export interface ClientOrderDetail {
   id: string
@@ -74,6 +80,9 @@ export interface ClientOrderDetail {
   reject_reason: string | null
   /** sql/146: why the clinic cancelled it. */
   cancel_reason?: string | null
+  /** sql/153: the price as the client may see it, and its state. */
+  price?: number | null
+  price_state?: OrderPriceState
   /** sql/143: needs_review on the clinic's messages; review_of / review_state on the client's answers. */
   messages: { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null
     /** sql/145: the fit answer, and the delivery answers (Received, a problem, the clinic's resolution) with their reason. */
@@ -97,7 +106,7 @@ export interface OrderFeedback {
 /** A notice to the client from one clinic (sql/142): what happened, never a message's text. */
 export interface ClientNotice {
   id: string
-  kind: 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined' | 'received_reminder' | 'problem_resolved' | 'cancelled' | 'reinstated'
+  kind: 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined' | 'received_reminder' | 'problem_resolved' | 'cancelled' | 'reinstated' | 'quoted'
   order_id: string | null
   ref: string | null
   reason: string | null
@@ -262,6 +271,8 @@ export function clinicApi(clinicId: string, apiUrl: string, session: string) {
     /** sql/144: the client's rating of this clinic for one order, 1–5. */
     rateClinic: (orderId: string, score: number, comment?: string) =>
       call<null>(clinicId, apiUrl, session, 'rate_clinic', { orderId, score, comment: comment ?? null }),
+    /** sql/153: the clinic's price for the order: approved (the work starts) or declined. */
+    priceDecision: (orderId: string, approve: boolean) => call<{ approved: boolean }>(clinicId, apiUrl, session, 'price_decision', { orderId, approve }),
     /** sql/145: the order arrived. */
     received: (orderId: string) => call<null>(clinicId, apiUrl, session, 'received', { orderId }),
     /** sql/145: a problem with the delivery (a reason and a text); returns the message, for its photos. */
