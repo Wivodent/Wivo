@@ -203,3 +203,37 @@ export function sentMessage(
   if (!courier && !tracking && !note) return null
   return [labels.title, courier && labels.courier(courier), tracking && labels.tracking(tracking), note].filter(Boolean).join('\n').slice(0, 4000)
 }
+
+// ── An order's conversation: files with their messages, reviews (sql/143) ────
+
+export interface ThreadMessage { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null }
+export interface ThreadFile { id: string; file_name: string; size: number; created_at: string; message_id?: string | null; from_client?: boolean; mime_type?: string | null }
+
+/** Each message with its files, in order; files sent with the order itself (no message) apart. */
+export function threadItems<M extends ThreadMessage, F extends ThreadFile>(messages: readonly M[], files: readonly F[]): { messages: (M & { files: F[] })[]; orderFiles: F[] } {
+  const byMessage = new Map<string, F[]>()
+  const orderFiles: F[] = []
+  for (const f of files) {
+    if (f.message_id && messages.some(m => m.id === f.message_id)) byMessage.set(f.message_id, [...(byMessage.get(f.message_id) ?? []), f])
+    else orderFiles.push(f)
+  }
+  return { messages: messages.map(m => ({ ...m, files: byMessage.get(m.id) ?? [] })), orderFiles }
+}
+
+/** The client's latest answer to a message that needs review, or null while it waits. */
+export function reviewAnswer<M extends ThreadMessage>(messageId: string, messages: readonly M[]): M | null {
+  const answers = messages.filter(m => m.review_of === messageId && m.review_state)
+  return answers.length ? answers.reduce((a, b) => (a.created_at >= b.created_at ? a : b)) : null
+}
+
+/** The latest review answer on the whole order, for the job page: approved or changes, and when. */
+export function latestReview<M extends ThreadMessage>(messages: readonly M[]): M | null {
+  const answers = messages.filter(m => m.review_state)
+  return answers.length ? answers.reduce((a, b) => (a.created_at >= b.created_at ? a : b)) : null
+}
+
+/** A picture the browser can show as a preview (by type, else by name). */
+export function isImageFile(f: Pick<ThreadFile, 'file_name' | 'mime_type'>): boolean {
+  if (f.mime_type) return /^image\/(jpeg|png|webp|gif|heic|heif)$/i.test(f.mime_type)
+  return /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(f.file_name)
+}

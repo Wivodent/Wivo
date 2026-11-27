@@ -41,6 +41,7 @@ import { teethCountLabel } from '../../components/NewJobWizard/teeth/WorkTypeTab
 import {
   teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
   catalogueRules, expectedImplants, withAutoImplants, implantSummary, wireOrder,
+  threadItems, reviewAnswer, isImageFile, type ThreadMessage, type ThreadFile,
   UPPER_TEETH, LOWER_TEETH, type FormStep,
 } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
@@ -1059,6 +1060,171 @@ function abutmentText(implants: readonly number[], all: string, byTooth: Record<
   return parts.join('; ')
 }
 
+/**
+ * The order's conversation, as the client sees it (sql/138, 143): messages
+ * both ways with their files (a picture is a preview, a tap opens it large;
+ * a scan or a PDF is an icon and a name), files sent with the order, and the
+ * clinic's "Needs your review" with Approve and Request changes (a comment
+ * is required). Every file comes through the clinic's network-client: only
+ * this client's own order, a short link signed by the clinic.
+ */
+function ClientThread({ api, orderId, clinicName, detail, onError }: {
+  api: Api; orderId: string; clinicName: string; detail: UseQueryResult<ClientOrderDetail>; onError: (e: string | null) => void
+}) {
+  const d = detail.data!
+  const messages = (d.messages ?? []) as ThreadMessage[]
+  const { messages: items, orderFiles } = threadItems(messages, (d.files ?? []) as ThreadFile[])
+  const [large, setLarge] = useState<{ url: string; name: string } | null>(null)
+  const [text, setText] = useState('')
+  const [files, setFiles] = useState<File[]>([])
+  const [busy, setBusy] = useState(false)
+  const [changesFor, setChangesFor] = useState<string | null>(null)
+  const [comment, setComment] = useState('')
+  const open = async (f: ThreadFile) => {
+    try {
+      const { url } = await api.download(f.id, f.file_name)
+      if (isImageFile(f)) setLarge({ url, name: f.file_name })
+      else window.open(url, '_blank', 'noopener')
+    } catch (e) { onError(errorText(e)) }
+  }
+  async function send() {
+    setBusy(true); onError(null)
+    try {
+      const id = await api.message(orderId, text.trim())
+      for (const f of files) await api.messageUpload(id, f)
+      setText(''); setFiles([])
+      void detail.refetch()
+    } catch (e) { onError(errorText(e)) } finally { setBusy(false) }
+  }
+  async function review(messageId: string, decision: 'approved' | 'changes') {
+    if (decision === 'changes' && !comment.trim()) return
+    setBusy(true); onError(null)
+    try {
+      await api.review(messageId, decision, decision === 'changes' ? comment.trim() : undefined)
+      setChangesFor(null); setComment('')
+      void detail.refetch()
+    } catch (e) { onError(errorText(e)) } finally { setBusy(false) }
+  }
+
+  return (
+    <>
+      {orderFiles.length > 0 && (
+        <div className="card space-y-2 rounded-2xl p-4">
+          <p className="text-sm font-bold">{t('network.files')}</p>
+          <ClientFiles api={api} files={orderFiles} onOpen={open} />
+        </div>
+      )}
+      {d.messages && (
+        <div className="card space-y-2.5 rounded-2xl p-4">
+          <p className="text-sm font-bold">{t('network.messages')}</p>
+          {items.map(m => {
+            if (m.review_of && m.review_state) {
+              return (
+                <div key={m.id} className={`ml-auto max-w-[80%] rounded-2xl rounded-br-md px-3 py-2 text-sm ${m.review_state === 'approved' ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'}`}>
+                  <p className="font-semibold">{m.review_state === 'approved' ? t('network.youApproved') : t('network.youAskedChanges')}</p>
+                  {m.body !== '✓' && <p className="whitespace-pre-wrap">{m.body}</p>}
+                  <p className="mt-1 text-[11px] text-white/80">{format(new Date(m.created_at), 'HH:mm', { locale: dateLocale })}</p>
+                </div>
+              )
+            }
+            const answer = m.needs_review ? reviewAnswer(m.id, messages) : null
+            return (
+              <div key={m.id} className={`max-w-[80%] space-y-2 px-3 py-2 text-sm ${m.from_client
+                ? 'ml-auto rounded-2xl rounded-br-md bg-accent text-white'
+                : 'rounded-2xl rounded-bl-md bg-bg-sidebar'}`}>
+                <p className="whitespace-pre-wrap">{m.body}</p>
+                {m.files.length > 0 && <ClientFiles api={api} files={m.files} onOpen={open} />}
+                {m.needs_review && !m.from_client && !answer && (
+                  changesFor === m.id ? (
+                    <div className="space-y-2">
+                      <textarea className="input min-h-16 w-full text-base" maxLength={4000} autoFocus value={comment}
+                        onChange={e => setComment(e.target.value)} placeholder={t('network.whatToChange')} aria-label={t('network.whatToChange')} />
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => { setChangesFor(null); setComment('') }} className="min-h-10 flex-1 rounded-xl border border-ink-faint/40 bg-bg-card text-sm">{t('network.backStep')}</button>
+                        <button type="button" disabled={busy || !comment.trim()} onClick={() => void review(m.id, 'changes')} className="btn-primary min-h-10 flex-1 justify-center rounded-xl text-sm">{t('network.sendChanges')}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" disabled={busy} onClick={() => void review(m.id, 'approved')} className="btn-primary min-h-10 justify-center rounded-xl px-4 text-sm">{t('network.approve')}</button>
+                      <button type="button" disabled={busy} onClick={() => setChangesFor(m.id)} className="min-h-10 rounded-xl border border-ink-faint/40 bg-bg-card px-4 text-sm">{t('network.requestChanges')}</button>
+                    </div>
+                  )
+                )}
+                {m.needs_review && answer && (
+                  <p className="text-xs font-semibold">{answer.review_state === 'approved' ? t('network.youApproved') : t('network.youAskedChanges')}</p>
+                )}
+                <p className={`text-[11px] ${m.from_client ? 'text-white/80' : 'text-ink-muted'}`}>
+                  {m.from_client ? '' : `${clinicName} · `}{format(new Date(m.created_at), 'HH:mm', { locale: dateLocale })}</p>
+              </div>
+            )
+          })}
+          {files.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {files.map((f, i) => (
+                <li key={`${f.name}:${i}`} className="flex items-center gap-1 rounded-lg bg-accent/5 px-2 py-1 text-xs">
+                  <span className="max-w-[9rem] truncate">{f.name}</span>
+                  <button type="button" aria-label={t('network.removeFile', { name: f.name })} onClick={() => setFiles(list => list.filter((_, j) => j !== i))}
+                    className="rounded p-1 text-ink-muted"><X size={14} aria-hidden="true" /></button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-ink-faint/40" aria-label={t('network.attachFiles')}>
+              <Paperclip size={18} aria-hidden="true" />
+              <input type="file" multiple className="hidden" onChange={e => setFiles(f => [...f, ...(e.target.files ?? [])].slice(0, 20))} />
+            </label>
+            <input className="input h-11 flex-1 rounded-xl text-base" maxLength={4000} value={text} onChange={e => setText(e.target.value)} placeholder={t('network.writeMessage')} />
+            <button type="button" disabled={busy || !text.trim()} aria-label={t('network.send')} className="btn-primary h-11 w-11 justify-center rounded-xl p-0" onClick={() => void send()}>
+              <Send size={18} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
+      {large && (
+        <div role="dialog" aria-modal="true" aria-label={large.name} className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-3" onClick={() => setLarge(null)}>
+          <img src={large.url} alt={large.name} className="max-h-full max-w-full rounded-lg object-contain" />
+          <button type="button" aria-label={t('network.close')} className="absolute right-3 top-3 h-11 w-11 rounded-full bg-white/20 text-white"><X size={22} className="mx-auto" /></button>
+        </div>
+      )}
+    </>
+  )
+}
+
+/** Files of the client's own order: a picture as a preview (its short link), anything else an icon and its name. */
+function ClientFiles({ api, files, onOpen }: { api: Api; files: ThreadFile[]; onOpen: (f: ThreadFile) => void }) {
+  return (
+    <ul className="flex flex-wrap gap-2">
+      {files.map(f => (
+        <li key={f.id}>
+          {isImageFile(f) ? <ClientImage api={api} file={f} onOpen={onOpen} /> : (
+            <button type="button" onClick={() => onOpen(f)} className="flex h-12 items-center gap-2 rounded-xl border border-ink-faint/30 bg-bg-card px-2 text-left text-xs text-ink">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-[10px] font-bold text-accent">{fileBadge(f.file_name) || <Paperclip size={14} aria-hidden="true" />}</span>
+              <span className="max-w-[9rem] truncate">{f.file_name}</span>
+            </button>
+          )}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ClientImage({ api, file, onOpen }: { api: Api; file: ThreadFile; onOpen: (f: ThreadFile) => void }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let stale = false
+    api.download(file.id, file.file_name).then(r => { if (!stale) setUrl(r.url) }).catch(() => { /* the badge stays */ })
+    return () => { stale = true }
+  }, [api, file.id, file.file_name])
+  return (
+    <button type="button" onClick={() => onOpen(file)} aria-label={file.file_name} title={file.file_name}
+      className="block h-20 w-20 overflow-hidden rounded-xl border border-ink-faint/30 bg-bg-card">
+      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : <span className="text-[10px] font-bold text-ink-muted">{fileBadge(file.file_name)}</span>}
+    </button>
+  )
+}
+
 /** The steps an order goes through as the client sees them; a date only where Wivo has one. */
 const PROGRESS: { key: 'received' | 'accepted' | 'production' | 'ready' | 'sent'; label: () => string }[] = [
   { key: 'received', label: () => t('network.progressReceived') },
@@ -1075,7 +1241,6 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
   api: Api; clinicId: string; clinicName: string; orderId: string; detail: UseQueryResult<ClientOrderDetail>
 }) {
   const catalog = useQuery<CatalogueItem[]>({ queryKey: ['network', 'catalog', clinicId], queryFn: api.catalog })
-  const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const d = detail.data
   if (detail.error) return <p className="text-base text-rose-600">{errorText(detail.error)}</p>
@@ -1125,39 +1290,7 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
 
       {p.notes && <p className="card whitespace-pre-wrap rounded-2xl p-4 text-base text-ink-muted">{p.notes}</p>}
 
-      {d.files && d.files.length > 0 && (
-        <div className="card space-y-2 rounded-2xl p-4">
-          <p className="text-sm font-bold">{t('network.files')}</p>
-          {d.files.map(f => (
-            <button key={f.id} type="button" className="btn-ghost h-11 w-full justify-start text-base"
-              onClick={async () => { try { const { url } = await api.download(f.id, f.file_name); window.open(url, '_blank', 'noopener') } catch (e) { setError(errorText(e)) } }}>
-              <Download size={18} aria-hidden="true" /> <span className="truncate">{f.file_name}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {d.messages && (
-        <div className="card space-y-2.5 rounded-2xl p-4">
-          <p className="text-sm font-bold">{t('network.messages')}</p>
-          {d.messages.map(m => (
-            <div key={m.id} className={`max-w-[80%] px-3 py-2 text-sm ${m.from_client
-              ? 'ml-auto rounded-2xl rounded-br-md bg-accent text-white'
-              : 'rounded-2xl rounded-bl-md bg-bg-sidebar'}`}>
-              <p className="whitespace-pre-wrap">{m.body}</p>
-              <p className={`mt-1 text-[11px] ${m.from_client ? 'text-white/80' : 'text-ink-muted'}`}>
-                {m.from_client ? '' : `${clinicName} · `}{format(new Date(m.created_at), 'HH:mm', { locale: dateLocale })}</p>
-            </div>
-          ))}
-          <div className="flex gap-2">
-            <input className="input h-11 flex-1 rounded-xl text-base" maxLength={4000} value={text} onChange={e => setText(e.target.value)} placeholder={t('network.writeMessage')} />
-            <button type="button" disabled={!text.trim()} aria-label={t('network.send')} className="btn-primary h-11 w-11 justify-center rounded-xl p-0"
-              onClick={async () => { try { await api.message(orderId, text.trim()); setText(''); void detail.refetch() } catch (e) { setError(errorText(e)) } }}>
-              <Send size={18} aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      )}
+      <ClientThread api={api} orderId={orderId} clinicName={clinicName} detail={detail} onError={setError} />
       {error && <p className="text-base text-rose-600">{error}</p>}
     </div>
   )

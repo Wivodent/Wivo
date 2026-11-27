@@ -26,6 +26,7 @@ import { useSettings, useWorkTypes } from '../../stores/useSettings'
 import { saveOrderFile } from '../../lib/fileLink'
 import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
 import { MarkSentButton } from './MarkSent'
+import { OrderThread } from './OrderThread'
 import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, networkConfigured, type OrderTab } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
 import { describeError } from '../Patients/errors'
@@ -159,7 +160,7 @@ export function OrdersView({ focus, onOpenJob }: { focus?: OrdersFocus; onOpenJo
         </div>
       </div>
 
-      {open && <OrderDialog order={open} client={byId.get(open.client_id)} canDecide={can('jobs.write')} onClose={() => setOpenId(null)} />}
+      {open && <OrderDialog order={open} client={byId.get(open.client_id)} canDecide={can('jobs.write')} canWrite={can('jobs.read') || can('jobs.write')} onClose={() => setOpenId(null)} />}
     </div>
   )
 }
@@ -500,16 +501,13 @@ function OrderRow({ order, tab, client, counts, canAccept, onOpen, job }: {
   )
 }
 
-function OrderDialog({ order, client, canDecide, onClose }: { order: ClientOrderRow; client?: NetworkClientRow; canDecide: boolean; onClose: () => void }) {
-  const thread = useOrderThread(order.id).data
+function OrderDialog({ order, client, canDecide, canWrite, onClose }: { order: ClientOrderRow; client?: NetworkClientRow; canDecide: boolean; canWrite: boolean; onClose: () => void }) {
   const templates = (useWorkflowTemplates().data ?? []).filter(tpl => !tpl.archived)
   const accept = useAcceptOrder()
   const reject = useRejectOrder()
-  const post = usePostOrderMessage()
   const [template, setTemplate] = useState<string>('')
   const [reason, setReason] = useState('')
   const [rejecting, setRejecting] = useState(false)
-  const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const run = async (fn: () => Promise<unknown>) => { setError(null); try { await fn() } catch (e) { setError(describeError(e)) } }
   const p = order.payload
@@ -540,38 +538,9 @@ function OrderDialog({ order, client, canDecide, onClose }: { order: ClientOrder
           {p?.notes && <div className="sm:col-span-2"><Field label={t('orders.notes')} value={p.notes} /></div>}
         </dl>
 
-        {(thread?.files.length ?? 0) > 0 && (
-          <div className="mt-5">
-            <p className="label">{t('orders.files')}</p>
-            <ul className="space-y-2">
-              {thread!.files.map(f => (
-                <li key={f.id}>
-                  <button type="button" className="btn-ghost h-11 text-base" onClick={() => run(() => saveOrderFile(f.id, f.file_name))}>
-                    <Download size={18} aria-hidden="true" /> {f.file_name}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
+        {/* The conversation, its files and reviews (sql/143): the same component as on the job page. */}
         <div className="mt-5">
-          <p className="label">{t('orders.messages')}</p>
-          <div className="space-y-2">
-            {(thread?.messages ?? []).map(m => (
-              <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-base ${m.from_client ? 'bg-bg-sidebar' : 'ml-auto bg-accent/10'}`}>
-                <p className="whitespace-pre-wrap">{m.body}</p>
-                <p className="text-xs text-ink-muted">{m.from_client ? clientName(client) : t('orders.us')} · {when(m.created_at)}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 flex gap-2">
-            <input className="input h-11 flex-1 text-base" value={text} onChange={e => setText(e.target.value)} placeholder={t('orders.writeMessage')} maxLength={4000} />
-            <button type="button" disabled={!text.trim() || post.isPending} className="btn-primary h-11"
-              onClick={() => run(async () => { await post.mutateAsync({ p_order: order.id, p_body: text.trim() }); setText('') })}>
-              <Send size={16} aria-hidden="true" /> {t('orders.send')}
-            </button>
-          </div>
+          <OrderThread orderId={order.id} clientName={clientName(client)} canWrite={canWrite} />
         </div>
 
         {order.status === 'rejected' && <p className="mt-5 rounded-xl bg-rose-50 p-3 text-base text-rose-700">{t('orders.rejectedBecause', { reason: order.reject_reason ?? '' })}</p>}

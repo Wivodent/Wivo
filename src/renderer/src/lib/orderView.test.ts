@@ -3,6 +3,7 @@ import {
   orderTab, countByTab, clientStatusOfTab, teethLabel, parseTeeth, formatTeeth, initials, dayPart,
   chosenOptionLabels, fileBadge, stepNumber, orderTouched, networkConfigured, UPPER_TEETH, LOWER_TEETH,
   catalogueRules, withAutoImplants, implantSummary, expectedImplants, wireOrder, sentMessage,
+  threadItems, reviewAnswer, latestReview, isImageFile, type ThreadMessage, type ThreadFile,
 } from './orderView'
 import { orderProblems, type CatalogueItem } from '@shared/network/order'
 
@@ -141,5 +142,27 @@ describe('implants in an order from outside (sql/141)', () => {
     expect(wireOrder(form, { implants: [14], abutmentAll: '', abutmentTeeth: {} }, true)).toMatchObject({ implants: '14', abutment: null })
     expect(wireOrder(form, extra, false)).toEqual({ ...form, version: 1 })
     expect(orderProblems(wireOrder(form, extra, true))).toEqual([])
+  })
+})
+
+describe('an order conversation: files with their messages, reviews (sql/143)', () => {
+  const m = (id: string, at: string, over: Partial<ThreadMessage> = {}): ThreadMessage => ({ id, from_client: false, body: id, created_at: at, ...over })
+  const f = (id: string, message_id: string | null, name = `${id}.stl`): ThreadFile => ({ id, file_name: name, size: 1, created_at: '2026-11-27', message_id })
+  it('each message gets its files; files sent with the order, or of a message not shown, stand apart', () => {
+    const t = threadItems([m('a', '1'), m('b', '2')], [f('x', 'a'), f('y', null), f('z', 'b'), f('w', 'gone')])
+    expect(t.messages.map(x => [x.id, x.files.map(y => y.id)])).toEqual([['a', ['x']], ['b', ['z']]])
+    expect(t.orderFiles.map(x => x.id)).toEqual(['y', 'w'])
+  })
+  it('the latest answer to a review, and the latest on the order', () => {
+    const msgs = [m('q', '1', { needs_review: true }), m('r1', '2', { from_client: true, review_of: 'q', review_state: 'changes' }), m('r2', '3', { from_client: true, review_of: 'q', review_state: 'approved' }), m('q2', '4', { needs_review: true })]
+    expect(reviewAnswer('q', msgs)?.review_state).toBe('approved')
+    expect(reviewAnswer('q2', msgs)).toBeNull()
+    expect(latestReview(msgs)?.id).toBe('r2')
+  })
+  it('a picture is shown as a preview; a scan or a PDF is an icon and a name', () => {
+    expect(isImageFile({ file_name: 'x.JPG', mime_type: null })).toBe(true)
+    expect(isImageFile({ file_name: 'x', mime_type: 'image/png' })).toBe(true)
+    expect(isImageFile({ file_name: 'jaw.stl', mime_type: 'model/stl' })).toBe(false)
+    expect(isImageFile({ file_name: 'plan.pdf', mime_type: null })).toBe(false)
   })
 })

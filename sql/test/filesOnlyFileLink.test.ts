@@ -30,7 +30,8 @@ describe('files only through file-link (sql/137)', () => {
         where schemaname = 'storage' and tablename = 'objects'
           and (qual ilike '%job-files%' or with_check ilike '%job-files%')`)
     expect(rows.filter(r => r.cmd === 'SELECT' || r.cmd === 'ALL' || r.cmd === 'UPDATE' || r.cmd === 'DELETE')).toEqual([])
-    expect(rows.map(r => `${r.policyname}:${r.cmd}`)).toEqual(['job_files_insert:INSERT'])
+    // Uploads only: a job file's slot (072), and since sql/143 an order message's file slot.
+    expect(rows.map(r => `${r.policyname}:${r.cmd}`).sort()).toEqual(['job_files_insert:INSERT', 'order_files_insert:INSERT'])
     await db.close()
   }, 120_000)
 

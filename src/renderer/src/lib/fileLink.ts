@@ -67,3 +67,10 @@ export async function saveOrderFile(fileId: string, fileName: string): Promise<v
   a.download = fileName
   a.click()
 }
+
+/** An order file's 60-second link, to show a picture in the conversation (sql/143). The same rights and audit entry as a download. */
+export async function orderFileUrl(fileId: string): Promise<string> {
+  const data = await invokeFileLink<{ url?: unknown }>({ orderFileId: fileId })
+  if (typeof data?.url !== 'string') throw notAvailable()
+  return data.url
+}

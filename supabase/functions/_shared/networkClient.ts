@@ -153,6 +153,30 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
       // The path is the clinic's; the client gets only what uploads to it.
       return { status: 200, body: { fileId: slot.file_id, uploadUrl: signed.url, uploadToken: signed.token } }
     }
+    // sql/143: a file with one of the client's own messages; the same upload as an order's files.
+    case 'message_upload': {
+      const messageId = id(b.messageId)
+      const name = str(b.name, 200)
+      const size = typeof b.size === 'number' && Number.isInteger(b.size) && b.size >= 0 && b.size <= MAX_FILE ? b.size : null
+      const sha = typeof b.sha256 === 'string' && SHA256.test(b.sha256) ? b.sha256.toLowerCase() : null
+      if (!messageId || !name || /[/\\]/.test(name) || size === null || !sha) return bad
+      const r = await deps.rpc('client_message_file_slot', {
+        p_session: session, p_message: messageId, p_name: name, p_size: size, p_sha256: sha, p_mime: str(b.mime, 120),
+      })
+      if (r.error) return refusal(r.error)
+      const slot = r.data as { file_id: string; path: string }
+      const signed = await deps.signUpload(slot.path)
+      if (!signed) return { status: 500, body: { error: 'failed' } }
+      return { status: 200, body: { fileId: slot.file_id, uploadUrl: signed.url, uploadToken: signed.token } }
+    }
+    // sql/143: Approve, or Request changes with a comment.
+    case 'review': {
+      const messageId = id(b.messageId)
+      const decision = b.decision === 'approved' || b.decision === 'changes' ? b.decision : null
+      const comment = typeof b.comment === 'string' ? b.comment.trim().slice(0, 4000) : ''
+      if (!messageId || !decision || (decision === 'changes' && !comment)) return bad
+      return call('client_review', { p_message: messageId, p_decision: decision, p_comment: comment || null })
+    }
     case 'upload_done': {
       const fileId = id(b.fileId)
       return fileId ? call('client_file_done', { p_file: fileId }) : bad

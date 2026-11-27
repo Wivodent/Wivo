@@ -119,6 +119,18 @@ describe('network-client', () => {
     expect(await handleNetworkClient({ action: 'new_order', session: SESSION, order }, deps)).toEqual({ status: 409, body: { error: 'duplicate_reference' } })
   })
 
+  it('a file with a message, and a review answer: checked here, then the database decides (sql/143)', async () => {
+    const { deps, calls } = await setup({})
+    const up = await handleNetworkClient({ action: 'message_upload', session: SESSION, messageId: ORDER_ID, name: 'photo.jpg', size: 10, sha256: 'b'.repeat(64), mime: 'image/jpeg' }, deps)
+    expect(calls[0]).toMatchObject({ fn: 'client_message_file_slot', args: { p_message: ORDER_ID, p_name: 'photo.jpg', p_size: 10 } })
+    expect(up.status).not.toBe(400)
+    expect((await handleNetworkClient({ action: 'message_upload', session: SESSION, messageId: ORDER_ID, name: 'a/b.jpg', size: 10, sha256: 'b'.repeat(64) }, deps)).status).toBe(400)
+    await handleNetworkClient({ action: 'review', session: SESSION, messageId: ORDER_ID, decision: 'approved' }, deps)
+    expect(calls.at(-1)).toEqual({ fn: 'client_review', args: { p_session: SESSION, p_message: ORDER_ID, p_decision: 'approved', p_comment: null } })
+    expect((await handleNetworkClient({ action: 'review', session: SESSION, messageId: ORDER_ID, decision: 'changes', comment: '  ' }, deps)).status).toBe(400)
+    expect((await handleNetworkClient({ action: 'review', session: SESSION, messageId: ORDER_ID, decision: 'maybe' }, deps)).status).toBe(400)
+  })
+
   it('an order that is not Wivo order v1 does not reach the database', async () => {
     const { deps, calls } = await setup({})
     const a = await handleNetworkClient({ action: 'new_order', session: SESSION, order: { format: 'other' } }, deps)

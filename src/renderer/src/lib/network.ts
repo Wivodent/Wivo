@@ -14,6 +14,7 @@
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { CatalogueItem, ClientOrderStatus, WivoOrder } from '@shared/network/order'
+import { cleanForUpload, sha256Hex } from './fileClean'
 
 const URL_ = (import.meta.env.VITE_NETWORK_URL ?? '').trim()
 const KEY = (import.meta.env.VITE_NETWORK_ANON_KEY ?? '').trim()
@@ -67,8 +68,10 @@ export interface ClientOrderDetail {
   payload: WivoOrder
   status: ClientOrderStatus
   reject_reason: string | null
-  messages: { id: string; from_client: boolean; body: string; created_at: string }[] | null
-  files: { id: string; file_name: string; size: number; created_at: string }[] | null
+  /** sql/143: needs_review on the clinic's messages; review_of / review_state on the client's answers. */
+  messages: { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null }[] | null
+  /** sql/143: the message a file came with (null: sent with the order), and who sent it. */
+  files: { id: string; file_name: string; size: number; created_at: string; message_id?: string | null; from_client?: boolean; mime_type?: string | null }[] | null
 }
 
 /** A notice to the client from one clinic (sql/142): what happened, never a message's text. */
@@ -230,17 +233,30 @@ export function clinicApi(clinicId: string, apiUrl: string, session: string) {
     end: async () => { await call(clinicId, apiUrl, session, 'end'); forget(clinicId) },
     download: (fileId: string, name: string) => call<{ url: string }>(clinicId, apiUrl, session, 'download', { fileId, name }),
     /** One file onto an order: a place for it, the bytes straight to the clinic's storage, then "done". */
-    upload: async (orderId: string, file: File) => {
-      const bytes = await file.arrayBuffer()
-      const sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('')
-      const slot = await call<{ fileId: string; uploadUrl: string }>(clinicId, apiUrl, session, 'upload',
-        { orderId, name: file.name.replace(/[/\\]/g, '_').slice(0, 200), size: file.size, sha256: sha, mime: file.type || null })
-      if (!slot.uploadUrl?.startsWith(`${apiUrl}/storage/v1/`)) throw new NetworkError('bad_upload')
-      const put = await fetch(slot.uploadUrl, { method: 'PUT', body: bytes, headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' } })
-      if (!put.ok) throw new NetworkError('upload_failed')
-      await call(clinicId, apiUrl, session, 'upload_done', { fileId: slot.fileId })
-    },
+    upload: (orderId: string, file: File) => sendFile(clinicId, apiUrl, session, 'upload', { orderId }, file),
+    /** One file with one of the client's own messages (sql/143). */
+    messageUpload: (messageId: string, file: File) => sendFile(clinicId, apiUrl, session, 'message_upload', { messageId }, file),
+    /** Approve a message that needs review, or request changes (the comment is required then). */
+    review: (messageId: string, decision: 'approved' | 'changes', comment?: string) =>
+      call<string>(clinicId, apiUrl, session, 'review', { messageId, decision, comment: comment ?? null }),
   }
+}
+
+/**
+ * A file to the clinic: cleaned first as every job file is (lib/fileClean:
+ * a photo loses its location, camera and dates; a scan the names exporters
+ * write into it), then a place for it, the bytes straight to the clinic's
+ * storage, then "done".
+ */
+async function sendFile(clinicId: string, apiUrl: string, session: string, action: 'upload' | 'message_upload', where: Record<string, string>, file: File): Promise<void> {
+  const bytes = cleanForUpload(new Uint8Array(await file.arrayBuffer()), file.name)
+  const sha = await sha256Hex(bytes)
+  const slot = await call<{ fileId: string; uploadUrl: string }>(clinicId, apiUrl, session, action,
+    { ...where, name: file.name.replace(/[/\\]/g, '_').slice(0, 200), size: bytes.length, sha256: sha, mime: file.type || null })
+  if (!slot.uploadUrl?.startsWith(`${apiUrl}/storage/v1/`)) throw new NetworkError('bad_upload')
+  const put = await fetch(slot.uploadUrl, { method: 'PUT', body: bytes.slice().buffer as ArrayBuffer, headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'false' } })
+  if (!put.ok) throw new NetworkError('upload_failed')
+  await call(clinicId, apiUrl, session, 'upload_done', { fileId: slot.fileId })
 }
 
 export const forgetClinicSession = forget
