@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import {
   FileText, Plus, Loader2, AlertTriangle, Euro, Clock, CheckCircle2,
-  Trash2, X, Search, Printer, Building2, User, Download, Mail } from 'lucide-react'
+  Trash2, X, Search, Printer, Building2, User, Download, Mail, Settings } from 'lucide-react'
 import { format, parseISO, isValid } from 'date-fns'
 import { t, dateLocale } from '@/lib/i18n'
 import type { Job } from '../../types/job'
@@ -31,6 +31,8 @@ import { auditedCsvExport, isSet } from '../../lib/exportAudit'
 
 interface InvoicesViewProps {
   jobs: Job[]
+  /** Settings → Invoices (the header's gear). */
+  onOpenSettings?: () => void
 }
 
 const STATUS_FILTERS: { key: InvoiceStatus | 'koik' | 'tasumata'; label: string }[] = [
@@ -41,7 +43,7 @@ const STATUS_FILTERS: { key: InvoiceStatus | 'koik' | 'tasumata'; label: string 
   { key: 'makstud', label: t('invoices.paid') },
 ]
 
-export function InvoicesView({ jobs }: InvoicesViewProps) {
+export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
   const { data: invoices = [], isLoading, isError, error } = useInvoices()
   const { can } = usePermissions()
   const auth = useAuth()
@@ -126,6 +128,11 @@ export function InvoicesView({ jobs }: InvoicesViewProps) {
         {/* ── Header ── */}
         <div className="flex items-center gap-3 flex-wrap">
           <h1 className="text-xl font-bold text-page-ink">{t('invoices.invoices')}</h1>
+          {onOpenSettings && (
+            <button type="button" onClick={onOpenSettings} className="btn-ghost p-1.5" title={t('invoices.settings')} aria-label={t('invoices.settings')}>
+              <Settings size={15} />
+            </button>
+          )}
           <div className="relative ml-auto">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint pointer-events-none" />
             <input

@@ -102,7 +102,8 @@ export function SettingsHome({ allowed, onOpenGroup, onOpenView, onOpenCatalogue
   const moneyTiles = list([
     v('tootasud', moduleOn('payroll') && sees('tootasud'), t('settingsHome.payRules'), t('settingsHome.payRulesDesc')),
     g('maksud', t('settingsHome.taxes'), t('settingsHome.taxesDesc', { country: countryName(clinicCountry(auth.clinic)) })),
-    g('epost', t('settingsHome.invoiceEmail'), t('settingsHome.invoiceEmailDesc')),
+    g('arved', t('settingsHome.invoices'), t('settingsHome.invoicesDesc')),
+    g('epost', t('settingsHome.emailSending'), t('settingsHome.emailSendingDesc')),
   ])
   const requestHref = wivoMailto(t('settingsHome.requestSubject'), t('settingsHome.requestBody', {
     clinic: auth.clinic?.name ?? '', name: auth.profile?.full_name ?? '',

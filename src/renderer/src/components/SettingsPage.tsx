@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { MyFeedback } from './Feedback/Feedback'
-import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
+import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell, FileText
 } from 'lucide-react'
 import { useSettings, THEMES, TEXT_SIZES } from '../stores/useSettings'
 import { NotificationChannels } from './Settings/NotificationChannels'
@@ -43,6 +43,7 @@ import { SoundSection } from './Settings/SoundSection'
 import { SecuritySection } from './Settings/SecuritySection'
 import { DeletedJobsSection } from './Settings/DeletedJobsSection'
 import { InvoiceSettingsSection } from './Settings/InvoiceSettingsSection'
+import { InvoiceMailTemplateSection } from './Settings/InvoiceMailTemplateSection'
 import { DraftNumberInput, DraftTextInput } from './ui/DraftInput'
 import { InfoButton } from './ui/InfoButton'
 import { SectionCard } from './ui/SectionCard'
@@ -59,7 +60,7 @@ const STAGE_PALETTE = [
   '#14B8A6', '#06B6D4', '#0EA5E9', '#3B82F6', '#64748B', '#0E1116'
 ]
 
-export type GroupKey = 'home' | 'maksud' | 'profiil' | 'turvalisus' | 'kliinik' | 'kasutajaliides' | 'etapid' | 'masinad' | 'hinnad' | 'kalender' | 'valikud' | 'litsents' | 'avalik' | 'epost' | 'andmebaas' | 'partnerlused' | 'auditilogi'
+export type GroupKey = 'home' | 'maksud' | 'profiil' | 'turvalisus' | 'kliinik' | 'kasutajaliides' | 'etapid' | 'masinad' | 'hinnad' | 'kalender' | 'valikud' | 'litsents' | 'avalik' | 'epost' | 'arved' | 'andmebaas' | 'partnerlused' | 'auditilogi'
 
 // Personal preferences vs clinic configuration.
 //
@@ -93,6 +94,8 @@ const NAV_GROUPS: { title: string; items: { key: GroupKey; label: string; icon: 
       { key: 'avalik', label: t('settingsPage.patientPriceList'), icon: Globe },
       // Its own tab because the question it answers is not "how do we look" but
       // "what is this system allowed to do with our mailbox".
+      // Invoices: what they say and how they are numbered, and the letter around an e-mailed one.
+      { key: 'arved', label: t('settingsPage.invoices'), icon: FileText },
       { key: 'epost', label: t('settingsPage.email'), icon: Mail },
       { key: 'partnerlused', label: t('partners.partnerships'), icon: Handshake },
       { key: 'auditilogi', label: t('audit.auditLog'), icon: ScrollText },
@@ -1361,6 +1364,7 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
       case 'avalik': return settings.kliinilineRezhiim && moduleOn('patients')
       // The e-mail here sends invoices: every country with Wivo's invoices (Latvia too).
       case 'epost': return moduleOn('invoices') && invoicesAvailable(clinicCountry(auth.clinic))
+      case 'arved': return moduleOn('invoices') && invoicesAvailable(clinicCountry(auth.clinic))
       case 'partnerlused': return moduleOn('partners')
       case 'etapid': case 'valikud': case 'masinad': return moduleOn('jobs')
       // Payroll taxes: only where payroll is in the licence.
@@ -1637,7 +1641,28 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
 
         {activeGroup === 'andmebaas' && <MigrationStatus />}
 
-        {activeGroup === 'epost' && <EmailSection />}
+        {activeGroup === 'epost' && <EmailSection onOpenInvoices={() => setGroup('arved')} />}
+        {/* Settings → Invoices: language, numbering, VAT and terms, VAT exempt, the clinic's details, the e-mail's letter. */}
+        {activeGroup === 'arved' && (
+          <div className="space-y-8 max-w-3xl">
+            <InvoiceSettingsSection onOpenClinic={() => setGroup('kliinik')} />
+            <section className="grid grid-cols-2 gap-4" aria-label={t('settingsPage.vATRate')}>
+              <NumField
+                label={t('settingsPage.vATRate')} suffix="%" min={0} max={30} step={0.5}
+                value={settings.kmMaar}
+                onChange={v => setNumber('kmMaar', v)}
+                hint={t('settingsPage.theDefaultRateForANew')}
+              />
+              <NumField
+                label={t('settingsPage.paymentTerms')} suffix={t('settingsPage.d')} min={0} max={180}
+                value={settings.makseTahtaegPaevades}
+                onChange={v => setNumber('makseTahtaegPaevades', v)}
+                hint={t('settingsPage.daysFromTheInvoiceDateTo')}
+              />
+            </section>
+            <div className="pt-6 border-t border-ink-faint/20"><InvoiceMailTemplateSection /></div>
+          </div>
+        )}
 
         {/* Only where a public site exists at all. */}
         {activeGroup === 'avalik' && settings.kliinilineRezhiim && <PublicServicesSection />}
@@ -2259,22 +2284,14 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
                 onChange={v => setNumber('mudeliHind', v)}
                 hint={t('settingsPage.addedToThePriceWhenModel')}
               />
-              <NumField
-                label={t('settingsPage.vATRate')} suffix="%" min={0} max={30} step={0.5}
-                value={settings.kmMaar}
-                onChange={v => setNumber('kmMaar', v)}
-                hint={t('settingsPage.theDefaultRateForANew')}
-              />
-              <NumField
-                label={t('settingsPage.paymentTerms')} suffix={t('settingsPage.d')} min={0} max={180}
-                value={settings.makseTahtaegPaevades}
-                onChange={v => setNumber('makseTahtaegPaevades', v)}
-                hint={t('settingsPage.daysFromTheInvoiceDateTo')}
-              />
             </div>
+            {/* The VAT rate and payment terms are with the invoices now (Settings → Invoices). */}
+            {moduleOn('invoices') && invoicesAvailable(clinicCountry(auth.clinic)) && (
+              <button type="button" onClick={() => setGroup('arved')} className="mt-3 text-xs text-accent hover:underline">
+                {t('settingsPage.vatAndTermsLink')}
+              </button>
+            )}
           </section>
-          {/* Invoices (sql/148): language, numbering, VAT exempt, the clinic's details. */}
-          {moduleOn('invoices') && invoicesAvailable(clinicCountry(auth.clinic)) && <InvoiceSettingsSection onOpenClinic={() => setGroup('kliinik')} />}
                   <section>
             <div className="flex items-center gap-2 mb-3">
               <Pencil size={14} className="text-accent" />

@@ -56,7 +56,8 @@ export interface InvoiceLabels {
   regNo: (code: string) => string
   vatNo: (code: string) => string
   /** The words an invoice line is written with (lib/invoiceCandidates), so a line reads in the invoice's language too. */
-  line: { work: string; teeth: (list: string) => string; remake: (n: number) => string; design: string; extraService: string }
+  line: { work: string; teeth: (list: string) => string; remake: (n: number) => string; design: string; extraService: string
+    rush: (factor: number) => string; model: string }
 }
 
 const ET: InvoiceLabels = {
@@ -67,7 +68,8 @@ const ET: InvoiceLabels = {
   totalDue: 'Kokku tasuda', received: 'Laekunud', outstanding: 'Tasumata', payment: 'Makse',
   reference: r => `Selgitus: ${r}`, referenceOf: n => `arve ${n}`, cancelled: 'Tühistatud',
   regNo: c => `Reg nr ${c}`, vatNo: c => `KMKR ${c}`,
-  line: { work: 'Töö', teeth: l => `hambad ${l}`, remake: n => `muudatus #${n}`, design: 'Disain', extraService: 'Lisateenus' },
+  line: { work: 'Töö', teeth: l => `hambad ${l}`, remake: n => `muudatus #${n}`, design: 'Disain', extraService: 'Lisateenus',
+    rush: k => `Kiirtöö ×${k}`, model: 'Mudel' },
 }
 
 const EN: InvoiceLabels = {
@@ -78,7 +80,8 @@ const EN: InvoiceLabels = {
   totalDue: 'Total due', received: 'Received', outstanding: 'Outstanding', payment: 'Payment',
   reference: r => `Reference: ${r}`, referenceOf: n => `invoice ${n}`, cancelled: 'Cancelled',
   regNo: c => `Reg. no. ${c}`, vatNo: c => `VAT no. ${c}`,
-  line: { work: 'Work', teeth: l => `teeth ${l}`, remake: n => `remake #${n}`, design: 'Design', extraService: 'Extra service' },
+  line: { work: 'Work', teeth: l => `teeth ${l}`, remake: n => `remake #${n}`, design: 'Design', extraService: 'Extra service',
+    rush: k => `Rush ×${k}`, model: 'Model' },
 }
 
 const LV: InvoiceLabels = {
@@ -89,7 +92,8 @@ const LV: InvoiceLabels = {
   totalDue: 'Kopā apmaksai', received: 'Saņemts', outstanding: 'Neapmaksāts', payment: 'Maksājums',
   reference: r => `Maksājuma mērķis: ${r}`, referenceOf: n => `rēķins ${n}`, cancelled: 'Anulēts',
   regNo: c => `Reģ. Nr. ${c}`, vatNo: c => `PVN reģ. Nr. ${c}`,
-  line: { work: 'Darbs', teeth: l => `zobi ${l}`, remake: n => `labojums #${n}`, design: 'Dizains', extraService: 'Papildpakalpojums' },
+  line: { work: 'Darbs', teeth: l => `zobi ${l}`, remake: n => `labojums #${n}`, design: 'Dizains', extraService: 'Papildpakalpojums',
+    rush: k => `Steidzams darbs ×${k}`, model: 'Modelis' },
 }
 
 const ALL: Record<DocLanguage, InvoiceLabels> = { et: ET, en: EN, lv: LV }

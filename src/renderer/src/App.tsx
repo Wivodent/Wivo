@@ -585,7 +585,7 @@ function AppContent() {
             />
           )}
           {view === 'kliendid' && <CustomersView />}
-          {view === 'arved' && <InvoicesView jobs={jobs} />}
+          {view === 'arved' && <InvoicesView jobs={jobs} onOpenSettings={() => { setSettingsAt(a => ({ group: 'arved', n: a.n + 1 })); setView('settings') }} />}
           {view === 'tootasud' && <PayrollView jobs={jobs} onOpenJob={openEdit} />}
           {view === 'stats' && <Dashboard jobs={jobs} />}
           {view === 'taotlused' && <RequestsInbox />}

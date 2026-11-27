@@ -23,7 +23,7 @@
 import type { Job } from '../types/job'
 import { revisionReasonLabel, jobWorkItems } from '../types/job'
 import { jobTotalValue } from './jobPayments'
-import { quoteJob, ITEM_SOURCES } from '@shared/pricing/quote'
+import { quoteJob, ITEM_SOURCES, RIDER_SOURCES } from '@shared/pricing/quote'
 import { invoiceLabels, type InvoiceLabels } from '@shared/billing/invoiceDoc'
 import type { PriceBook } from '@shared/pricing/priceBook'
 import { workWithOptionsLabel, type WorkOption } from '@shared/pricing/workOptions'
@@ -83,7 +83,12 @@ export function jobLines(job: Job, book: PriceBook, library: readonly WorkOption
         const teeth = items[item]?.hambad?.trim()
         out.push({ description: lead([l.label, teeth ? words.teeth(teethText(teeth)) : null].filter(Boolean).join(' · ')), unit_price: l.amount })
       } else {
-        out.push({ description: lead(l.label), unit_price: l.amount })
+        // The rush, the model and the design fee in the invoice's own words; an option or an extra by its own name.
+        const words_ = l.source === RIDER_SOURCES.rush ? words.rush(book.kiirtooKordaja)
+          : l.source === RIDER_SOURCES.model ? words.model
+          : l.source === RIDER_SOURCES.design ? words.design
+          : l.label
+        out.push({ description: lead(words_), unit_price: l.amount })
       }
     }
     return out

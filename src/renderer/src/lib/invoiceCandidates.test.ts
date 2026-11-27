@@ -56,6 +56,19 @@ describe('unbilled work on an invoice', () => {
     expect(jobLines(job({ hind: 999, hambad: `${upper},36,35,34` }), book, options, null)[0].description).toBe('All-on-4 (Metal bar) · hambad 17–27, 34–36')
   })
 
+  it('a Latvian or English invoice’s lines carry no Estonian: teeth, rush, model, design in its own words', () => {
+    const j = job({ hind: 2150, disain_hind: 40, kiirtoo: true, mudel: true,
+      work_items: [{ id: 'w', too: 'Kroon', hambad: '17,16,15,14,13,12,11,21,22,23,24,25,26,27' }] as Job['work_items'] })
+    const priced = { ...book, mudeliHind: 50 }
+    const lv = jobLines(j, priced, options, 'TF-1', invoiceLabels('lv').line).map(l => l.description)
+    expect(lv).toEqual(['TF-1 · Kroon · zobi 17–27', 'TF-1 · Steidzams darbs ×1.5', 'TF-1 · Modelis', 'TF-1 · Dizains'])
+    const en = jobLines(j, priced, options, null, invoiceLabels('en').line).map(l => l.description)
+    expect(en).toEqual(['Kroon · teeth 17–27', 'Rush ×1.5', 'Model', 'Design'])
+    for (const d of [...lv, ...en]) expect(d).not.toMatch(/hambad|Kiirtöö|Mudel\b|Disain\b/)
+    // Estonian, as always.
+    expect(jobLines(j, priced, options, null).map(l => l.description)).toEqual(['Kroon · hambad 17–27', 'Kiirtöö ×1.5', 'Mudel', 'Disain'])
+  })
+
   it('a price set by hand: one line at the job’s own price, never something else', () => {
     const lines = jobLines(job({ hind: 2100 }), book, options, 'TF-1')
     expect(lines).toEqual([{ description: 'TF-1 · All-on-4 (Metal bar)', unit_price: 2100 }])

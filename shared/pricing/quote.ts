@@ -79,6 +79,8 @@ export type QuoteSource = 'tüüp' | 'materjal' | 'hambad' | 'valik' | 'kiirtö�
 
 /** The sources of a work item's own line: how the work itself was priced (the rest ride on top). */
 export const ITEM_SOURCES: readonly QuoteSource[] = ['tüüp', 'materjal', 'hambad']
+/** The lines that ride on top, by name, so a caller can word them itself (an invoice in its own language). */
+export const RIDER_SOURCES = { option: 'valik', rush: 'kiirtöö', model: 'mudel', design: 'disain', extra: 'lisateenus' } as const satisfies Record<string, QuoteSource>
 
 export interface QuoteLine {
   source: QuoteSource
