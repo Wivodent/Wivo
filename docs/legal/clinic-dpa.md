@@ -7,7 +7,7 @@ Version 2026-11-draft. Effective from [EFFECTIVE DATE].
 **Between**
 
 - **The clinic** (controller): [CLINIC NAME], registry code [CLINIC REG CODE], [CLINIC ADDRESS], represented by [NAME, ROLE].
-- **Wivo** (processor): Treial OÜ, registry code 16401540, Laada tn 8-1, 44310 Rakvere, Estonia, [CONTACT EMAIL], represented by Kevin Treial, Member of the Management Board.
+- **Wivo** (processor): Treial OÜ, registry code 16401540, Laada tn 8-1, 44310 Rakvere, Estonia, treialbusiness@gmail.com, represented by Kevin Treial, Member of the Management Board.
 
 This agreement is part of the Wivo licence agreement between the parties and meets Article 28 of the General Data Protection Regulation (EU) 2016/679 ("GDPR").
 
