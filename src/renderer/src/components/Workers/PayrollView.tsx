@@ -2149,7 +2149,7 @@ function RateEditor({ profileId, rates }: { profileId: string; rates: WorkerRate
             {t('workers.alsoCoversRevisions')}
           </label>
         )}
-        <button onClick={add} disabled={save.isPending} className="btn-ghost border border-ink-faint/25 mb-0.5 disabled:opacity-50">
+        <button onClick={add} disabled={save.isPending} className="btn-primary min-h-[40px] px-4 mb-0.5 font-semibold disabled:opacity-50">
           <Plus size={13} /> {t('workers.addRule')}
         </button>
       </div>

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
 } from 'lucide-react'
@@ -720,6 +721,7 @@ function MaterialCostTabs({ materjalid, masinad, materialPrices, materialCosts, 
 // ─── Profile settings sub-component ───────────────────────────────────────────
 
 function ProfileSection({ auth }: { auth: ReturnType<typeof useAuth> }) {
+  const queryClient = useQueryClient()
   const [name, setName] = useState(auth.profile?.full_name ?? '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -732,6 +734,8 @@ function ProfileSection({ auth }: { auth: ReturnType<typeof useAuth> }) {
     try {
       await updateProfile(auth.user.id, { full_name: name.trim() })
       await auth.refreshProfile()
+      // Payroll, stages and pickers read everyone's names from this list (5-minute cache).
+      await queryClient.invalidateQueries({ queryKey: ['clinic_profiles'] })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } finally {

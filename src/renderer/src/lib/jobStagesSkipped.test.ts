@@ -93,3 +93,16 @@ describe('skipping the stage the job is at', () => {
     expect(firstActiveAfter([{ stageKey: 'x', position: 0 }], 'x', new Set(['x']))).toBeNull()
   })
 })
+
+describe('the stage bar hides skipped stages (2.2.7)', () => {
+  it('shows every stage but the skipped ones, and always the one the job is at', async () => {
+    const { visibleStageLines } = await import('./jobStages')
+    const stages = [st('a', 0), st('b', 1, { skipped: true }), st('c', 2, { skipped: true }), st('d', 3)]
+    expect(visibleStageLines(stageLines(stages, 'a')).map(l => l.stageKey)).toEqual(['a', 'd'])
+    // At a skipped stage (dragged there on the board): it shows, as the current one.
+    const atSkipped = visibleStageLines(stageLines(stages, 'c'))
+    expect(atSkipped.map(l => [l.stageKey, l.state])).toEqual([['a', 'done'], ['c', 'current'], ['d', 'upcoming']])
+    // Shown on request, for taking a skip back.
+    expect(visibleStageLines(stageLines(stages, 'a'), true).map(l => l.stageKey)).toEqual(['a', 'b', 'c', 'd'])
+  })
+})

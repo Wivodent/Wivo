@@ -106,6 +106,14 @@ export function neighbours(lines: readonly StageLine[]): { previous: StageLine |
   return { previous, next }
 }
 
+/**
+ * The stages a job's bar shows (2.2.7): every stage but the skipped ones, and
+ * always the stage the job is at (its line is 'current' even if skipped).
+ * `withSkipped`: the skipped ones too, for whoever takes a skip back.
+ */
+export const visibleStageLines = (lines: readonly StageLine[], withSkipped = false): StageLine[] =>
+  withSkipped ? [...lines] : lines.filter(l => l.state !== 'skipped')
+
 /** The job is at a stage that is skipped on it (moved there from the board, say). */
 export const atSkippedStage = (lines: readonly StageLine[]): boolean =>
   lines.some(l => l.state === 'current' && l.skipped)

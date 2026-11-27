@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Users, UserPlus, Shield, Loader2, Trash2, Check, Lock, Copy } from 'lucide-react'
-import { supabase, displayIdentity, PROFILE_COLUMNS } from '../../lib/supabase'
+import { Users, UserPlus, Shield, Loader2, Trash2, Check, Lock, Copy, Pencil } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { supabase, displayIdentity, PROFILE_COLUMNS, updateProfile } from '../../lib/supabase'
+import { describeError } from '../Patients/errors'
 import { AddMemberDialog } from './AddMemberDialog'
 import { teamAccounts, accountBadges, signInLine, resendInvite, teamErrorMessage, setMemberPassword, type TeamAccount } from '../../lib/teamAccount'
 import { FreshCodeDialog } from '../ui/FreshCodeDialog'
@@ -112,6 +114,66 @@ const rolePresetLabel = (k: RolePreset): string => ({
   technician: t('team.roleTechnician'), doctor: t('team.roleDoctor'), accountant: t('team.roleAccountant'),
   secretary: t('team.roleSecretary'), manager: t('team.roleManager'), it: t('team.roleIt'),
 })[k]
+
+/**
+ * A member's name, which the owner can change (2.2.6+): an account made
+ * without one showed as "Unnamed" in Payroll and on stages, and only the
+ * person themselves could fix it (Settings → Your profile). The database
+ * already lets the owner rename a member of the clinic (sql/085).
+ */
+function MemberName({ id, name, onSaved }: { id: string; name: string; onSaved: () => void }) {
+  const qc = useQueryClient()
+  const { user, refreshProfile } = useAuth()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(name)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save() {
+    const next = value.trim()
+    if (!next || next === name) { setEditing(false); return }
+    setBusy(true)
+    setError(null)
+    try {
+      await updateProfile(id, { full_name: next })
+      // Payroll, stages and pickers read the clinic's people from this list.
+      await qc.invalidateQueries({ queryKey: ['clinic_profiles'] })
+      if (id === user?.id) await refreshProfile()
+      setEditing(false)
+      onSaved()
+    } catch (e) {
+      setError(describeError(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <h2 className={`text-base font-semibold ${name ? 'text-ink' : 'text-amber-700'}`}>{name || t('workers.noNameYet')}</h2>
+        <button type="button" onClick={() => { setValue(name); setEditing(true) }}
+          className="btn-ghost px-2 py-1 text-xs" aria-label={t('workers.changeName')}>
+          <Pencil size={12} aria-hidden="true" /> {t('workers.changeName')}
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <input autoFocus value={value} maxLength={120} onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') void save(); if (e.key === 'Escape') setEditing(false) }}
+          aria-label={t('workers.staffMemberName')} className="input h-10 w-64 text-base" />
+        <button type="button" onClick={() => void save()} disabled={busy || !value.trim()} className="btn-primary h-10">
+          {busy ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} {t('workers.saveName')}
+        </button>
+        <button type="button" onClick={() => setEditing(false)} className="btn-ghost h-10">{t('workers.cancel')}</button>
+      </div>
+      {error && <p className="text-xs text-rose-600">{error}</p>}
+    </div>
+  )
+}
 
 export function WorkersPage() {
   const { clinicId, role } = useAuth()
@@ -407,7 +469,7 @@ export function WorkersPage() {
                 }`}
               >
                 <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-                  <p className="text-sm font-semibold truncate min-w-0 flex-1 basis-20">{w.full_name || '—'}</p>
+                  <p className={`text-sm font-semibold truncate min-w-0 flex-1 basis-20 ${w.full_name ? '' : 'text-amber-700'}`}>{w.full_name || t('workers.noNameYet')}</p>
                   <AccountBadges account={accounts.get(w.id)} />
                 </div>
                 <p className="text-[11px] text-ink-faint truncate">
@@ -441,7 +503,7 @@ export function WorkersPage() {
               <div className="card p-5">
                 <div className="flex flex-wrap items-start gap-x-3 gap-y-1 mb-1">
                   <div className="min-w-0">
-                    <h2 className="text-base font-semibold text-ink">{selected.full_name}</h2>
+                    <MemberName key={selected.id} id={selected.id} name={selected.full_name ?? ''} onSaved={() => void loadWorkers()} />
                     <SignInName account={accounts.get(selected.id)} />
                   </div>
                   <AccountBadges account={accounts.get(selected.id)} />
@@ -454,7 +516,7 @@ export function WorkersPage() {
               <div className="card p-5 space-y-4">
                 <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
                   <div className="min-w-0">
-                    <h2 className="text-base font-semibold text-ink">{selected.full_name || '—'}</h2>
+                    <MemberName key={selected.id} id={selected.id} name={selected.full_name ?? ''} onSaved={() => void loadWorkers()} />
                     <SignInName account={accounts.get(selected.id)} />
                     <p className="text-xs text-ink-muted">{t('workers.staffPermissions')}</p>
                   </div>

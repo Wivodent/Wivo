@@ -248,12 +248,16 @@ export async function updateProfile(
     'full_name' | 'toosuhe' | 'kiirtoo_kordaja' |
     'tasu_arvestus' | 'kogumispension_protsent' | 'maksuvaba_tulu' | 'ulalpeetavad' | 'pensionar'>>
 ): Promise<void> {
-  // Nothing read back: the pay fields are not readable from the table (sql/117).
-  const { error } = await supabase
+  // Only the id read back: the pay fields are not readable from the table
+  // (sql/117). No row back means row security refused the update without an
+  // error; said as "no permission" rather than shown as saved.
+  const { data, error } = await supabase
     .from('profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', userId)
+    .select('id')
   if (error) throw error
+  if (!data || data.length === 0) throw Object.assign(new Error('Profile not changed'), { code: '42501' })
 }
 
 /** Cached clinic_id — set by AuthContext after login, read by create mutations */

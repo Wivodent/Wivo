@@ -10,15 +10,15 @@
  */
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, ArrowLeft, ArrowRight, Play, Plus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Play, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../context/AuthContext'
 import { usePipeline } from '../../context/PipelineContext'
 import { useClinicProfiles } from '../../hooks/useClinicProfiles'
 import { describeError } from '../Patients/errors'
 import {
-  addJobStage, atSkippedStage, hasStagePeople, jobStagesUnavailable, moveJobStage, myTurnIn, neighbours, setJobStagePeople,
-  setJobStageSkipped, skipStage, startJobStage, stageLines, useCanMove, useJobStages, useRefreshJobStages,
+  addJobStage, hasStagePeople, jobStagesUnavailable, moveJobStage, myTurnIn, neighbours, setJobStagePeople,
+  setJobStageSkipped, skipStage, startJobStage, stageLines, visibleStageLines, useCanMove, useJobStages, useRefreshJobStages,
 } from '../../lib/jobStages'
 import { StageBar, type StageBarItem } from './StageBar'
 import { stagePeopleOf } from '@/lib/stageAssign'
@@ -38,6 +38,7 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [showSkipped, setShowSkipped] = useState(false)
 
   const lines = stageLines(stages, job.status)
   const { previous, next } = neighbours(lines)
@@ -66,7 +67,14 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
   const turnIn = myTurnIn(lines, user?.id)
   const startable = !finished && current && (current.people.includes(user?.id ?? '') || !hasStagePeople(stages))
 
-  const items: StageBarItem[] = lines.map(l => ({
+  // Skipped stages are not shown (2.2.7): a job's bar is the stages it goes
+  // through. The stage the job is at always shows, as an ordinary current
+  // stage, even if it was skipped (moved there from the board): Next and Back
+  // work from it, and there is nothing to warn about. Whoever may edit the
+  // stages can show the skipped ones to take a skip back.
+  const skippedCount = lines.filter(l => l.state === 'skipped').length
+  const shownLines = visibleStageLines(lines, showSkipped && mayEdit)
+  const items: StageBarItem[] = shownLines.map(l => ({
     key: l.stageKey,
     label: label(l.stageKey),
     hex: stageMap[l.stageKey]?.hex ?? '#94A3B8',
@@ -79,7 +87,6 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
     canSkip: l.state === 'skipped' || l.state === 'upcoming'
       || (l.state === 'current' && !l.skipped && !finished && next !== null && canNext.data === true),
   }))
-  const stuck = atSkippedStage(lines) && !finished
   const phone = size === 'lg'
   const goNext = () => { if (next) void run(() => moveJobStage(job.id, next.stageKey)) }
   const goBack = () => { if (previous) void run(() => moveJobStage(job.id, previous.stageKey)) }
@@ -111,21 +118,14 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
         onSkip={(key, skipped) => void run(() => skipped ? skipStage(job.id, lines, key) : setJobStageSkipped(job.id, key, false))}
       />
 
-      {stuck && (
-        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-400/60 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          <AlertTriangle size={16} aria-hidden="true" />
-          <span className="flex-1">{t('workflow.inSkippedStage')}</span>
-          {next && canNext.data === true && (
-            <button type="button" disabled={busy} onClick={goNext}
-              className={`btn-ghost flex items-center gap-1 border border-amber-500/60 text-amber-900 ${btn}`}>
-              {t('workflow.moveToNextActive')} <ArrowRight size={14} aria-hidden="true" />
-            </button>
-          )}
-        </div>
+      {mayEdit && skippedCount > 0 && (
+        <button type="button" onClick={() => setShowSkipped(v => !v)} className="text-xs text-ink-muted underline-offset-2 hover:underline">
+          {showSkipped ? t('workflow.hideSkipped') : t('workflow.showSkipped', { n: skippedCount })}
+        </button>
       )}
 
       {/* The phone: one big button to move on, a smaller one back (2.2.6). */}
-      {phone && !stuck && next && canNext.data === true && (
+      {phone && next && canNext.data === true && (
         <button type="button" disabled={busy} onClick={goNext}
           className="btn-primary flex min-h-[56px] w-full items-center justify-center gap-2 text-lg font-semibold">
           {t('workflow.moveToNextStage')} <ArrowRight size={20} aria-hidden="true" />
@@ -157,7 +157,7 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
             <Play size={14} aria-hidden="true" /> {t('workflow.iStarted')}
           </button>
         )}
-        {!phone && !stuck && next && canNext.data === true && (
+        {!phone && next && canNext.data === true && (
           <button type="button" disabled={busy} onClick={goNext}
             className={`btn-ghost flex items-center gap-1 border border-accent/40 text-accent ${btn}`}>
             {t('workflow.nextStage')} <ArrowRight size={14} aria-hidden="true" />
