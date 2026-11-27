@@ -22,7 +22,7 @@ import type { ReleaseMinimum } from '../../../types/update'
  */
 export const READ_FUNCTIONS: ReadonlySet<string> = new Set([
   'app_min_version_for_me', 'audit_people', 'audit_search', 'can_move_stage', 'clinic_settings_private',
-  'customers_full', 'deleted_jobs', 'has_mfa', 'job_activity', 'job_files', 'job_thread', 'may_edit_job_stages',
+  'customers_full', 'deleted_jobs', 'has_mfa', 'job_activity', 'job_files', 'job_skipped_stages', 'job_thread', 'may_edit_job_stages',
   'open_questions', 'partner_orgs', 'partner_stock', 'pay_settings', 'team_accounts', 'update_status',
 ])
 

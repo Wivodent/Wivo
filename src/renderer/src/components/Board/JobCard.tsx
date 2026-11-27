@@ -15,16 +15,19 @@ import { OptionDoers } from '../JobDetail/OptionDoers'
 import { useOpenQuestions } from '../../hooks/usePartners'
 import { useJobActivity } from '../../hooks/useJobActivity'
 import { JobActivityBadge } from '../ui/JobActivityBadge'
+import { cardNeighbours } from '../../lib/jobStages'
 import { t } from '@/lib/i18n'
 
 interface JobCardProps {
   job: Job
   onClick: (job: Job) => void
   onStageChange?: (job: Job, stage: StageKey) => void
+  /** Stages switched off on this job: the arrows step over them (the board reads them for every card at once). */
+  skippedStages?: ReadonlySet<string>
   isDragging?: boolean
 }
 
-export function JobCard({ job, onClick, onStageChange, isDragging }: JobCardProps) {
+export function JobCard({ job, onClick, onStageChange, skippedStages, isDragging }: JobCardProps) {
   // Price and payment: payments.read only (sql/102).
   const money = usePermissions().can('payments.read')
   const { data: questions } = useOpenQuestions()
@@ -47,9 +50,8 @@ export function JobCard({ job, onClick, onStageChange, isDragging }: JobCardProp
   // was the only one not getting it.
   const workItems = jobWorkItems(job).filter(i => i.too?.trim())
 
-  const stageIdx  = stages.findIndex(s => s.key === job.status)
-  const prevStage = stageIdx > 0 ? stages[stageIdx - 1] : null
-  const nextStage = stageIdx < stages.length - 1 ? stages[stageIdx + 1] : null
+  // The clinic's stages around the job's, stepping over those switched off on it.
+  const { prev: prevStage, next: nextStage } = cardNeighbours(stages, job.status, skippedStages)
 
   return (
     <motion.div

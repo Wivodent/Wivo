@@ -48,8 +48,8 @@ describe('the realtime publication (sql/131, 132)', () => {
   it('fills a copy that came without them, and a second run changes nothing', async () => {
     const db = await freshDb()
     // Later migrations publish their own tables (136: job_seen; 138: the
-    // Network orders), each tested with its migration.
-    const LATER = ['job_seen', 'client_order', 'client_order_message', 'network_client']
+    // Network orders; 139: job_stage), each tested with its migration.
+    const LATER = ['job_seen', 'client_order', 'client_order_message', 'network_client', 'job_stage']
     const all = await published(db)
     expect(all).toEqual(expect.arrayContaining(LATER))
     const expected = all.filter(t => !LATER.includes(t))
@@ -79,7 +79,7 @@ describe('the realtime publication (sql/131, 132)', () => {
     await db.exec(`alter publication supabase_realtime drop table public.job_file, public.job_stage_person`)
     await db.exec(MIGRATIONS[1])
     expect(await published(db)).toEqual(expect.arrayContaining(['job_file', 'job_stage_person']))
-    expect((await published(db)).length).toBe(22)
+    expect((await published(db)).length).toBe(23)  // 22 + job_stage (sql/139)
   }, 120_000)
 
   it('leaves replica identity as it is (the primary key): nothing needs the whole old row', async () => {

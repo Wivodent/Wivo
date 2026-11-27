@@ -1,5 +1,4 @@
-import { useRef, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { startOfWeek, endOfWeek, addWeeks, parseISO, isWithinInterval, format } from 'date-fns'
 import type { Job, StageKey, Revision } from '../../types/job'
@@ -9,7 +8,7 @@ import { usePipeline } from '../../context/PipelineContext'
 import { BoardColumn } from './BoardColumn'
 import { t, dateLocale } from '@/lib/i18n'
 import { useJobActivityLive } from '../../hooks/useJobActivity'
-import { closedStagesFor, fetchJobStages, jobStagesKey } from '../../lib/jobStages'
+import { closedStagesFor, useSkippedStages } from '../../lib/jobStages'
 
 // ── Discriminated union for board entries ─────────────────────────────────────
 export type BoardEntry =
@@ -33,29 +32,8 @@ export function Board({
   useJobActivityLive()
   const [weekOffset, setWeekOffset] = useState(0)
   const { stages, doneStageKey } = usePipeline()
-  const qc = useQueryClient()
-  // The stages the job being dragged has switched off: greyed, nothing drops
-  // there (the database would refuse it). Read when the card is picked up;
-  // a slow answer for a card already put down is dropped.
-  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set())
-  const dragging = useRef<string | null>(null)
-  const onJobDrag = (jobId: string | null) => {
-    dragging.current = jobId
-    setClosed(new Set())
-    const job = jobId ? jobs.find(j => j.id === jobId) : null
-    if (!jobId || !job) return
-    void qc.fetchQuery({ queryKey: jobStagesKey(jobId), queryFn: () => fetchJobStages(jobId), staleTime: 15_000 })
-      .then(list => { if (dragging.current === jobId) setClosed(closedStagesFor(list, job.status)) })
-      .catch(() => { /* not known: the database still says no, and why (lib/stageMoveError) */ })
-  }
+  const [draggingId, setDraggingId] = useState<string | null>(null)
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="animate-spin text-accent" size={32} />
-      </div>
-    )
-  }
 
   const baseDate  = addWeeks(new Date(), weekOffset)
   const weekStart = startOfWeek(baseDate, { weekStartsOn: 1 })
@@ -123,6 +101,23 @@ export function Board({
     })
   }
 
+  // The stages each card's job has switched off, for all the cards at once
+  // (one query, live: lib/jobStages useSkippedStages). The arrows step over
+  // them, and while a card is dragged they are greyed and take no drop. Not
+  // read for someone who moves nothing here.
+  const cardJobIds = Object.values(byStage).flatMap(list => list.flatMap(e => e.type === 'job' ? [e.job.id] : []))
+  const { data: skipped } = useSkippedStages(onStageChange ? cardJobIds : [])
+  const draggingJob = draggingId ? jobs.find(j => j.id === draggingId) : undefined
+  const closed = draggingJob ? closedStagesFor(skipped?.get(draggingJob.id), draggingJob.status) : new Set<string>()
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="animate-spin text-accent" size={32} />
+      </div>
+    )
+  }
+
   return (
     <div className="flex gap-3 h-full overflow-x-auto pb-4 px-4 pt-2">
       {stages.map((stage) => (
@@ -134,7 +129,8 @@ export function Board({
           onStageChange={onStageChange}
           onRevisionStageChange={onRevisionStageChange}
           onRevisionClick={onRevisionClick}
-          onJobDrag={onStageChange ? onJobDrag : undefined}
+          onJobDrag={onStageChange ? setDraggingId : undefined}
+          skipped={skipped}
           closed={closed.has(stage.key)}
           wide={stage.key === doneStageKey}
           totalCount={stage.key === doneStageKey ? totalDone : undefined}

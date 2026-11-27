@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2369.
+-- Expected rows: 2373.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -755,6 +755,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.job_is_mine(assigned uuid, designer uuid, items jsonb)', 'security invoker, stable, search_path=public, body md5 f06f4a0d4b390d621bfa1774743253b4'),
     ('function', 'public.job_is_shared(p_job uuid)', 'security definer, stable, search_path=public, body md5 298aa65795c7bca23fb1af83c28c2dc0'),
     ('function', 'public.job_option_doers(p_items jsonb)', 'security invoker, immutable, search_path=public, body md5 3b30f46d73b393e7210d13d81deb8a71'),
+    ('function', 'public.job_skipped_stages(p_jobs uuid[])', 'security invoker, stable, search_path=public, body md5 0cc854bd92e19c50ef9d23d13acfdff4'),
     ('function', 'public.job_stage_pay_role_from_template()', 'security definer, volatile, search_path=public, body md5 86f79d3260945ac2c53f49313d8c9d6a'),
     ('function', 'public.job_stage_people(p_job uuid, p_stage text)', 'security definer, stable, search_path=public, body md5 fa7d043db8303307b0dc4038288569c2'),
     ('function', 'public.job_stage_plan(p_org uuid, p_template uuid, p_impression text, p_implants integer, p_method text, p_printed boolean, p_switches jsonb, p_orderer uuid)', 'security definer, stable, search_path=public, body md5 2bfa9ec6a113d7ebfed4abe31ece9b53'),
@@ -1195,6 +1196,8 @@ with expected(kind, key, def) as (values
     ('grant', 'public.job_seen to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.job_share to authenticated', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.job_share to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
+    ('grant', 'public.job_skipped_stages(p_jobs uuid[]) to authenticated', 'EXECUTE'),
+    ('grant', 'public.job_skipped_stages(p_jobs uuid[]) to service_role', 'EXECUTE'),
     ('grant', 'public.job_stage to authenticated', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.job_stage to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.job_stage_pay_role_from_template() to service_role', 'EXECUTE'),
@@ -2296,6 +2299,7 @@ with expected(kind, key, def) as (values
     ('realtime', 'public.invoices', 'in publication supabase_realtime'),
     ('realtime', 'public.job_file', 'in publication supabase_realtime'),
     ('realtime', 'public.job_seen', 'in publication supabase_realtime'),
+    ('realtime', 'public.job_stage', 'in publication supabase_realtime'),
     ('realtime', 'public.job_stage_person', 'in publication supabase_realtime'),
     ('realtime', 'public.jobs', 'in publication supabase_realtime'),
     ('realtime', 'public.messages', 'in publication supabase_realtime'),

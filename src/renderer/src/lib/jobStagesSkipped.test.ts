@@ -107,12 +107,36 @@ describe('the stage bar hides skipped stages (2.2.7)', () => {
   })
 })
 
-describe('the board closes the stages a dragged job has switched off', () => {
-  it('every skipped stage but the one the job is at', async () => {
+describe('the board and the stages a job has switched off', () => {
+  it('a dragged job: every switched-off stage is closed but the one it is at', async () => {
     const { closedStagesFor } = await import('./jobStages')
-    const stages = [st('a', 0), st('b', 1, { skipped: true }), st('c', 2, { skipped: true }), st('d', 3)]
-    expect([...closedStagesFor(stages, 'a')].sort()).toEqual(['b', 'c'])
-    expect([...closedStagesFor(stages, 'c')]).toEqual(['b'])
-    expect(closedStagesFor([], 'a').size).toBe(0)
+    const off = new Set(['b', 'c'])
+    expect([...closedStagesFor(off, 'a')].sort()).toEqual(['b', 'c'])
+    expect([...closedStagesFor(off, 'c')]).toEqual(['b'])
+    expect(closedStagesFor(undefined, 'a').size).toBe(0)
+  })
+
+  it('rows → switched-off stages per job', async () => {
+    const { skippedByJob } = await import('./jobStages')
+    const m = skippedByJob([{ job_id: 'j1', stage_key: 'b' }, { job_id: 'j2', stage_key: 'c' }, { job_id: 'j1', stage_key: 'd' }])
+    expect([...m.get('j1')!]).toEqual(['b', 'd'])
+    expect([...m.get('j2')!]).toEqual(['c'])
+    expect(skippedByJob(null).size).toBe(0)
+  })
+
+  it('a card\'s ← and → step over the stages switched off on its job', async () => {
+    const { cardNeighbours } = await import('./jobStages')
+    const clinic = ['a', 'b', 'c', 'd', 'e'].map(key => ({ key }))
+    const at = (key: string, off?: string[]) => {
+      const n = cardNeighbours(clinic, key, off ? new Set(off) : undefined)
+      return [n.prev?.key ?? null, n.next?.key ?? null]
+    }
+    expect(at('c')).toEqual(['b', 'd'])
+    expect(at('c', ['b', 'd'])).toEqual(['a', 'e'])
+    expect(at('a', ['b', 'c'])).toEqual([null, 'd'])
+    expect(at('e', ['d', 'c', 'b', 'a'])).toEqual([null, null])
+    // At a stage itself switched off (moved there before): it still moves on.
+    expect(at('b', ['b'])).toEqual(['a', 'c'])
+    expect(at('zz')).toEqual([null, null])
   })
 })

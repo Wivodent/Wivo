@@ -168,8 +168,79 @@ export async function fetchJobStages(jobId: string): Promise<JobStage[]> {
  * on it, except the one it is at (dropping it back where it came from is no
  * move at all). Pure.
  */
-export function closedStagesFor(stages: readonly JobStage[], currentKey: string): Set<string> {
-  return new Set(stages.filter(s => s.skipped && s.stageKey !== currentKey).map(s => s.stageKey))
+export function closedStagesFor(skipped: ReadonlySet<string> | undefined, currentKey: string): Set<string> {
+  return new Set([...(skipped ?? [])].filter(k => k !== currentKey))
+}
+
+/** Switched-off stages per job, from rows { job_id, stage_key }. Pure. */
+export function skippedByJob(rows: readonly { job_id: string; stage_key: string }[] | null | undefined): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>()
+  for (const r of rows ?? []) {
+    const set = out.get(r.job_id) ?? new Set<string>()
+    set.add(r.stage_key)
+    out.set(r.job_id, set)
+  }
+  return out
+}
+
+/**
+ * A board card's ← and →: the clinic's stages before and after the job's,
+ * stepping over those switched off on this job. Pure.
+ */
+export function cardNeighbours<S extends { key: string }>(
+  stages: readonly S[], currentKey: string, skipped?: ReadonlySet<string>,
+): { prev: S | null; next: S | null } {
+  const at = stages.findIndex(s => s.key === currentKey)
+  if (at < 0) return { prev: null, next: null }
+  const open = (s: S) => !skipped?.has(s.key)
+  return {
+    prev: [...stages.slice(0, at)].reverse().find(open) ?? null,
+    next: stages.slice(at + 1).find(open) ?? null,
+  }
+}
+
+/** How many job ids one fallback read names (they go in the URL). */
+const IDS_PER_READ = 80
+
+/**
+ * The switched-off stages of these jobs, read in one call (sql/139). A
+ * database without the function: job_stage read directly, a few ids at a
+ * time; without job stages at all: none.
+ */
+export async function fetchSkippedStages(jobIds: readonly string[]): Promise<Map<string, Set<string>>> {
+  if (jobIds.length === 0) return new Map()
+  const { data, error } = await supabase.rpc('job_skipped_stages', { p_jobs: [...jobIds] })
+  if (!error) return skippedByJob(data as { job_id: string; stage_key: string }[])
+  if (error.code !== 'PGRST202' && error.code !== '42883') throw error
+  const rows: { job_id: string; stage_key: string }[] = []
+  for (let i = 0; i < jobIds.length; i += IDS_PER_READ) {
+    const { data: part, error: err } = await supabase.from('job_stage').select('job_id, stage_key')
+      .in('job_id', jobIds.slice(i, i + IDS_PER_READ)).not('skipped_at', 'is', null)
+    if (err) {
+      if (jobStagesUnavailable(err)) return new Map()
+      throw err
+    }
+    rows.push(...(part as { job_id: string; stage_key: string }[]))
+  }
+  return skippedByJob(rows)
+}
+
+/**
+ * The board's switched-off stages, for every job card on it, in one query;
+ * a stage switched off or on anywhere reloads it (job_stage in realtime,
+ * sql/139; a moved job too, through the jobs channel's ['job_stages']).
+ */
+export function useSkippedStages(jobIds: readonly string[]) {
+  useRealtimeInvalidate('job_stage', [['job_stages']], jobIds.length > 0)
+  const ids = [...jobIds].sort()
+  return useQuery<Map<string, Set<string>>>({
+    queryKey: ['job_stages', 'skipped', ids.join(',')],
+    enabled: ids.length > 0,
+    staleTime: 30_000,
+    // While the cards change (a search, the week), keep the last answer rather than flash the arrows.
+    placeholderData: previous => previous,
+    queryFn: () => fetchSkippedStages(ids),
+  })
 }
 
 /** A job's stages, with their people. Empty for a database without them. */

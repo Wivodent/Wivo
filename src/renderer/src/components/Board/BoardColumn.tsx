@@ -23,6 +23,8 @@ interface BoardColumnProps {
   onJobDrag?: (jobId: string | null) => void
   /** The job being dragged has this stage switched off: greyed, and nothing drops here. */
   closed?: boolean
+  /** The stages each job has switched off: its card's arrows step over them. */
+  skipped?: ReadonlyMap<string, ReadonlySet<string>>
   wide?: boolean
   totalCount?: number
   // Valmis week navigation
@@ -35,7 +37,7 @@ interface BoardColumnProps {
 
 export function BoardColumn({
   stage, entries, onJobClick, onStageChange,
-  onRevisionStageChange, onRevisionClick, onJobDrag, closed = false,
+  onRevisionStageChange, onRevisionClick, onJobDrag, closed = false, skipped,
   wide, totalCount, weekLabel, isCurrentWeek, onPrevWeek, onNextWeek, onThisWeek,
 }: BoardColumnProps) {
   const { doneStageKey } = usePipeline()
@@ -209,6 +211,7 @@ export function BoardColumn({
                   job={entry.job}
                   onClick={onJobClick}
                   onStageChange={onStageChange ? (j, s) => onStageChange(j.id, s) : undefined}
+                  skippedStages={skipped?.get(entry.job.id)}
                   isDragging={draggingId === entry.job.id}
                 />
               </div>
