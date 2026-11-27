@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MyFeedback } from './Feedback/Feedback'
 import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell, FileText
 } from 'lucide-react'
@@ -1395,8 +1395,20 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
   const isClinicGroup = activeGroup !== 'home' && !PERSONAL_GROUPS.includes(activeGroup)
   const canEditClinic = auth.role === 'owner'
 
+  // One scrolling area for the home page and every group: opening a group from
+  // a tile further down (Money → Invoices) kept the home page's scroll and the
+  // group opened half way down. Each group now starts at the top. Not on the
+  // first render: Prices opened at a work type scrolls to its card itself.
+  const scroller = useRef<HTMLDivElement>(null)
+  const shownGroup = useRef(activeGroup)
+  useLayoutEffect(() => {
+    if (shownGroup.current === activeGroup) return
+    shownGroup.current = activeGroup
+    scroller.current?.scrollTo({ top: 0 })
+  }, [activeGroup])
+
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div ref={scroller} className="flex-1 overflow-y-auto">
       <div className="px-6 py-6 space-y-5">
         {/* docs/design setup-and-settings.html: Settings opens on its home page
             of tiles; a group has a way back instead of a side menu. */}

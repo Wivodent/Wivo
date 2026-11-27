@@ -64,4 +64,9 @@ describe('Latvian invoices on the screens', () => {
     expect(read('src/renderer/src/components/Invoices/InvoicesView.tsx')).toContain("<button type=\"button\" onClick={onOpenSettings} className=\"btn-ghost p-1.5\" title={t('invoices.settings')}")
     expect(read('src/renderer/src/App.tsx')).toContain("<InvoicesView jobs={jobs} onOpenSettings={() => { setSettingsAt(a => ({ group: 'arved', n: a.n + 1 })); setView('settings') }} />")
   })
+  it('a settings group opens at the top, not where the home page was scrolled to (Money → Invoices)', () => {
+    const page = read('src/renderer/src/components/SettingsPage.tsx')
+    expect(page).toMatch(/useLayoutEffect\(\(\) => \{\s*if \(shownGroup\.current === activeGroup\) return\s*shownGroup\.current = activeGroup\s*scroller\.current\?\.scrollTo\(\{ top: 0 \}\)\s*\}, \[activeGroup\]\)/)
+    expect(page).toContain('<div ref={scroller} className="flex-1 overflow-y-auto">')
+  })
 })
