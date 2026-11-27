@@ -18,7 +18,7 @@
 -- No rows: this database matches the migrations in all of it.
 --
 -- Covered: trigger.
--- Expected rows: 68.
+-- Expected rows: 70.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -35,6 +35,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.clinics.clinic_default_template', 'CREATE TRIGGER clinic_default_template AFTER INSERT ON public.clinics FOR EACH ROW EXECUTE FUNCTION on_clinic_default_template()'),
     ('trigger', 'public.clinics.guard_code_prefix', 'CREATE TRIGGER guard_code_prefix BEFORE UPDATE OF code_prefix ON public.clinics FOR EACH ROW EXECUTE FUNCTION guard_code_prefix()'),
     ('trigger', 'public.clinics.set_code_prefix', 'CREATE TRIGGER set_code_prefix BEFORE INSERT ON public.clinics FOR EACH ROW EXECUTE FUNCTION set_code_prefix()'),
+    ('trigger', 'public.invoice_lines.invoice_lines_once', 'CREATE TRIGGER invoice_lines_once BEFORE INSERT OR UPDATE OF job_id, revision_id, invoice_id ON public.invoice_lines FOR EACH ROW EXECUTE FUNCTION invoice_lines_once()'),
     ('trigger', 'public.invoice_lines.invoice_lines_recalc', 'CREATE TRIGGER invoice_lines_recalc AFTER INSERT OR DELETE OR UPDATE ON public.invoice_lines FOR EACH ROW EXECUTE FUNCTION invoice_lines_touch()'),
     ('trigger', 'public.invoices.invoices_delete_guard', 'CREATE TRIGGER invoices_delete_guard BEFORE DELETE ON public.invoices FOR EACH ROW EXECUTE FUNCTION invoices_delete_guard()'),
     ('trigger', 'public.invoices.invoices_lifecycle', 'CREATE TRIGGER invoices_lifecycle BEFORE INSERT OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION invoices_lifecycle()'),
@@ -57,6 +58,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.jobs.job_stage_progress', 'CREATE TRIGGER job_stage_progress AFTER UPDATE OF status ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_stage_progress()'),
     ('trigger', 'public.jobs.job_stages_from_template', 'CREATE TRIGGER job_stages_from_template AFTER INSERT ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_created_stages()'),
     ('trigger', 'public.jobs.job_team_notify', 'CREATE TRIGGER job_team_notify AFTER INSERT OR UPDATE OF status, revisions, assigned_to, designed_by, work_items ON public.jobs FOR EACH ROW EXECUTE FUNCTION on_job_team_notify()'),
+    ('trigger', 'public.jobs.jobs_auto_invoice', 'CREATE TRIGGER jobs_auto_invoice AFTER UPDATE OF received_at, fitted_at ON public.jobs FOR EACH ROW EXECUTE FUNCTION jobs_auto_invoice()'),
     ('trigger', 'public.jobs.jobs_claim_reference', 'CREATE TRIGGER jobs_claim_reference BEFORE INSERT ON public.jobs FOR EACH ROW EXECUTE FUNCTION jobs_claim_reference()'),
     ('trigger', 'public.jobs.jobs_delivery_guard', 'CREATE TRIGGER jobs_delivery_guard BEFORE INSERT OR UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION jobs_delivery_guard()'),
     ('trigger', 'public.jobs.jobs_updated_at', 'CREATE TRIGGER jobs_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION set_updated_at()'),

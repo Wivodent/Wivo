@@ -86,7 +86,7 @@ describe('the forms', () => {
     expect(card).toContain("t('customers.invoiceLanguageDefault')")
     expect(card).toContain("set('country',")
     // A database before sql/149 still saves the rest of the client.
-    expect(read('src/renderer/src/hooks/useCustomers.ts')).toContain("const LATER_COLUMNS = ['kind', 'invoice_language', 'country'] as const")
+    expect(read('src/renderer/src/hooks/useCustomers.ts')).toContain("const LATER_COLUMNS = ['kind', 'invoice_language', 'country',")
   })
 })
 

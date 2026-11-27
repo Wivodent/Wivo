@@ -47,6 +47,8 @@ export interface ClinicSettingsRow {
     arveKeel?: '' | 'et' | 'lv' | 'en'
     kmVaba?: boolean
     kmVabaViide?: string
+    /** Automatic invoicing (sql/151). Absent before it: off. */
+    autoArve?: import('@shared/billing/autoInvoice').AutoInvoicePolicy
     fixedCostsPerJob: import('../stores/useSettings').FixedCost[]
     lisateenused: import('../stores/useSettings').ExtraService[]
     yldkulud: import('../stores/useSettings').Overhead[]
@@ -138,6 +140,7 @@ export function toRow(s: WivoSettings, stages: PipelineStage[]): Omit<ClinicSett
       arveKeel: s.arveKeel,
       kmVaba: s.kmVaba,
       kmVabaViide: s.kmVabaViide,
+      autoArve: s.autoArve,
       // Both were added to WivoSettings and to COLUMN_OF, but never here, so a
       // setter declared `['pricing']`, pushed the pricing column, and wrote it
       // WITHOUT these two fields — the write path silently dropped them while
@@ -201,6 +204,7 @@ export const COLUMN_OF: Record<string, ClinicColumn> = {
   arveKeel: 'pricing',
   kmVaba: 'pricing',
   kmVabaViide: 'pricing',
+  autoArve: 'pricing',
   tooandjaMaksudProtsent: 'payroll',
   tulumaksProtsent: 'payroll',
   maksuvabaTuluKuus: 'payroll',

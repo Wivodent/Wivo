@@ -146,6 +146,11 @@ export interface Invoice {
   cancelled_at?: string | null
   cancelled_by?: string | null
   credit_of?: string | null
+  /** sql/151: made automatically — on which step, the month of a monthly invoice, why it is a draft, when. */
+  auto_trigger?: 'received' | 'fitted' | null
+  auto_period?: string | null
+  auto_reasons?: string[] | null
+  auto_created_at?: string | null
   created_by: string | null
   created_at: string
   updated_at: string

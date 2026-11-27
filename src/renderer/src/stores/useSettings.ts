@@ -29,6 +29,7 @@ import { normaliseGroups, normaliseOptionPrices, normaliseOptions, type WorkOpti
 import { storedPictureChoice, storedTeethKind } from '@shared/pricing/workTypes'
 import type { MailPolicy } from '@shared/billing/sendGuard'
 import { DEFAULT_MAIL_TEMPLATE, type MailTemplate } from '@shared/billing/mailTemplate'
+import { AUTO_INVOICE_OFF, normaliseAutoInvoice, type AutoInvoicePolicy } from '@shared/billing/autoInvoice'
 import type { MaterialPricing, FixedCost, ExtraService, Overhead, PriceBook } from '@shared/pricing/priceBook'
 import { t } from '@shared/i18n' // not @/lib/i18n: that touches `document` on load, and node tests import this
 
@@ -241,6 +242,8 @@ export interface WivoSettings {
   kmVaba: boolean
   kmVabaViide: string
   makseTahtaegPaevades: number  // Maksetähtaeg päevades
+  /** Automatic invoicing (sql/151): off by default; a client's card can override it. */
+  autoArve: AutoInvoicePolicy
   // ─── Palgamaksud ───────────────────────────────────────────────────────────
   // Kõik määrad on vaikimisi 0 — vale maksumäär, mille rakendus ise välja
   // mõtles, on halvem kui ilmselgelt puuduv. Eesti 2026: 33.8 / 22 / 700 /
@@ -356,6 +359,7 @@ function defaultSettings(): WivoSettings {
     arveKeel: '',
     kmVaba: false,
     kmVabaViide: '',
+    autoArve: AUTO_INVOICE_OFF,
     kliinilineRezhiim: false,
     laboriRezhiim: true,
     automaatneViide: true,
@@ -573,6 +577,7 @@ function loadSettings(): WivoSettings {
       arveKeel: stored.arveKeel ?? '',
       kmVaba: stored.kmVaba ?? false,
       kmVabaViide: stored.kmVabaViide ?? '',
+      autoArve: normaliseAutoInvoice(stored.autoArve),
       makseTahtaegPaevades: stored.makseTahtaegPaevades ?? 14,
       tooandjaMaksudProtsent: stored.tooandjaMaksudProtsent ?? 0,
       tulumaksProtsent: stored.tulumaksProtsent ?? 0,
@@ -713,6 +718,8 @@ export function applyClinicRow(row: Partial<ClinicSettingsRow>): void {
     ...(row.material_costs ? { materialCosts: row.material_costs } : {}),
     ...(row.machines ? { masinad: strList(row.machines, prev.masinad) } : {}),
     ...(row.pricing ?? {}),
+    // Cleaned, like the option library: a row before sql/151 has none (off).
+    autoArve: row.pricing ? normaliseAutoInvoice((row.pricing as { autoArve?: unknown }).autoArve) : prev.autoArve,
     // Cleaned like the local copy. A row written by a version before 2.2.0
     // has no library: what is here is kept, and written back on the next
     // price change, rather than wiped.
@@ -963,6 +970,11 @@ export function useSettings() {
     setSettings(prev => ({ ...prev, epost: { ...prev.epost, ...patch } }), ['email'])
   }, [setSettings])
 
+  /** Automatic invoicing (sql/151): merged, like the mail settings. */
+  const setAutoArve = useCallback((patch: Partial<AutoInvoicePolicy>) => {
+    setSettings(prev => ({ ...prev, autoArve: { ...prev.autoArve, ...patch } }), ['pricing'])
+  }, [setSettings])
+
   // ── Work types (name + colour) ─────────────────────────────────────────────
   // Separate from the string lists above because a type carries a colour, and
   // that colour is what every calendar fill and legend swatch is keyed on.
@@ -1152,7 +1164,7 @@ export function useSettings() {
     settings, save, setMaterialPrice, setMaterialCost, setDesignFee, setDefaultMachine, setKasutajaNimi,
     setTeema, setOmaTeema, setOmaTeemaToken, toggleRiba, setNumber, setFlag, setText, setTekstiSuurus, setFixedCosts, setLisateenused, setYldkulud, setKapslimasinad, setTooValikud, addCatalogueType, setPaneeliSuund,
     addOption, removeOption, renameOption, resetOptions,
-    setEpost,
+    setEpost, setAutoArve,
     addWorkType, removeWorkType, updateWorkType, moveWorkType, resetWorkTypes,
     addVisitType, removeVisitType, updateVisitType, moveVisitType, resetVisitTypes,
     addPublicService, removePublicService, updatePublicService, movePublicService,

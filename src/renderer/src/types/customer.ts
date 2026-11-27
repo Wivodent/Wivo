@@ -45,6 +45,11 @@ export interface Customer {
   /** sql/149: the language of this client's invoices (null: the clinic's default) and its country (ISO, two letters). */
   invoice_language?: 'et' | 'lv' | 'en' | null
   country?: string | null
+  /** sql/151: this client's automatic invoicing; each null = the clinic's choice. */
+  auto_invoice_on?: boolean | null
+  auto_invoice_trigger?: 'received' | 'fitted' | null
+  auto_invoice_mode?: 'per_job' | 'monthly' | null
+  auto_invoice_send?: 'auto' | 'draft' | null
   created_at: string
   updated_at: string
 }
@@ -69,6 +74,10 @@ export const EMPTY_CUSTOMER: CustomerInput = {
   note: null,
   invoice_language: null,
   country: null,
+  auto_invoice_on: null,
+  auto_invoice_trigger: null,
+  auto_invoice_mode: null,
+  auto_invoice_send: null,
 }
 
 /** Who an invoice is addressed to. See `sql/035` for why `patsient` is shared. */

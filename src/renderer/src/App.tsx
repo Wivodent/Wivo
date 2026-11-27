@@ -151,6 +151,8 @@ function AppContent() {
   const { can, sees, moduleOn, home } = usePermissions()
   // What a bell notice asked the Orders page to open (lib/notificationTarget); `n` makes the same ask twice count.
   const [ordersFocus, setOrdersFocus] = useState<OrdersFocus>({ n: 0 })
+  // A bell's "Invoice ready to check" (sql/151): Invoices with that invoice open.
+  const [invoicesFocus, setInvoicesFocus] = useState<{ invoiceId?: string; n: number }>({ n: 0 })
 
   // The same hazard once more, from the licence rather than the mode: a module
   // that is off takes its pages with it, and 'overview' — where the app opens —
@@ -482,6 +484,8 @@ function AppContent() {
               setOrdersFocus(f => ({ orderId: target.orderId, n: f.n + 1 })); setView('orders')
             } else if (target.to === 'requests') {
               setOrdersFocus(f => ({ requests: true, n: f.n + 1 })); setView('orders')
+            } else if (target.to === 'invoice') {
+              setInvoicesFocus(f => ({ invoiceId: target.invoiceId, n: f.n + 1 })); setView('arved')
             } else setView('partner')
           }}
           // Only where a visit can be made at all: the clinical side on, the
@@ -585,7 +589,7 @@ function AppContent() {
             />
           )}
           {view === 'kliendid' && <CustomersView />}
-          {view === 'arved' && <InvoicesView jobs={jobs} onOpenSettings={() => { setSettingsAt(a => ({ group: 'arved', n: a.n + 1 })); setView('settings') }} />}
+          {view === 'arved' && <InvoicesView jobs={jobs} focus={invoicesFocus} onOpenSettings={() => { setSettingsAt(a => ({ group: 'arved', n: a.n + 1 })); setView('settings') }} />}
           {view === 'tootasud' && <PayrollView jobs={jobs} onOpenJob={openEdit} />}
           {view === 'stats' && <Dashboard jobs={jobs} />}
           {view === 'taotlused' && <RequestsInbox />}

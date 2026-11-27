@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import {
   FileText, Plus, Loader2, AlertTriangle, Euro, Clock, CheckCircle2,
@@ -21,6 +21,7 @@ import { stageChipStyle } from '../../config/pipeline'
 import { describeError } from '../Patients/errors'
 import { InvoiceForm } from './InvoiceForm'
 import { SendInvoiceDialog, InvoiceSendHistory, sendErrorText } from './SendInvoiceDialog'
+import { AutoInvoiceNote } from './AutoInvoiceNote'
 import { InvoiceLifecycle } from './InvoiceLifecycle'
 import { classifySmtpError } from '@shared/billing/smtpError'
 import { useClinicProfiles } from '../../hooks/useClinicProfiles'
@@ -33,6 +34,8 @@ interface InvoicesViewProps {
   jobs: Job[]
   /** Settings → Invoices (the header's gear). */
   onOpenSettings?: () => void
+  /** Open this invoice (a bell's "Invoice ready to check", sql/151). */
+  focus?: { invoiceId?: string; n: number }
 }
 
 const STATUS_FILTERS: { key: InvoiceStatus | 'koik' | 'tasumata'; label: string }[] = [
@@ -43,7 +46,7 @@ const STATUS_FILTERS: { key: InvoiceStatus | 'koik' | 'tasumata'; label: string 
   { key: 'makstud', label: t('invoices.paid') },
 ]
 
-export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
+export function InvoicesView({ jobs, onOpenSettings, focus }: InvoicesViewProps) {
   const { data: invoices = [], isLoading, isError, error } = useInvoices()
   const { can } = usePermissions()
   const auth = useAuth()
@@ -91,6 +94,8 @@ export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
   }, [filtered])
 
   const selected = selectedId ? invoices.find(i => i.id === selectedId) ?? null : null
+  // A bell's "Invoice ready to check" (sql/151) opens that invoice.
+  useEffect(() => { if (focus?.invoiceId) setSelectedId(focus.invoiceId) }, [focus])
 
   async function setStatus(inv: InvoiceFull, status: InvoiceStatus) {
     setActionError(null)
@@ -378,6 +383,8 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, all, onDeleted, o
             <h2 className="text-lg font-bold text-ink tabular-nums">{invoiceNumberText(invoice.number, t('invoices.draftLabel'))}</h2>
             {/* sql/149: a draft has no number until it is issued (marked Sent, or e-mailed). */}
             {isDraftNumber(invoice.number) && <p className="text-[11px] text-ink-muted">{t('invoices.draftNumberHint')}</p>}
+            {/* sql/151: made automatically, and why a draft. */}
+            <div className="mt-1"><AutoInvoiceNote invoice={invoice} /></div>
             <p className="text-sm text-ink-muted flex items-center gap-1.5">
               {invoice.bill_to_kind === 'customer'
                 ? <Building2 size={12} className="text-ink-faint" />

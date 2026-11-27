@@ -7,6 +7,7 @@
  *   message on it (sql/138, 142)        order was accepted, the job it became
  *   a request to connect              → Orders, at "Asking to connect"
  *   a security / update notice        → Settings
+ *   an automatic invoice to check     → Invoices, that invoice opened (sql/151)
  *   a job shared with us (partners)   → "Shared with us", and only with the
  *                                       partners module; never for anything else
  *   anything else                     → nowhere (the text says it all)
@@ -20,6 +21,7 @@ export type NotificationTarget =
   | { to: 'requests' }
   | { to: 'settings'; group?: 'turvalisus' }
   | { to: 'partner' }
+  | { to: 'invoice'; invoiceId: string }
   | null
 
 /** The partnership's own notices: the only ones that may open "Shared with us". */
@@ -42,6 +44,11 @@ export function notificationTarget(
     return typeof order === 'string' && UUID.test(order) ? { to: 'order', orderId: order } : { to: 'requests' }
   }
   if (n.kind === 'client_request') return { to: 'requests' }
+  // sql/151: an automatic invoice to check.
+  if (n.kind === 'invoice_ready') {
+    const invoice = n.detail?.invoice
+    return typeof invoice === 'string' && UUID.test(invoice) ? { to: 'invoice', invoiceId: invoice } : null
+  }
   if (n.job_id && ctx.isOwnJob(n.job_id)) return { to: 'job', jobId: n.job_id }
   if (PARTNER_KINDS.has(n.kind) && n.job_id && ctx.partnersOn) return { to: 'partner' }
   return null

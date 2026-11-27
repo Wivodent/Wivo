@@ -43,6 +43,7 @@ import { SoundSection } from './Settings/SoundSection'
 import { SecuritySection } from './Settings/SecuritySection'
 import { DeletedJobsSection } from './Settings/DeletedJobsSection'
 import { InvoiceSettingsSection } from './Settings/InvoiceSettingsSection'
+import { AutoInvoiceSection } from './Settings/AutoInvoiceSection'
 import { InvoiceMailTemplateSection } from './Settings/InvoiceMailTemplateSection'
 import { DraftNumberInput, DraftTextInput } from './ui/DraftInput'
 import { InfoButton } from './ui/InfoButton'
@@ -1672,6 +1673,8 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
                 hint={t('settingsPage.daysFromTheInvoiceDateTo')}
               />
             </section>
+            {/* sql/151: automatic invoicing, off by default. */}
+            <div className="pt-6 border-t border-ink-faint/20"><AutoInvoiceSection onOpenEmail={() => setGroup('epost')} /></div>
             <div className="pt-6 border-t border-ink-faint/20"><InvoiceMailTemplateSection /></div>
           </div>
         )}

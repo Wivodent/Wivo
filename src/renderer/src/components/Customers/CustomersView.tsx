@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { Plus, Search, Building2, Archive, ArchiveRestore, Pencil, Trash2, Loader2, X, Download, FileText } from 'lucide-react'
 import { InvoiceForm } from '../Invoices/InvoiceForm'
+import { ClientAutoInvoiceFields } from './ClientAutoInvoice'
 import { billedKeys, unbilledCandidates } from '../../lib/invoiceCandidates'
 import { priceBookOf, useSettings } from '../../stores/useSettings'
 import type { Customer, CustomerInput } from '../../types/customer'
@@ -328,6 +329,9 @@ function CustomerForm({ customer, history, onClose }: {
                 onChange={e => set('country', e.target.value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 2) || null)} className="input uppercase" />
             </div>
           </div>
+
+          {/* sql/151: this client's automatic invoicing, over the clinic's. */}
+          <ClientAutoInvoiceFields value={form} onChange={patch => setForm(f => ({ ...f, ...patch }))} />
 
           <div className="grid grid-cols-2 gap-3">
             <div>

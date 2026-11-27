@@ -4,6 +4,8 @@
  */
 import { useEffect, useState } from 'react'
 import { problemReasonText } from '../lib/delivery'
+import { isAutoReason } from '@shared/billing/autoInvoice'
+import { autoReasonText } from './Invoices/AutoInvoiceNote'
 import { takeOpenNotificationsRequest, onOpenNotificationsRequest } from '../lib/openNotifications'
 import { formatDistanceToNow } from 'date-fns'
 import { Bell } from 'lucide-react'
@@ -84,6 +86,13 @@ export const text = (n: AppNotification, stageLabel: (key: string) => string): s
   if (n.kind === 'update_failed') return t('notifications.updateFailed', { version: String(n.detail.to ?? '') })
   if (n.kind === 'update_stale') return t('notifications.updateStale')
   // sql/125: Resend's limit, for owners.
+  // sql/151: an automatic invoice waits to be checked (why it is a draft), or could not be made.
+  if (n.kind === 'invoice_ready') {
+    if (n.detail.failed) return t('notifications.autoInvoiceFailed')
+    const reasons = (Array.isArray(n.detail.reasons) ? n.detail.reasons : []).filter(isAutoReason)
+    const client = String(n.detail.client ?? '')
+    return reasons.length ? t('notifications.invoiceReadyWhy', { client, why: reasons.map(autoReasonText).join('; ') }) : t('notifications.invoiceReady', { client })
+  }
   if (n.kind === 'mail_quota') return n.detail.limit === 'monthly' ? t('notifications.mailQuotaMonthly') : t('notifications.mailQuotaDaily')
   return t('notifications.question', { code })
 }
