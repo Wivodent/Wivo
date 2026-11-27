@@ -35,8 +35,6 @@ export const READ_TRACES: ReadonlySet<string> = new Set([
   'log_job_view', //               the audit entry for opening a job (078)
   'mark_job_seen', //              opening a job: no longer "new" for me (136)
   'open_partner_job', //           opening a partner's job, audited (071)
-  'request_file_download', //      the grant and audit entry before a file downloads (072)
-  'request_job_previews', //       a job's file previews (073)
   'preview_partnership_invite', // reading an invitation before accepting it (070)
   'audit_export', //               the audit entry an export leaves before the file is made (106)
   'patient_export', //             a patient's data export, audited (081)

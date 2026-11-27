@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2171.
+-- Expected rows: 2170.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -2097,9 +2097,6 @@ with expected(kind, key, def) as (values
     ('policy', 'public.workflow_template_stage_person.workflow_template_stage_person_write', 'PERMISSIVE ALL to public using (((org_id = my_org_id()) AND has_perm(''pipeline.write''::text))) check (((org_id = my_org_id()) AND has_perm(''pipeline.write''::text) AND profile_in_my_clinic(profile_id)))'),
     ('policy', 'storage.objects.bug_reports_insert', 'PERMISSIVE INSERT to authenticated using () check (((bucket_id = ''bug-reports''::text) AND bug_screenshot_slot_open(name)))'),
     ('policy', 'storage.objects.job_files_insert', 'PERMISSIVE INSERT to authenticated using () check (((bucket_id = ''job-files''::text) AND (upload_slot_open(name) OR preview_slot_open(name))))'),
-    ('policy', 'storage.objects.job_files_select', 'PERMISSIVE SELECT to authenticated using (((bucket_id = ''job-files''::text) AND (EXISTS ( SELECT 1
-   FROM file_download_grant g
-  WHERE ((g.storage_path = objects.name) AND (g.user_id = auth.uid()) AND (g.expires_at > now())))))) check ()'),
     ('policy', 'storage.objects.mfa_required', 'RESTRICTIVE ALL to authenticated using (( SELECT has_mfa() AS has_mfa)) check (( SELECT has_mfa() AS has_mfa))'),
     ('realtime', 'public.clinic_settings', 'in publication supabase_realtime'),
     ('realtime', 'public.customers', 'in publication supabase_realtime'),

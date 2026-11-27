@@ -21,6 +21,7 @@ import type { Job } from '../../types/job'
 import { describeError } from './errors'
 import { t } from '@/lib/i18n'
 import { translate, type Lang, type MessageKey } from '@shared/i18n'
+import { fileDownloadUrl } from '../../lib/fileLink'
 
 const esc = (s: unknown): string =>
   String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!)
@@ -61,12 +62,13 @@ export function PatientExport({ patient, jobs }: { patient: Patient; jobs: Job[]
     try {
       const { data, error: err } = await supabase.rpc('patient_export', { p_patient: patient.id })
       if (err) throw err
-      const files = (data ?? []) as { file_name: string; storage_path: string }[]
+      const files = (data ?? []) as { file_id: string; file_name: string }[]
       const entries: ZipEntry[] = []
       for (const f of files) {
-        const { data: link, error: linkErr } = await supabase.storage.from('job-files').createSignedUrl(f.storage_path, 120)
-        if (linkErr) throw linkErr
-        entries.push({ name: `files/${f.file_name}`, data: new Uint8Array(await (await fetch(link.signedUrl)).arrayBuffer()) })
+        // Each file through file-link (F6): the server signs, for a minute.
+        const res = await fetch(await fileDownloadUrl(f.file_id, f.file_name))
+        if (!res.ok) throw new Error(`${res.status}`)
+        entries.push({ name: `files/${f.file_name}`, data: new Uint8Array(await res.arrayBuffer()) })
       }
       const lang: Lang = clinic?.default_language ?? 'et'
       const html = documentHtml(lang, clinic?.name ?? '', patient, jobs, files.map(f => f.file_name))

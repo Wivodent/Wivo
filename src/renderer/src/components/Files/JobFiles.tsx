@@ -17,7 +17,7 @@ import { guessFileType, type JobFileType } from '../../lib/fileClean'
 import { enqueueUpload, enqueueFolderUpload, retryUpload, dismissUpload, useJobUploads, onUploadDone } from '../../lib/uploadQueue'
 import { folderName } from '../../lib/zipFolder'
 import { extensionOf } from '../../lib/fileClean'
-import { saveFile } from '../../lib/fileLink'
+import { jobPreviewUrls, saveFile } from '../../lib/fileLink'
 import { confirmSharedUpload } from '../../lib/sharedUpload'
 import { viewKind, viewerFor } from '../../lib/fileViewer'
 import { FileViewer, type ViewerFile } from './FileViewer'
@@ -76,13 +76,9 @@ export function JobFiles({ jobId, partner = false }: { jobId: string; partner?: 
     queryKey: ['job_previews', jobId, files.filter(f => f.completed).length],
     enabled: files.length > 0,
     staleTime: 4 * 60_000,
-    queryFn: async () => {
-      const { data, error: err } = await supabase.rpc('request_job_previews', { p_job: jobId })
-      if (err || !data?.length) return new Map()
-      const rows = data as { file_id: string; preview_path: string }[]
-      const { data: links } = await supabase.storage.from('job-files').createSignedUrls(rows.map(r => r.preview_path), 300)
-      return new Map(rows.map((r, i) => [r.file_id, links?.[i]?.signedUrl ?? ''] as [string, string]).filter(([, u]) => u))
-    },
+    // Through file-link (F6): rights and the audit entry in the database,
+    // the links signed by the server. No preview is no error: the list stays.
+    queryFn: () => jobPreviewUrls(jobId).catch(() => new Map<string, string>()),
   })
   const types = partner ? PARTNER_TYPES : ALL_TYPES
   // Adding a NEW file needs Edit jobs or Add files (may_upload_job_file,

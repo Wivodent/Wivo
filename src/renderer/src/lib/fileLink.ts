@@ -1,25 +1,42 @@
 /**
- * A download link for a job file. Preferably from the `file-link` Edge
- * Function, which audits and signs a 60-second link server-side, so the
- * client cannot choose a longer one. Until that function is deployed, the
- * previous path: the audited grant, then a link the client signs.
+ * The only way the app reaches a job's file: the `file-link` Edge Function
+ * (F6, 2.2.6). It checks the person's rights and writes the audit entry in
+ * the database, as the user, and then signs a link for a lifetime the SERVER
+ * chooses (60 s for a download, 300 s for a preview). The app never signs a
+ * storage link itself: from sql/137 on it has no right to.
+ *
+ * Refused for rights → "no permission" (42501, describeError). Any other
+ * failure (the function not reachable, the network) → a neutral "not
+ * available", never a way round it.
  */
 import { supabase } from './supabase'
 
-export async function fileDownloadUrl(fileId: string, fileName: string): Promise<string> {
-  const { data, error } = await supabase.functions.invoke('file-link', { body: { fileId } })
-  if (!error && typeof data?.url === 'string') return data.url
-  // Refused for rights: say so. Any other failure (not deployed, network):
-  // fall back to the grant path, which the database still audits.
-  if (error && 'context' in error && (error as { context?: Response }).context?.status === 403) {
-    // Said as "no permission" (describeError reads 42501), not the function's own words.
-    throw Object.assign(new Error('not allowed'), { code: '42501' })
+const notAllowed = (): Error => Object.assign(new Error('not allowed'), { code: '42501' })
+// Said as the neutral "not available yet" (describeError reads PGRST202 so).
+const notAvailable = (): Error => Object.assign(new Error('file link not available'), { code: 'PGRST202' })
+
+async function invokeFileLink<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('file-link', { body })
+  if (error) {
+    const status = 'context' in error ? (error as { context?: Response }).context?.status : undefined
+    throw status === 403 ? notAllowed() : notAvailable()
   }
-  const { data: path, error: rpcError } = await supabase.rpc('request_file_download', { p_file: fileId })
-  if (rpcError) throw rpcError
-  const { data: link, error: linkError } = await supabase.storage.from('job-files').createSignedUrl(path as string, 60, { download: fileName })
-  if (linkError || !link) throw linkError ?? new Error('No link')
-  return link.signedUrl
+  return data as T
+}
+
+export async function fileDownloadUrl(fileId: string, _fileName?: string): Promise<string> {
+  const data = await invokeFileLink<{ url?: unknown }>({ fileId })
+  if (typeof data?.url !== 'string') throw notAvailable()
+  return data.url
+}
+
+/** A job's ready previews: file id → a short-lived picture link. One audit entry for the job. */
+export async function jobPreviewUrls(jobId: string): Promise<Map<string, string>> {
+  const data = await invokeFileLink<{ previews?: unknown }>({ jobId, previews: true })
+  const list = Array.isArray(data?.previews) ? data.previews as { fileId?: unknown; url?: unknown }[] : []
+  return new Map(list
+    .filter((p): p is { fileId: string; url: string } => typeof p.fileId === 'string' && typeof p.url === 'string')
+    .map(p => [p.fileId, p.url] as [string, string]))
 }
 
 /** Save a job's file: the same signed, audited link, opened as a download. */

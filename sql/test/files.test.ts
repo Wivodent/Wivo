@@ -160,9 +160,9 @@ describe('downloading', () => {
     expect(await canSeeObject({ id: A.ownerId }, file.storage_path)).toBe(false)
   })
 
-  it('the RPC writes the audit row and opens a two-minute window', async () => {
+  it('the RPC writes the audit row; the object stays closed to the person (only file-link signs, sql/137)', async () => {
     await rowsAs(db, { id: B.workerId }, `select public.request_file_download($1)`, [file.id])
-    expect(await canSeeObject({ id: B.workerId }, file.storage_path)).toBe(true)
+    expect(await canSeeObject({ id: B.workerId }, file.storage_path)).toBe(false)
     expect(await canSeeObject({ id: C.ownerId }, file.storage_path)).toBe(false)
     for (const org of [A.clinicId, B.clinicId]) {
       const { rows } = await db.query(`select 1 from public.audit_log where org_id = $1 and action = 'download' and object = $2`, [org, 'file:' + file.id])
@@ -192,7 +192,7 @@ describe('anon', () => {
 })
 
 describe('previews (sql/073)', () => {
-  it('the uploader stores a preview next to the file; readers get it with a grant and one audit row', async () => {
+  it('the uploader stores a preview next to the file; readers are listed it with one audit row (file-link signs it)', async () => {
     const f = await register({ id: A.ownerId }, 'scan')
     await upload({ id: A.ownerId }, f.storage_path)
     await rowsAs(db, { id: A.ownerId }, `select public.confirm_job_file($1)`, [f.id])
@@ -204,7 +204,8 @@ describe('previews (sql/073)', () => {
     expect(await canSeeObject({ id: B.workerId }, path)).toBe(false)
     const previews = await rowsAs<{ file_id: string }>(db, { id: B.workerId }, `select * from public.request_job_previews($1)`, [jobId])
     expect(previews.map(p => p.file_id)).toContain(f.id)
-    expect(await canSeeObject({ id: B.workerId }, path)).toBe(true)
+    // From sql/137 the grant opens nothing: the file-link function signs the preview.
+    expect(await canSeeObject({ id: B.workerId }, path)).toBe(false)
   })
 
   it('someone else cannot put a preview on your file, and a stranger gets none', async () => {
@@ -216,12 +217,12 @@ describe('previews (sql/073)', () => {
 })
 
 describe('export for the patient (sql/074)', () => {
-  it('lists the patient\'s live files, grants them, and logs one export row', async () => {
+  it('lists the patient\'s live files and logs one export row (file-link fetches them)', async () => {
     const { rows: [p] } = await db.query<{ id: string }>(`insert into public.patients (clinic_id, nimi) values ($1, 'Export Person') returning id`, [A.clinicId])
     await db.query(`update public.jobs set patient_id = $1 where id = $2`, [p.id, jobId])
     const files = await rowsAs<{ storage_path: string }>(db, { id: A.ownerId }, `select * from public.patient_export($1)`, [p.id])
     expect(files.length).toBeGreaterThan(0)
-    expect(await canSeeObject({ id: A.ownerId }, files[0].storage_path)).toBe(true)
+    expect(await canSeeObject({ id: A.ownerId }, files[0].storage_path)).toBe(false)
     const { rows } = await db.query<{ detail: { files: number } }>(
       `select detail from public.audit_log where action = 'export' and object = $1`, ['patient:' + p.id])
     expect(rows).toEqual([{ detail: { files: files.length } }])
