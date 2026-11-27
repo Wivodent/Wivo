@@ -30,6 +30,8 @@ export interface Customer {
   vat_number: string | null
   address: string | null
   email: string | null
+  /** sql/152: where invoices go, before `email` (the card, or the client's own Network profile). */
+  billing_email?: string | null
   cc_emails: string[]
   phone: string | null
   contact_name: string | null
@@ -64,6 +66,7 @@ export const EMPTY_CUSTOMER: CustomerInput = {
   vat_number: null,
   address: null,
   email: null,
+  billing_email: null,
   cc_emails: [],
   phone: null,
   contact_name: null,

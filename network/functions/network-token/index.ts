@@ -46,6 +46,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
       if (error || !Array.isArray(data) || data.length !== 1) return null
       return data[0] as { email: string | null; email_notifications: boolean }
     },
+    // Network 004: without it, the token simply carries no billing e-mail.
+    billing: async (clinicId) => {
+      const { data, error } = await asAccount.rpc('token_billing', { p_clinic: clinicId })
+      if (error) return undefined
+      return typeof data === 'string' && data.trim() ? data.trim() : null
+    },
   })
   return json(answer.status, answer.body)
 })

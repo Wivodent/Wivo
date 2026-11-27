@@ -212,6 +212,10 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
   // Network 003: e-mails from clinics about orders (subject and a link only). Shown once the Network has it.
   const hasMailChoice = account?.email_notifications !== undefined
   const [mail, setMail] = useState(account?.email_notifications ?? true)
+  // Network 004: the address the clinics send invoices to (optional). Shown once the Network has it.
+  const hasBilling = account?.billing_email !== undefined
+  const [billing, setBilling] = useState(account?.billing_email ?? '')
+  const billingOk = !billing.trim() || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(billing.trim())
   const roles: Account['role'][] = ['technician', 'doctor', 'clinic', 'lab']
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -219,7 +223,8 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
     try {
       await saveAccount({ kind, role, display_name: name.trim(), company_name: company.trim() || null,
         country: /^[A-Za-z]{2}$/.test(country.trim()) ? country.trim().toUpperCase() : null, city: city.trim() || null,
-        ...(hasMailChoice ? { email_notifications: mail } : {}) }, !account)
+        ...(hasMailChoice ? { email_notifications: mail } : {}),
+        ...(hasBilling ? { billing_email: billing.trim() || null } : {}) }, !account)
       onSaved()
     } catch { setError(t('network.errInvalid')) }
   }
@@ -259,8 +264,13 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
           <span>{t('network.emailNotices')}<span className="block text-sm text-ink-muted">{t('network.emailNoticesHelp')}</span></span>
         </label>
       )}
+      {hasBilling && (
+        <label className="block"><span className="label">{t('network.billingEmail')}</span>
+          <input type="email" className="input h-12 text-base" maxLength={254} value={billing} onChange={e => setBilling(e.target.value)} autoComplete="email" />
+          <span className={`block text-sm ${billingOk ? 'text-ink-muted' : 'text-rose-600'}`}>{billingOk ? t('network.billingEmailHelp') : t('network.billingEmailBad')}</span></label>
+      )}
       {error && <p className="text-base text-rose-600">{error}</p>}
-      <button type="submit" disabled={!name.trim()} className={`btn-primary justify-center ${big}`}>{t('network.saveProfile')}</button>
+      <button type="submit" disabled={!name.trim() || !billingOk} className={`btn-primary justify-center ${big}`}>{t('network.saveProfile')}</button>
     </form>
   )
 }

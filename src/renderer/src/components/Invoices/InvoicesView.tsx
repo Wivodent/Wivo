@@ -36,6 +36,8 @@ interface InvoicesViewProps {
   onOpenSettings?: () => void
   /** Open this invoice (a bell's "Invoice ready to check", sql/151). */
   focus?: { invoiceId?: string; n: number }
+  /** A client's card (an automatic invoice's "Add e-mail", sql/152). */
+  onOpenCustomer?: (customerId: string) => void
 }
 
 const STATUS_FILTERS: { key: InvoiceStatus | 'koik' | 'tasumata'; label: string }[] = [
@@ -46,7 +48,7 @@ const STATUS_FILTERS: { key: InvoiceStatus | 'koik' | 'tasumata'; label: string 
   { key: 'makstud', label: t('invoices.paid') },
 ]
 
-export function InvoicesView({ jobs, onOpenSettings, focus }: InvoicesViewProps) {
+export function InvoicesView({ jobs, onOpenSettings, focus, onOpenCustomer }: InvoicesViewProps) {
   const { data: invoices = [], isLoading, isError, error } = useInvoices()
   const { can } = usePermissions()
   const auth = useAuth()
@@ -282,6 +284,7 @@ export function InvoicesView({ jobs, onOpenSettings, focus }: InvoicesViewProps)
         <InvoiceDetail
           invoice={selected}
           canWrite={canWrite}
+          onOpenCustomer={onOpenCustomer}
           onClose={() => setSelectedId(null)}
           onStatus={setStatus}
           all={invoices}
@@ -314,9 +317,10 @@ export function InvoicesView({ jobs, onOpenSettings, focus }: InvoicesViewProps)
 
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 
-function InvoiceDetail({ invoice, canWrite, onClose, onStatus, all, onDeleted, onOpen, onPrint }: {
+function InvoiceDetail({ invoice, canWrite, onClose, onStatus, all, onDeleted, onOpen, onPrint, onOpenCustomer }: {
   invoice: InvoiceFull
   canWrite: boolean
+  onOpenCustomer?: (customerId: string) => void
   onClose: () => void
   onStatus: (inv: InvoiceFull, s: InvoiceStatus) => void
   /** Every invoice (a credit note and the invoice it credits name each other). */
@@ -384,7 +388,7 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, all, onDeleted, o
             {/* sql/149: a draft has no number until it is issued (marked Sent, or e-mailed). */}
             {isDraftNumber(invoice.number) && <p className="text-[11px] text-ink-muted">{t('invoices.draftNumberHint')}</p>}
             {/* sql/151: made automatically, and why a draft. */}
-            <div className="mt-1"><AutoInvoiceNote invoice={invoice} /></div>
+            <div className="mt-1"><AutoInvoiceNote invoice={invoice} onAddEmail={onOpenCustomer} /></div>
             <p className="text-sm text-ink-muted flex items-center gap-1.5">
               {invoice.bill_to_kind === 'customer'
                 ? <Building2 size={12} className="text-ink-faint" />

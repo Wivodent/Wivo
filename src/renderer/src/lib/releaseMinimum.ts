@@ -28,6 +28,8 @@ export const READ_FUNCTIONS: ReadonlySet<string> = new Set([
   'job_delete_check',
   // sql/150: the number a draft will get, read for its e-mail without taking it.
   'upcoming_invoice_number',
+  // sql/152: where a client's invoice goes, for "Send by e-mail".
+  'invoice_recipient_email',
   'open_questions', 'partner_orgs', 'partner_stock', 'pay_settings', 'preview_order_reference', 'team_accounts', 'update_status',
 ])
 

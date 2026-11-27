@@ -48,6 +48,12 @@ export interface NetworkTokenPayload {
    */
   email?: string | null
   mail?: boolean
+  /**
+   * The address the account's invoices go to, when it gave one (Network 004):
+   * the clinic's record of the account gets it as its billing e-mail
+   * (the clinic's sql/152). Absent from older tokens.
+   */
+  billing?: string | null
   iat: number
   exp: number
 }
@@ -85,6 +91,8 @@ export function payloadProblem(p: unknown): string | null {
   if (x.email !== undefined && x.email !== null
     && (typeof x.email !== 'string' || x.email.length > 254 || !/^[^@\s]+@[^@\s]+$/.test(x.email))) return 'email'
   if (x.mail !== undefined && typeof x.mail !== 'boolean') return 'mail'
+  if (x.billing !== undefined && x.billing !== null
+    && (typeof x.billing !== 'string' || x.billing.length > 254 || !/^[^@\s]+@[^@\s]+$/.test(x.billing))) return 'billing'
   if (!Number.isInteger(x.iat) || !Number.isInteger(x.exp)) return 'times'
   if ((x.exp as number) <= (x.iat as number) || (x.exp as number) - (x.iat as number) > NETWORK_TOKEN_SECONDS) return 'lifetime'
   return null

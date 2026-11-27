@@ -16,7 +16,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useSettings } from '../../stores/useSettings'
 import { useCustomers } from '../../hooks/useCustomers'
 import { clinicCountry } from '../../lib/country'
-import { prefillLetter, renumberLetter, sendInvoiceByEmail, SendInvoiceError, type SendErrorCode, type Letter } from '../../lib/invoiceSend'
+import { prefillLetter, renumberLetter, clientInvoiceAddress, sendInvoiceByEmail, SendInvoiceError, type SendErrorCode, type Letter } from '../../lib/invoiceSend'
 import { isDraftNumber } from '../../types/invoice'
 import { docLanguageFor } from '@shared/billing/countryInvoice'
 import { splitAddresses, looksLikeEmail, HAND_SEND_MAX_RECIPIENTS } from '@shared/billing/sendGuard'
@@ -76,10 +76,22 @@ export function SendInvoiceDialog({ invoice, onClose }: { invoice: InvoiceFull; 
       return error ? null : (data as string | null) ?? null
     },
   })
+  // A client: its billing e-mail, else its invoice e-mail, else the ordering Network account's (sql/152).
+  const clientAddress = useQuery<string | null>({
+    queryKey: ['invoice-recipient', invoice.customer_id],
+    enabled: invoice.bill_to_kind === 'customer' && !!invoice.customer_id,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('invoice_recipient_email', { p_customer: invoice.customer_id })
+      return error ? null : (data as string | null) ?? null
+    },
+  })
+  const client = invoice.bill_to_kind === 'customer' ? customers.find(c => c.id === invoice.customer_id) ?? null : null
   const addressee = invoice.bill_to_kind === 'customer'
-    ? customers.find(c => c.id === invoice.customer_id) ?? null
+    ? { email: clientAddress.data ?? clientInvoiceAddress(client), cc_emails: client?.cc_emails ?? [] }
     : { email: patientEmail.data ?? null }
-  const ready = (invoice.bill_to_kind === 'customer' ? customers.length > 0 || !invoice.customer_id : !invoice.patient_id || patientEmail.isFetched)
+  const ready = (invoice.bill_to_kind === 'customer'
+    ? (customers.length > 0 || !invoice.customer_id) && (!invoice.customer_id || clientAddress.isFetched)
+    : !invoice.patient_id || patientEmail.isFetched)
     && (!draft || upcoming.isFetched)
   const start = useMemo(() => prefillLetter(invoice, clinic, language, settings.epost, addressee, upcoming.data),
     // Filled once, when what it is made from has arrived; edits are the person's after that.

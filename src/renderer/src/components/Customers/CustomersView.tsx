@@ -5,7 +5,7 @@
  * profile. `sql/035` explains the naming collision; the UI keeps them apart by
  * calling this one "Kliendid" and never "Kliinikud".
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { Plus, Search, Building2, Archive, ArchiveRestore, Pencil, Trash2, Loader2, X, Download, FileText } from 'lucide-react'
 import { InvoiceForm } from '../Invoices/InvoiceForm'
@@ -27,7 +27,7 @@ import { CUSTOMER_COLUMNS } from '../../lib/exports'
 import { auditedCsvExport, isSet } from '../../lib/exportAudit'
 import { t } from '@/lib/i18n'
 
-export function CustomersView() {
+export function CustomersView({ focus }: { focus?: { customerId?: string; n: number } } = {}) {
   const { data: customers = [], isLoading } = useCustomers()
   const { data: jobs = [] } = useJobs()
   const { data: invoices = [] } = useInvoices()
@@ -54,6 +54,16 @@ export function CustomersView() {
   const [query, setQuery] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [editing, setEditing] = useState<Customer | 'new' | null>(null)
+  // An invoice's "Add e-mail" opens this client's card (sql/151–152).
+  const [focusEmail, setFocusEmail] = useState(false)
+  const handledFocus = useRef(0)
+  useEffect(() => {
+    if (!focus?.customerId || focus.n === handledFocus.current) return
+    const c = customers.find(x => x.id === focus.customerId)
+    if (!c) return   // the list is still loading: tried again when it arrives
+    handledFocus.current = focus.n
+    setEditing(c); setFocusEmail(true)
+  }, [focus, customers])
 
   // What each customer has behind them. Drives both the list columns and the
   // "can this be deleted" answer — a customer with history is archived, never
@@ -199,7 +209,8 @@ export function CustomersView() {
         <CustomerForm
           customer={editing === 'new' ? null : editing}
           history={editing === 'new' ? { jobs: 0, invoices: 0 } : (stats.get(editing.id) ?? { jobs: 0, invoices: 0 })}
-          onClose={() => setEditing(null)}
+          onClose={() => { setEditing(null); setFocusEmail(false) }}
+          focusEmail={focusEmail}
         />
       )}
     </div>
@@ -208,8 +219,10 @@ export function CustomersView() {
 
 // ─── Form ─────────────────────────────────────────────────────────────────────
 
-function CustomerForm({ customer, history, onClose }: {
+function CustomerForm({ customer, history, onClose, focusEmail = false }: {
   customer: Customer | null
+  /** Opened from an invoice's "Add e-mail" (sql/151): the cursor in the invoice e-mail. */
+  focusEmail?: boolean
   history: { jobs: number; invoices: number }
   onClose: () => void
 }) {
@@ -344,15 +357,24 @@ function CustomerForm({ customer, history, onClose }: {
             </div>
           </div>
 
-          <div>
-            <label className="label">{t('customers.email')}</label>
-            <input
-              type="email"
-              value={form.email ?? ''}
-              onChange={e => set('email', e.target.value || null)}
-              className="input"
-            />
+          {/* sql/152: an invoice goes to the billing e-mail, else the invoice e-mail, else the Network account's. */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">{t('customers.invoiceEmail')}</label>
+              <input
+                type="email"
+                value={form.email ?? ''}
+                onChange={e => set('email', e.target.value || null)}
+                className="input"
+                autoFocus={focusEmail}
+              />
+            </div>
+            <div>
+              <label className="label">{t('customers.billingEmail')}</label>
+              <input type="email" value={form.billing_email ?? ''} onChange={e => set('billing_email', e.target.value.trim() || null)} className="input" />
+            </div>
           </div>
+          <p className="-mt-2 text-[11px] text-ink-faint">{t('customers.billingEmailHint')}</p>
 
           <div>
             <label className="label">{t('customers.billing')}</label>

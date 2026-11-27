@@ -18,7 +18,7 @@
 -- No rows: this database matches the migrations in all of it.
 --
 -- Covered: trigger.
--- Expected rows: 70.
+-- Expected rows: 71.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -68,6 +68,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.messages.guard_partner_visible_message', 'CREATE TRIGGER guard_partner_visible_message BEFORE INSERT OR UPDATE OF body ON public.messages FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_message()'),
     ('trigger', 'public.messages.question_notify', 'CREATE TRIGGER question_notify AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION on_question_notify()'),
     ('trigger', 'public.messages.stamp_message_org', 'CREATE TRIGGER stamp_message_org BEFORE INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION stamp_message_org()'),
+    ('trigger', 'public.network_client.network_client_customer_contact', 'CREATE TRIGGER network_client_customer_contact AFTER INSERT OR UPDATE OF state, customer_id, email, billing_email ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_customer_contact()'),
     ('trigger', 'public.network_client.network_client_customer_country', 'CREATE TRIGGER network_client_customer_country AFTER INSERT OR UPDATE OF customer_id, country ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_customer_country()'),
     ('trigger', 'public.network_client.network_client_relink_jobs', 'CREATE TRIGGER network_client_relink_jobs AFTER UPDATE OF customer_id ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_relink_jobs()'),
     ('trigger', 'public.network_client.network_client_state_notices', 'CREATE TRIGGER network_client_state_notices AFTER UPDATE OF state ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_state_notices()'),

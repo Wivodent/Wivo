@@ -268,9 +268,13 @@ Deno.serve(async (req: Request): Promise<Response> => {
  */
 async function recipientFor(inv: Record<string, unknown>): Promise<string | null> {
   if (inv.bill_to_kind === 'customer' && inv.customer_id) {
-    const { data } = await db
+    // sql/152: the billing e-mail, else the invoice e-mail, else the ordering Network account's.
+    const { data, error } = await db.rpc('customer_invoice_address', { p_customer: inv.customer_id })
+    if (!error) return (data as string | null) ?? null
+    // A database before 152: the invoice e-mail, as before.
+    const { data: row } = await db
       .from('customers').select('email').eq('id', inv.customer_id).maybeSingle()
-    return (data?.email as string | null) ?? null
+    return (row?.email as string | null) ?? null
   }
   if (inv.patient_id) {
     const { data } = await db

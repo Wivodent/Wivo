@@ -64,7 +64,7 @@ describe('Latvian invoices on the screens', () => {
     const money = home.slice(home.indexOf('const moneyTiles'), home.indexOf('const requestHref'))
     expect(money).toContain("g('arved', t('settingsHome.invoices'), t('settingsHome.invoicesDesc'))")
     expect(read('src/renderer/src/components/Invoices/InvoicesView.tsx')).toContain("<button type=\"button\" onClick={onOpenSettings} className=\"btn-ghost p-1.5\" title={t('invoices.settings')}")
-    expect(read('src/renderer/src/App.tsx')).toContain("<InvoicesView jobs={jobs} focus={invoicesFocus} onOpenSettings={() => { setSettingsAt(a => ({ group: 'arved', n: a.n + 1 })); setView('settings') }} />")
+    expect(read('src/renderer/src/App.tsx')).toContain("<InvoicesView jobs={jobs} focus={invoicesFocus} onOpenCustomer={id => { setCustomersFocus(f => ({ customerId: id, n: f.n + 1 })); setView('kliendid') }} onOpenSettings={() => { setSettingsAt(a => ({ group: 'arved', n: a.n + 1 })); setView('settings') }} />")
   })
   it('a settings group opens at the top, not where the home page was scrolled to (Money → Invoices)', () => {
     const page = read('src/renderer/src/components/SettingsPage.tsx')

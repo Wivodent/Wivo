@@ -42,6 +42,16 @@ export function prefillLetter(invoice: DocInvoice, clinic: DocClinic | null, lan
   }
 }
 
+/**
+ * Where a client's invoice goes (sql/152): its billing e-mail, else its invoice
+ * e-mail, else the ordering Network account's address (`networkAddress`, which
+ * the database's invoice_recipient_email gives with the other two).
+ */
+export function clientInvoiceAddress(client: { billing_email?: string | null; email?: string | null } | null | undefined,
+  networkAddress?: string | null): string | null {
+  return [client?.billing_email, client?.email, networkAddress].map(a => (a ?? '').trim()).find(Boolean) ?? null
+}
+
 /** The subject and the message with the old number replaced by the one the invoice got (number_changed). */
 export function renumberLetter(letter: { subject: string; message: string }, from: string, to: string): { subject: string; message: string } {
   if (!from || from === to) return letter

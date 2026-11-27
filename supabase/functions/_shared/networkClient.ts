@@ -100,6 +100,11 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
     if (p.email !== undefined) {
       await deps.rpc('client_set_contact', { p_network_clinic: p.aud, p_account: p.sub, p_email: p.email, p_mail: p.mail ?? true }).catch(() => null)
     }
+    // The billing e-mail the token carries (Network 004), onto the client's record here (sql/152).
+    // A database without 152 says no: that changes nothing about the connection.
+    if (p.billing !== undefined) {
+      await deps.rpc('client_set_billing', { p_network_clinic: p.aud, p_account: p.sub, p_billing: p.billing }).catch(() => null)
+    }
     return { status: 200, body: r.data as Record<string, unknown> }
   }
 

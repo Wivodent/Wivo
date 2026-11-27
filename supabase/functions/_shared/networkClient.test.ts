@@ -55,6 +55,18 @@ describe('network-client', () => {
     expect(connect.args).toMatchObject({ p_network_clinic: CLINIC_A, p_account: 'cccccccc-0000-4000-8000-000000000003' })
     // An older token (no e-mail fields): no contact is stored.
     expect(calls.some(c => c.fn === 'client_set_contact')).toBe(false)
+    expect(calls.some(c => c.fn === 'client_set_billing')).toBe(false)
+  })
+
+  it('connect: the billing e-mail in the token goes onto the client here (Network 004, sql/152); removed, it says so', async () => {
+    const net = await makeNetworkKeyPair()
+    const { deps, calls } = await setup({ [CLINIC_A]: { key: net.publicKey } })
+    await handleNetworkClient({ action: 'connect', networkToken: await tokenFor(CLINIC_A, net.privateKey, { email: 'tess@fake.test', billing: 'invoices@fake.test' }) }, deps)
+    expect(calls.find(c => c.fn === 'client_set_billing')!.args).toEqual({
+      p_network_clinic: CLINIC_A, p_account: 'cccccccc-0000-4000-8000-000000000003', p_billing: 'invoices@fake.test' })
+    const again = await setup({ [CLINIC_A]: { key: net.publicKey } })
+    await handleNetworkClient({ action: 'connect', networkToken: await tokenFor(CLINIC_A, net.privateKey, { billing: null }) }, again.deps)
+    expect(again.calls.find(c => c.fn === 'client_set_billing')!.args).toMatchObject({ p_billing: null })
   })
 
   it('connect: the address and e-mail choice in the token are kept for the e-mails of the clinic (sql/142)', async () => {

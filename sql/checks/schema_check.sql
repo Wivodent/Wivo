@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2838.
+-- Expected rows: 2850.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -112,6 +112,7 @@ with expected(kind, key, def) as (values
     ('constraint', 'public.customers.customers_auto_invoice_mode_valid', 'CHECK (((auto_invoice_mode IS NULL) OR (auto_invoice_mode = ANY (ARRAY[''per_job''::text, ''monthly''::text]))))'),
     ('constraint', 'public.customers.customers_auto_invoice_send_valid', 'CHECK (((auto_invoice_send IS NULL) OR (auto_invoice_send = ANY (ARRAY[''auto''::text, ''draft''::text]))))'),
     ('constraint', 'public.customers.customers_auto_invoice_trigger_valid', 'CHECK (((auto_invoice_trigger IS NULL) OR (auto_invoice_trigger = ANY (ARRAY[''received''::text, ''fitted''::text]))))'),
+    ('constraint', 'public.customers.customers_billing_email_valid', 'CHECK (((billing_email IS NULL) OR (((length(billing_email) >= 3) AND (length(billing_email) <= 254)) AND (billing_email ~ ''^[^@[:space:]]+@[^@[:space:]]+$''::text))))'),
     ('constraint', 'public.customers.customers_billing_mode_check', 'CHECK ((billing_mode = ANY (ARRAY[''per_job''::text, ''monthly''::text])))'),
     ('constraint', 'public.customers.customers_clinic_id_fkey', 'FOREIGN KEY (clinic_id) REFERENCES clinics(id) ON DELETE CASCADE'),
     ('constraint', 'public.customers.customers_country_valid', 'CHECK (((country IS NULL) OR (country ~ ''^[A-Z]{2}$''::text)))'),
@@ -275,6 +276,7 @@ with expected(kind, key, def) as (values
     ('constraint', 'public.mfa_attempt.mfa_attempt_org_id_fkey', 'FOREIGN KEY (org_id) REFERENCES clinics(id) ON DELETE CASCADE'),
     ('constraint', 'public.mfa_attempt.mfa_attempt_pkey', 'PRIMARY KEY (id)'),
     ('constraint', 'public.mfa_attempt.mfa_attempt_user_id_fkey', 'FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE'),
+    ('constraint', 'public.network_client.network_client_billing_email_valid', 'CHECK (((billing_email IS NULL) OR (((length(billing_email) >= 3) AND (length(billing_email) <= 254)) AND (billing_email ~ ''^[^@[:space:]]+@[^@[:space:]]+$''::text))))'),
     ('constraint', 'public.network_client.network_client_can_see_object', 'CHECK ((jsonb_typeof(can_see) = ''object''::text))'),
     ('constraint', 'public.network_client.network_client_company_valid', 'CHECK (((company_name IS NULL) OR (length(company_name) <= 160)))'),
     ('constraint', 'public.network_client.network_client_country_valid', 'CHECK (((country IS NULL) OR (country ~ ''^[A-Z]{2}$''::text)))'),
@@ -796,7 +798,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.authorize_mfa_removal(p_factor uuid, p_password text)', 'security definer, volatile, search_path=public, body md5 72a67295b232dcb89b2cbaf32cbf9fb7'),
     ('function', 'public.authorize_mfa_reset(p_user uuid, p_reason text)', 'security definer, volatile, search_path=public, body md5 7929d733c566caabe31fba35cfc7210b'),
     ('function', 'public.authorize_password_set(p_user uuid)', 'security definer, stable, search_path=public, body md5 fc3c1a7574b62589f18977dbd904590a'),
-    ('function', 'public.auto_invoice_make(p_items uuid[], p_period text)', 'security definer, volatile, search_path=public, body md5 67586452d3df29d5d228640ab08e1515'),
+    ('function', 'public.auto_invoice_make(p_items uuid[], p_period text)', 'security definer, volatile, search_path=public, body md5 8a96b6006394566539ed04d46e5f92b7'),
     ('function', 'public.auto_invoice_period(p_clinic uuid, p_at timestamp with time zone)', 'security invoker, stable, search_path=public, body md5 19113b97b9405b4ecbdfe49d59e4ecf4'),
     ('function', 'public.auto_invoice_policy(p_clinic uuid, p_customer uuid)', 'security definer, stable, search_path=public, body md5 c6d9f5bc11c4aab7625f836433283c6c'),
     ('function', 'public.auto_invoice_run()', 'security definer, volatile, search_path=public, body md5 18c2799bba7485d9f3580807d267cf5e'),
@@ -835,6 +837,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.client_report_problem(p_session text, p_order uuid, p_reason text, p_note text)', 'security definer, volatile, search_path=public, body md5 7299dd6df793bd745f8df61e7523031f'),
     ('function', 'public.client_review(p_session text, p_message uuid, p_decision text, p_comment text)', 'security definer, volatile, search_path=public, body md5 f6b5bfc3a9e40cb1570268dc6116ea61'),
     ('function', 'public.client_sent_order(c network_client, p_order uuid)', 'security definer, stable, search_path=public, body md5 a5354e9e328ffc8bca95eb1b7a1919db'),
+    ('function', 'public.client_set_billing(p_network_clinic uuid, p_account uuid, p_billing text)', 'security definer, volatile, search_path=public, body md5 432d558f768d9b69a6cabc74c5738df0'),
     ('function', 'public.client_set_contact(p_network_clinic uuid, p_account uuid, p_email text, p_mail boolean)', 'security definer, volatile, search_path=public, body md5 3ea284b13262b19790fd83acb08408b2'),
     ('function', 'public.clinic_has_members(p_clinic uuid)', 'security definer, stable, search_path=public, body md5 489cb44e3fde6ae3e9369daf5b4f4b05'),
     ('function', 'public.clinic_settings_private()', 'security definer, stable, search_path=public, body md5 21f1d6f371094951d80c8793723f2934'),
@@ -850,6 +853,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.create_partnership_invite()', 'security definer, volatile, search_path=public, extensions, body md5 cc73bc00dac8f6029e833648989dc495'),
     ('function', 'public.create_payout(p_profile uuid, p_period_start date, p_period_end date, p_note text, p_lines jsonb)', 'security invoker, volatile, search_path=public, body md5 452e7632e9cd8556fa07618c2e9abcd6'),
     ('function', 'public.create_worker_invite()', 'security definer, volatile, search_path=public, extensions, body md5 e75bf693b2dcd6b890f88df153e1ede6'),
+    ('function', 'public.customer_invoice_address(p_customer uuid)', 'security definer, stable, search_path=public, body md5 d3899af08ee8ab23c16c4e69089144ff'),
     ('function', 'public.customers_full()', 'security definer, stable, search_path=public, body md5 5f531f69cebbc4ef3a6fc41ce6bbf8f4'),
     ('function', 'public.default_template(p_org uuid)', 'security definer, stable, search_path=public, body md5 8725e933801930dbaf2064cd700a0530'),
     ('function', 'public.delete_invoice(p_invoice uuid)', 'security definer, volatile, search_path=public, body md5 f54579b3abae44120314f71b2902a509'),
@@ -890,6 +894,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.invoice_lines_once()', 'security definer, volatile, search_path=public, body md5 35992c037cf328384476cfe0c010a459'),
     ('function', 'public.invoice_lines_touch()', 'security definer, volatile, search_path=public, body md5 6d05ff87d9d8314651ac19bc50db91e9'),
     ('function', 'public.invoice_prefix(p_clinic uuid)', 'security definer, stable, search_path=public, body md5 7aab886c3e29df67c1ced26cd06215fb'),
+    ('function', 'public.invoice_recipient_email(p_customer uuid)', 'security definer, stable, search_path=public, body md5 7cdb0cf45ea0d70f7d95bce89e1fb5e1'),
     ('function', 'public.invoice_send_prepare(p_invoice uuid)', 'security definer, stable, search_path=public, body md5 94d814f426be2b5dbab7d4ea49565de2'),
     ('function', 'public.invoice_send_record(p_invoice uuid, p_by uuid, p_to text[], p_subject text, p_copy boolean, p_redirected text, p_ok boolean, p_error text)', 'security definer, volatile, search_path=public, body md5 b81c3e712e6f22a570a554d8c8adf9fd'),
     ('function', 'public.invoices_delete_guard()', 'security definer, volatile, search_path=public, body md5 220a386eeb7291af459e0e66a739316c'),
@@ -959,6 +964,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.my_share(p_job uuid)', 'security definer, stable, search_path=public, body md5 b46a16e9f91eff0de6d92c736d125cac'),
     ('function', 'public.my_stage_jobs()', 'security definer, stable, search_path=public, body md5 efbb10cb25ccb3c190b976721a902f1e'),
     ('function', 'public.my_stock_item(p_item uuid)', 'security definer, volatile, search_path=public, body md5 102659dfb05ed38338af94421f511d68'),
+    ('function', 'public.network_client_customer_contact()', 'security definer, volatile, search_path=public, body md5 21bd5d0944d4b47b112687d658fa9f3b'),
     ('function', 'public.network_client_customer_country()', 'security definer, volatile, search_path=public, body md5 783d2d8224dcdc62fde564bbc0a7296e'),
     ('function', 'public.network_client_relink_jobs()', 'security definer, volatile, search_path=public, body md5 405449952b5828522595d253a077bf72'),
     ('function', 'public.network_client_state_notices()', 'security definer, volatile, search_path=public, body md5 31a413d56fe292b7fcee7755a0c60c8d'),
@@ -1265,6 +1271,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.client_report_problem(p_session text, p_order uuid, p_reason text, p_note text) to service_role', 'EXECUTE'),
     ('grant', 'public.client_review(p_session text, p_message uuid, p_decision text, p_comment text) to service_role', 'EXECUTE'),
     ('grant', 'public.client_sent_order(c network_client, p_order uuid) to service_role', 'EXECUTE'),
+    ('grant', 'public.client_set_billing(p_network_clinic uuid, p_account uuid, p_billing text) to service_role', 'EXECUTE'),
     ('grant', 'public.client_set_contact(p_network_clinic uuid, p_account uuid, p_email text, p_mail boolean) to service_role', 'EXECUTE'),
     ('grant', 'public.clinic_has_members(p_clinic uuid) to authenticated', 'EXECUTE'),
     ('grant', 'public.clinic_has_members(p_clinic uuid) to service_role', 'EXECUTE'),
@@ -1310,6 +1317,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.create_payout(p_profile uuid, p_period_start date, p_period_end date, p_note text, p_lines jsonb) to service_role', 'EXECUTE'),
     ('grant', 'public.create_worker_invite() to authenticated', 'EXECUTE'),
     ('grant', 'public.create_worker_invite() to service_role', 'EXECUTE'),
+    ('grant', 'public.customer_invoice_address(p_customer uuid) to service_role', 'EXECUTE'),
     ('grant', 'public.customers to authenticated', 'DELETE,INSERT,MAINTAIN,REFERENCES,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.customers to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.customers.archived_at to authenticated', 'SELECT'),
@@ -1415,6 +1423,8 @@ with expected(kind, key, def) as (values
     ('grant', 'public.invoice_lines_touch() to authenticated', 'EXECUTE'),
     ('grant', 'public.invoice_lines_touch() to service_role', 'EXECUTE'),
     ('grant', 'public.invoice_prefix(p_clinic uuid) to service_role', 'EXECUTE'),
+    ('grant', 'public.invoice_recipient_email(p_customer uuid) to authenticated', 'EXECUTE'),
+    ('grant', 'public.invoice_recipient_email(p_customer uuid) to service_role', 'EXECUTE'),
     ('grant', 'public.invoice_send_log to authenticated', 'SELECT'),
     ('grant', 'public.invoice_send_log to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
     ('grant', 'public.invoice_send_prepare(p_invoice uuid) to authenticated', 'EXECUTE'),
@@ -1553,6 +1563,7 @@ with expected(kind, key, def) as (values
     ('grant', 'public.my_stock_item(p_item uuid) to service_role', 'EXECUTE'),
     ('grant', 'public.network_client to authenticated', 'SELECT'),
     ('grant', 'public.network_client to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
+    ('grant', 'public.network_client_customer_contact() to service_role', 'EXECUTE'),
     ('grant', 'public.network_client_customer_country() to service_role', 'EXECUTE'),
     ('grant', 'public.network_client_relink_jobs() to service_role', 'EXECUTE'),
     ('grant', 'public.network_client_session to service_role', 'DELETE,INSERT,MAINTAIN,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE'),
@@ -2882,6 +2893,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.messages.guard_partner_visible_message', 'CREATE TRIGGER guard_partner_visible_message BEFORE INSERT OR UPDATE OF body ON public.messages FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_message()'),
     ('trigger', 'public.messages.question_notify', 'CREATE TRIGGER question_notify AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION on_question_notify()'),
     ('trigger', 'public.messages.stamp_message_org', 'CREATE TRIGGER stamp_message_org BEFORE INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION stamp_message_org()'),
+    ('trigger', 'public.network_client.network_client_customer_contact', 'CREATE TRIGGER network_client_customer_contact AFTER INSERT OR UPDATE OF state, customer_id, email, billing_email ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_customer_contact()'),
     ('trigger', 'public.network_client.network_client_customer_country', 'CREATE TRIGGER network_client_customer_country AFTER INSERT OR UPDATE OF customer_id, country ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_customer_country()'),
     ('trigger', 'public.network_client.network_client_relink_jobs', 'CREATE TRIGGER network_client_relink_jobs AFTER UPDATE OF customer_id ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_relink_jobs()'),
     ('trigger', 'public.network_client.network_client_state_notices', 'CREATE TRIGGER network_client_state_notices AFTER UPDATE OF state ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_state_notices()'),

@@ -39,6 +39,8 @@ export interface Account {
   city: string | null
   /** Network 003: e-mails from clinics about orders. Absent before it. */
   email_notifications?: boolean
+  /** Network 004: where invoices go, when not the sign-in address (empty: none). Absent before it. */
+  billing_email?: string | null
 }
 
 export interface DirectoryClinic { id: string; name: string; country: string; city: string | null; api_url: string }

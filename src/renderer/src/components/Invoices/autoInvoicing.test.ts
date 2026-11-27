@@ -50,7 +50,7 @@ describe('the screens', () => {
     expect(read('src/renderer/src/hooks/useCustomers.ts')).toContain("'auto_invoice_on', 'auto_invoice_trigger', 'auto_invoice_mode', 'auto_invoice_send'")
   })
   it('the invoice says it was made automatically, and why it is a draft', () => {
-    expect(read('src/renderer/src/components/Invoices/InvoicesView.tsx')).toContain('<AutoInvoiceNote invoice={invoice} />')
+    expect(read('src/renderer/src/components/Invoices/InvoicesView.tsx')).toContain('<AutoInvoiceNote invoice={invoice}')
     const note = read('src/renderer/src/components/Invoices/AutoInvoiceNote.tsx')
     expect(note).toContain("t('autoInvoice.draftBecause',")
     expect(note).toContain("invoice.status === 'mustand' && reasons.length > 0")
