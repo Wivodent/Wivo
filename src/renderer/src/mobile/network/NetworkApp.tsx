@@ -216,7 +216,7 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
         <input className="input h-12 text-base" required={kind === 'company'} maxLength={160} value={company} onChange={e => setCompany(e.target.value)} /></label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block"><span className="label">{t('network.country')}</span>
-          <input className="input h-12 text-base uppercase" maxLength={2} placeholder="LV" value={country} onChange={e => setCountry(e.target.value)} /></label>
+          <input className="input h-12 text-base uppercase" maxLength={2} value={country} onChange={e => setCountry(e.target.value)} /></label>
         <label className="block"><span className="label">{t('network.city')}</span>
           <input className="input h-12 text-base" maxLength={120} value={city} onChange={e => setCity(e.target.value)} /></label>
       </div>
