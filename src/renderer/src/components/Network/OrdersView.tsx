@@ -7,17 +7,19 @@
  * orders, then everything decided and everyone connected.
  */
 import { useMemo, useState } from 'react'
-import { Inbox, UserPlus, Check, X, Download, Send, Settings2, Globe2 } from 'lucide-react'
+import { Inbox, UserPlus, Check, X, Download, Send, Settings2, Globe2, Copy } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   useNetworkSettings, useNetworkClients, useClientOrders, useOrderThread, usePortalLive,
   useSaveNetworkSettings, useConfirmClient, useClientVisibility, useEndClient,
   useAcceptOrder, useRejectOrder, usePostOrderMessage, defaultList, clientName,
+  useDirectoryEntry, useSetDirectoryListed,
   type NetworkClientRow, type ClientOrderRow, type CanSee,
 } from '../../hooks/useNetworkPortal'
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates'
 import { usePermissions } from '../../hooks/usePermissions'
 import { saveOrderFile } from '../../lib/fileLink'
+import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
 import { confirmDialog } from '../../lib/confirm'
 import { describeError } from '../Patients/errors'
 import { InfoButton } from '../ui/InfoButton'
@@ -126,6 +128,7 @@ function SetupCard({ row }: { row: { enabled: boolean; network_public_key: strin
         </span>
         <Settings2 size={20} className="text-ink-muted" aria-hidden="true" />
       </button>
+      {row?.network_clinic_id && <DirectorySection ordersOn={row.enabled} />}
       {open && (
         <div className="mt-4 space-y-4">
           <label className="flex items-center gap-3 text-base">
@@ -149,6 +152,72 @@ function SetupCard({ row }: { row: { enabled: boolean; network_public_key: strin
           <button type="button" onClick={submit} disabled={save.isPending} className="btn-primary h-12 px-6 text-base">{t('orders.save')}</button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── The directory and the invite link (the owner) ──────────────────────────
+const directoryProblemText = (p: DirectoryProblem | undefined): string =>
+  p === 'not_allowed' ? t('orders.directoryNotAllowed')
+    : p === 'orders_off' ? t('orders.directoryOrdersOff')
+    : p === 'try_again' ? t('orders.directoryTryAgain')
+    : p === 'unreachable' ? t('orders.directoryUnreachable')
+    : t('app.notAvailableYet')
+
+/**
+ * Listed or not in the Wivo Network directory, and the invite link. Read and
+ * changed through the clinic's network-directory function (the owner and the
+ * second factor, then a request signed with the clinic's own key); the app
+ * never writes to the Network itself.
+ */
+function DirectorySection({ ordersOn }: { ordersOn: boolean }) {
+  const entry = useDirectoryEntry(true)
+  const setListed = useSetDirectoryListed()
+  const [copied, setCopied] = useState(false)
+  const e = entry.data
+  const link = e ? inviteLink(e.inviteCode) : null
+  const problem = setListed.error?.problem ?? entry.error?.problem
+  const place = e ? [e.city, e.country].filter(Boolean).join(', ') : ''
+
+  async function copy() {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch { /* the clipboard refused: the link is on screen to select */ }
+  }
+
+  return (
+    <div className="mt-4 space-y-4 border-t border-ink-faint pt-4" data-testid="network-directory">
+      {entry.isLoading && <p className="text-base text-ink-muted">{t('orders.directoryLoading')}</p>}
+      {e && (
+        <>
+          <div>
+            <label className="flex items-center gap-3 text-base">
+              <input type="checkbox" className="h-6 w-6" checked={e.listed}
+                disabled={setListed.isPending || (!ordersOn && !e.listed)}
+                onChange={ev => setListed.mutate(ev.target.checked)} />
+              {t('orders.directoryListed')}
+              <InfoButton label={t('orders.directoryListed')} text={t('orders.directoryListedInfo')} />
+            </label>
+            <p className="ml-9 text-sm text-ink-muted">{t('orders.directoryShownAs', { name: e.name, place: place || '—' })}</p>
+            {!ordersOn && e.listed && <p className="ml-9 text-sm text-amber-600">{t('orders.directoryListedButOff')}</p>}
+          </div>
+          {link && (
+            <div>
+              <span className="label flex items-center gap-1">{t('orders.inviteLink')} <InfoButton label={t('orders.inviteLink')} text={t('orders.inviteLinkInfo')} /></span>
+              <div className="flex flex-wrap gap-2">
+                <input className="input h-11 min-w-0 flex-1 font-mono text-sm" value={link} readOnly onFocus={ev => ev.currentTarget.select()} aria-label={t('orders.inviteLink')} />
+                <button type="button" onClick={() => void copy()} className="btn-ghost h-11 px-4 text-base">
+                  <Copy size={16} aria-hidden="true" /> {copied ? t('orders.inviteCopied') : t('orders.copyInvite')}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+      {(entry.isError || setListed.isError) && <p className="text-sm text-rose-600" role="alert">{directoryProblemText(problem)}</p>}
     </div>
   )
 }

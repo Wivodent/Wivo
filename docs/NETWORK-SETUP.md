@@ -43,7 +43,8 @@ Dashboard → Authentication:
 ### A3. Migratsioon
 
 SQL Editor (Networki projektis!) → kleebi `network/sql/001_network.sql` →
-Run. Siis eraldi päringuna:
+Run; siis samamoodi `network/sql/002_clinic_key.sql` (kliiniku oma võti,
+samm A8). Siis eraldi päringuna:
 
 ```sql
 notify pgrst, 'reload schema';
@@ -76,7 +77,12 @@ Tekib kaks faili:
 npx supabase secrets set --project-ref <NETWORK_REF> --env-file "$env:USERPROFILE\Documents\network-signing.env"
 Remove-Item "$env:USERPROFILE\Documents\network-signing.env"
 npx supabase functions deploy network-token --project-ref <NETWORK_REF> --workdir network
+npx supabase functions deploy network-clinic --no-verify-jwt --project-ref <NETWORK_REF> --workdir network
 ```
+
+`network-clinic`: kliinik loeb ja muudab oma kataloogirida (samm A8). JWT
+kontroll on **väljas**, sest seda kutsub ainult kliiniku funktsioon serverist
+ja tõend on kliiniku allkiri.
 
 `--workdir network`: funktsioon on kaustas `network/functions/network-token`
 (Supabase CLI otsib `<workdir>/supabase/functions` või `<workdir>/functions`
@@ -100,8 +106,8 @@ returning id, invite_code;
 
 - `id` → **kliiniku Networki number** (samm B4).
 - `invite_code` → kutse link: `https://wivo.dentiks.lv/network/join/<invite_code>`.
-- `listed = true` ainult siis, kui kliinik tahab, et teda kataloogist
-  leitaks (Gary otsus).
+- `listed` jääb `false`. Omanik lülitab selle ise Wivos (samm B5); SQL-i
+  pole selleks vaja.
 
 ### A7. Telefonirakendus teab Networki
 
@@ -115,6 +121,35 @@ Settings → Environment variables (Production):
 
 Mõlemad on avalikud. Järgmine build võtab need. Ilma nendeta ütleb
 `/network` "not set up".
+
+### A8. Kliiniku oma võti (iga kliinik)
+
+Selle võtmega allkirjastab kliiniku funktsioon `network-directory` oma
+päringud Networkile: omanik lülitab kataloogis näitamise sisse või välja ja
+näeb kutse linki. Network hoiab ainult avalikku võtit.
+
+PowerShellis, repo kaustast. Kaust **väljaspool repot**:
+
+```powershell
+node network/scripts/make-clinic-key.mjs "$env:USERPROFILE\Documents" dentiks https://<NETWORK_REF>.supabase.co
+```
+
+Tekib:
+- `dentiks-network-clinic.env`: privaatvõti + Networki aadress. Ainult
+  sammu B5 jaoks, siis kustuta.
+- `dentiks-network-clinic-public-key.txt`: avalik võti (43 märki).
+
+SQL Editor (Networki projektis):
+
+```sql
+update public.clinic set clinic_public_key = '<avalik võti>' where id = '<kliiniku Networki number>';
+```
+
+Kontroll (ainult lugemine):
+
+```sql
+select name, clinic_public_key is not null as has_key from public.clinic;
+```
 
 ---
 
@@ -167,6 +202,28 @@ Wivo (desktop) → külgmenüü **Orders** → kaart **Wivo Network**:
 4. **Save**.
 
 Välja lülitades lõpevad kõik klientide sessioonid kohe.
+
+### B5. Kataloog ja kutse link (omaniku lüliti)
+
+Kliiniku projekti saladused sammu A8 failist, siis funktsioon:
+
+```powershell
+npx supabase secrets set --project-ref <KLIINIKU_REF> --env-file "$env:USERPROFILE\Documents\dentiks-network-clinic.env"
+Remove-Item "$env:USERPROFILE\Documents\dentiks-network-clinic.env"
+npx supabase functions deploy network-directory --project-ref <KLIINIKU_REF>
+```
+
+Wivo → **Orders** → kaart **Wivo Network**:
+- **Show my clinic in the Wivo Network directory**: kataloogis on ainult
+  nimi, linn ja riik. Sisse saab lülitada ainult siis, kui tellimused on
+  sees; välja alati.
+- **Invite link** + **Copy invite link**: töötab ka kataloogita.
+
+Kontroll: linnuke maha/peale → Networki projektis
+`select name, listed from public.clinic;` näitab muutust.
+
+Ilma selle sammuta ütleb kaart "not available yet". Muu tellimuste töö
+toimib ka ilma selleta.
 
 ---
 

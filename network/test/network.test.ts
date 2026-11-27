@@ -7,13 +7,15 @@
  * only listed clinics (an unlisted one only by its invite code); nothing at
  * all without the second factor; an ended connection gets no token.
  */
-import { describe, expect, it, beforeAll } from 'vitest'
+import { describe, expect, it, beforeAll, vi } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PGlite } from '@electric-sql/pglite'
 import { emptyDb, rowsAs, errorAs } from '../../sql/test/harness'
 import { handleNetworkToken } from '../functions/_shared/networkToken'
+import { handleNetworkClinic, type EntryRow } from '../functions/_shared/networkClinic'
 import { importPublicKey, importSigningKey, makeNetworkKeyPair, verifyNetworkToken } from '../../shared/network/token'
+import { CLINIC_REQUEST_AUDIENCE, clinicNonce, importClinicSigningKey, makeClinicKeyPair, signClinicRequest } from '../../shared/network/clinicRequest'
 
 const SQL = join(__dirname, '..', 'sql')
 let db: PGlite
@@ -120,5 +122,83 @@ describe('network-token (the function\'s logic)', () => {
     const no = await handleNetworkToken({ clinicId: listed }, { key, nowSeconds: () => 1, claims: async () => null })
     expect(no).toEqual({ status: 403, body: { error: 'not allowed' } })
     expect((await handleNetworkToken({ clinicId: 'x' }, { key, nowSeconds: () => 1, claims: async () => row })).status).toBe(400)
+  })
+})
+
+/** As the Network's Edge Function: the service key. */
+async function asService<T>(fn: () => Promise<T>): Promise<T> {
+  await db.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', false)`)
+  await db.exec('set role service_role')
+  try { return await fn() } finally {
+    await db.exec('reset role')
+    await db.query(`select set_config('request.jwt.claims', '', false)`)
+  }
+}
+
+describe('a clinic changes its own directory entry (network/sql/002)', () => {
+  it('the key and the last change are never readable by an account; the functions are for the service key only', async () => {
+    expect(await errorAs(db, { id: alice }, `select clinic_public_key from public.clinic`)).toMatch(/permission denied/)
+    expect(await errorAs(db, { id: alice }, `select last_request_ms from public.clinic`)).toMatch(/permission denied/)
+    for (const call of [`select public.clinic_request_key($1)`, `select * from public.clinic_own_entry($1)`, `select * from public.clinic_set_listed($1, true, 1)`]) {
+      expect(await errorAs(db, { id: alice }, call, [listed])).toMatch(/permission denied/)
+      expect(await errorAs(db, 'anon', call, [listed])).toMatch(/permission denied/)
+    }
+  })
+
+  it('a change needs a later time than the last one taken: a replay does nothing', async () => {
+    const set = (on: boolean, at: number) => asService(() => db.query<{ listed: boolean }>(`select * from public.clinic_set_listed($1, $2, $3)`, [unlisted, on, at]))
+    expect((await set(true, 1_000)).rows[0].listed).toBe(true)
+    expect((await set(false, 2_000)).rows[0].listed).toBe(false)
+    await expect(set(true, 1_000)).rejects.toThrow(/older request/)
+    await expect(set(true, 2_000)).rejects.toThrow(/older request/)
+    const { rows } = await asService(() => db.query<{ listed: boolean; invite_code: string }>(`select * from public.clinic_own_entry($1)`, [unlisted]))
+    expect(rows[0].listed).toBe(false)
+    expect(rows[0].invite_code).toMatch(/^[a-z0-9]{12,40}$/)
+    await expect(asService(() => db.query(`select * from public.clinic_set_listed('eeeeeeee-0000-4000-8000-000000000005', true, 9999)`))).rejects.toThrow(/No such clinic/)
+  })
+
+  it('a key that is not one is refused', async () => {
+    await expect(db.query(`update public.clinic set clinic_public_key = 'short' where id = $1`, [listed])).rejects.toThrow(/clinic_public_key_valid/)
+  })
+})
+
+describe('network-clinic (the function\'s logic)', () => {
+  const NOW = 1_800_000_000_000
+  const row: EntryRow = { listed: false, invite_code: 'abcdef123456789012', name: 'Fakeville Lab', city: null, country: 'LV' }
+
+  async function setup() {
+    const pair = await makeClinicKeyPair()
+    const sign = await importClinicSigningKey(pair.privateKey)
+    const setListed = vi.fn(async (_c: string, on: boolean, _at: number): Promise<EntryRow | 'older' | null> => ({ ...row, listed: on }))
+    const deps = { publicKey: async (c: string) => (c === listed ? pair.publicKey : null), entry: async () => row, setListed, nowMs: () => NOW }
+    const req = (over: Record<string, unknown> = {}) => signClinicRequest({
+      v: 1, aud: CLINIC_REQUEST_AUDIENCE, clinic: listed, op: 'set_listed', listed: true, iat: NOW, nonce: clinicNonce(), ...over,
+    } as Parameters<typeof signClinicRequest>[0], sign)
+    return { deps, setListed, req }
+  }
+
+  it('a request signed by the clinic\'s own key changes its entry, with the request\'s time', async () => {
+    const { deps, setListed, req } = await setup()
+    expect(await handleNetworkClinic({ request: await req() }, deps)).toEqual({
+      status: 200, body: { listed: true, inviteCode: row.invite_code, name: row.name, city: null, country: 'LV' } })
+    expect(setListed).toHaveBeenCalledWith(listed, true, NOW)
+    expect((await handleNetworkClinic({ request: await req({ op: 'get', listed: undefined }) }, deps)).body.listed).toBe(false)
+  })
+
+  it('another key, an unknown clinic, an old request: refused, and nothing changes', async () => {
+    const { deps, setListed, req } = await setup()
+    const other = await setup()
+    expect(await handleNetworkClinic({ request: await other.req() }, deps)).toEqual({ status: 403, body: { error: 'not_allowed' } })
+    expect(await handleNetworkClinic({ request: await req({ clinic: unlisted }) }, deps)).toEqual({ status: 403, body: { error: 'not_allowed' } })
+    expect(await handleNetworkClinic({ request: await req({ iat: NOW - 120_000 }) }, deps)).toEqual({ status: 401, body: { error: 'clock' } })
+    expect((await handleNetworkClinic({ request: 'nope' }, deps)).status).toBe(400)
+    expect((await handleNetworkClinic(null, deps)).status).toBe(400)
+    expect(setListed).not.toHaveBeenCalled()
+  })
+
+  it('a replay the database refused is said so', async () => {
+    const { deps, req } = await setup()
+    deps.setListed = vi.fn(async () => 'older' as const)
+    expect(await handleNetworkClinic({ request: await req() }, deps)).toEqual({ status: 409, body: { error: 'older_request' } })
   })
 })

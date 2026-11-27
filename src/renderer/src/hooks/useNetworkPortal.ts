@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRealtimeInvalidate } from './useRealtimeInvalidate'
 import type { WivoOrderV1 } from '@shared/network/order'
+import { readDirectoryEntry, setDirectoryListed, type DirectoryEntry, type DirectoryError } from '../lib/networkDirectory'
 
 export const PORTAL_KEY = ['network_portal'] as const
 
@@ -146,3 +147,28 @@ export const defaultList = (c: Pick<NetworkClientRow, 'role'>): 'clients' | 'cli
 /** A client's name as the clinic shows it. */
 export const clientName = (c: Pick<NetworkClientRow, 'display_name' | 'company_name'> | undefined): string =>
   !c ? '—' : c.company_name ? `${c.company_name} (${c.display_name})` : c.display_name
+
+/**
+ * This clinic's own entry in the Network directory (listed, invite code), through network-directory. Owner only.
+ * Its own key, not under PORTAL_KEY: every order and request invalidates that, and each read here asks the Network.
+ */
+export const DIRECTORY_KEY = ['network_directory'] as const
+export function useDirectoryEntry(enabled: boolean) {
+  const { clinicId } = useAuth()
+  return useQuery<DirectoryEntry, DirectoryError>({
+    queryKey: [...DIRECTORY_KEY, clinicId],
+    enabled: !!clinicId && enabled,
+    retry: false,
+    staleTime: 60_000,
+    queryFn: readDirectoryEntry,
+  })
+}
+
+export function useSetDirectoryListed() {
+  const qc = useQueryClient()
+  const { clinicId } = useAuth()
+  return useMutation<DirectoryEntry, DirectoryError, boolean>({
+    mutationFn: setDirectoryListed,
+    onSuccess: entry => { qc.setQueryData([...DIRECTORY_KEY, clinicId], entry) },
+  })
+}

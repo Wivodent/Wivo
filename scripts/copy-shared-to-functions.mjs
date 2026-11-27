@@ -14,6 +14,9 @@ export const COPIES = [
   ['shared/network/token.ts', 'supabase/functions/_shared/generated/networkToken.ts'],
   ['shared/network/order.ts', 'supabase/functions/_shared/generated/order.ts'],
   ['shared/network/token.ts', 'network/functions/_shared/generated/token.ts'],
+  // A clinic's signed request to the Network (its directory entry): network-directory signs, network-clinic checks.
+  ['shared/network/clinicRequest.ts', 'supabase/functions/_shared/generated/clinicRequest.ts'],
+  ['shared/network/clinicRequest.ts', 'network/functions/_shared/generated/clinicRequest.ts'],
 ]
 
 export const header = (source) => [
