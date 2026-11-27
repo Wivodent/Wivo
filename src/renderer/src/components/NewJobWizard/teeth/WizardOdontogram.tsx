@@ -57,6 +57,10 @@ export interface WizardOdontogramProps {
   onToggleTooth: (fdi: number) => void
   /** Mark a tooth as sitting on an implant. Omit and the mode is absent. */
   onToggleImplant?: (fdi: number) => void
+  /** A whole sweep on release, as one change (teeth/toothDrag.ts). Teeth another work holds are left out first. */
+  onPaintTeeth?: (teeth: number[], paint: 'add' | 'remove') => void
+  /** A sweep in the implant mode, as one change. */
+  onPaintImplants?: (teeth: number[], on: boolean) => void
   /** Mark a tooth as designed by the designer rather than the technician. */
   onToggleDesign?: (fdi: number) => void
   /** Colour key drawn as pills over the field. */
@@ -75,7 +79,7 @@ export interface WizardOdontogramProps {
 }
 
 export function WizardOdontogram({
-  items, activeType, colorMap, onToggleTooth, onToggleImplant, onToggleDesign,
+  items, activeType, colorMap, onToggleTooth, onToggleImplant, onToggleDesign, onPaintTeeth, onPaintImplants,
   legend = [], reservedByArch, disabled, toolbar, markMode = null, implantButtons = false,
 }: WizardOdontogramProps) {
   // Why refused, in Estonian, for the aria-live region. Cleared on any accepted
@@ -113,6 +117,27 @@ export function WizardOdontogram({
     }
     setRefusal(null)
     onToggleTooth(fdi)
+  }
+
+  /** Why this tooth may not be taken by the active type, or null when it may. */
+  function refusalFor(fdi: number): string | null {
+    const arch = reservedByArch?.get(fdi)
+    if (arch && arch !== activeType) return t('wizard.toothAlreadyBelongsToWholeJaw', { fdi, arch })
+    const ownerId = owners.get(fdi)
+    if (ownerId && ownerId !== activeItem?.id) {
+      return t('wizard.toothAlreadyBelongsTo', { fdi, value: items.find(i => i.id === ownerId)?.too ?? ownerId })
+    }
+    return null
+  }
+
+  /** A sweep: the teeth it may take, as one change; the first one refused is said, as for a click. */
+  function handlePaint(teeth: number[], paint: 'add' | 'remove') {
+    if (disabled || !onPaintTeeth) return
+    if (!activeType) { setRefusal(t('wizard.firstChooseWhichWorkTypeYou')); return }
+    const refused = paint === 'add' ? teeth.map(refusalFor).find(Boolean) ?? null : null
+    const ok = paint === 'add' ? teeth.filter(fdi => !refusalFor(fdi)) : teeth
+    setRefusal(refused)
+    if (ok.length) onPaintTeeth(ok, paint)
   }
 
   return (
@@ -182,6 +207,8 @@ export function WizardOdontogram({
             onToggleTooth={handleToggle}
             onToggleImplant={onToggleImplant}
             onToggleDesign={onToggleDesign}
+            onPaintTeeth={onPaintTeeth ? handlePaint : undefined}
+            onPaintImplants={onPaintImplants}
             disabled={disabled}
             toolbar={toolbar}
             externalControls={toolbar != null}

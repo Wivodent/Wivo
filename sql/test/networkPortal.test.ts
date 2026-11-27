@@ -37,9 +37,11 @@ async function serviceError(sql: string, params: unknown[] = []): Promise<string
 }
 const connect = (net: string, account: string, p = profile('Tess Fake')) =>
   service<{ state: string; session?: string }>(`select public.network_connect($1, $2, gen_random_uuid(), $3::jsonb) as r`, [net, account, p])
+// Each order its own reference: since sql/140 a clinic refuses one it already has.
+let refs = 0
 const order = (over: Record<string, unknown> = {}) => JSON.stringify({
   format: 'wivo-order', version: 1, work_type: 'Zirconia crown', teeth: '11,21', options: {},
-  shade: 'A2', due: null, patient_ref: 'REF-1', notes: 'Please check the margin', ...over,
+  shade: 'A2', due: null, patient_ref: `REF-${++refs}`, notes: 'Please check the margin', ...over,
 })
 
 async function clientId(org: string, account: string): Promise<string> {

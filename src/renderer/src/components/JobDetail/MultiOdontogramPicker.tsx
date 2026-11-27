@@ -7,7 +7,7 @@
  * Layout: two U-shaped arches with FDI-numbered tooth buttons, legend chips
  * above, action bar below. Large targets, minimal borders, smooth feedback.
  */
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { FlipHorizontal2, Trash2, Bolt, PenTool, Plus } from 'lucide-react'
 import type { WorkItem } from '../../types/job'
@@ -31,10 +31,9 @@ export function useOdontogramMirrorToggle(): [boolean, () => void] {
   return [mirror, () => setOdontogramMirror(!mirror)]
 }
 import { deriveOdontogramState, pairKey } from '../teeth/odontogramState'
-import {
-  decideToothClick, decideDragPaint, ownsTooth,
-  type ClickContext, type MarkMode,
-} from '../teeth/toothInteraction'
+import type { MarkMode } from '../teeth/toothInteraction'
+import { createToothDrag, type DragStart } from '../teeth/toothDrag'
+import { chartDragRules, commitSweep, type LiveChart } from '../teeth/toothDragRules'
 
 // ─── FDI numbering ──────────────────────────────────────────────────────────
 const UPPER = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28]
@@ -53,10 +52,11 @@ const ROTATIONS = [-18, -14, -10, -6, -3, -1, 0, 0, 0, 0, 1, 3, 6, 10, 14, 18]
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export function MultiOdontogramPicker({
-  items, activeItemId, colorMap, onToggleTooth, onToggleImplant, onToggleDesign, disabled,
-  externalControls = false, markMode: outerMarkMode = null, implantButtons = false,
-}: ToothPickerProps) {
+export function MultiOdontogramPicker(props: ToothPickerProps) {
+  const {
+    items, activeItemId, colorMap, onToggleImplant, onToggleDesign, disabled,
+    externalControls = false, markMode: outerMarkMode = null, implantButtons = false,
+  } = props
   // A marking mode retargets the SAME click. A second chart, or a modifier key,
   // would both be worse: one doubles the drawing, the other is invisible.
   // With `externalControls` the caller's toolbar owns the mode.
@@ -84,46 +84,49 @@ export function MultiOdontogramPicker({
     return bridgePairs.get(pairKey(String(num), String(displayOrder[idx + 1]))) ?? null
   }
 
-  // ── Drag-to-paint ──────────────────────────────────────────────────────────
-  // mousedown starts painting, mouseenter on other teeth continues, mouseup stops.
-  // paintMode: 'add' = selecting teeth, 'remove' = deselecting teeth
-  const paintingRef = useRef<'add' | 'remove' | null>(null)
-  const paintedRef = useRef(new Set<number>())
+  // ── Sweeping across teeth (teeth/toothDrag.ts) ─────────────────────────────
+  // Mouse, pen and touch alike. A press on a tooth starts a sweep; the teeth
+  // crossed are a light preview until release, then ONE change. The tooth
+  // buttons say `touch-action: none`, so a finger that starts on a tooth sweeps
+  // instead of scrolling the page; anywhere else the page scrolls as ever.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const live = useRef<LiveChart>({ props, owners: toothOwner, implants: implantSet, markMode })
+  live.current = { props, owners: toothOwner, implants: implantSet, markMode }
+  const [preview, setPreview] = useState<{ teeth: ReadonlySet<number>; start: DragStart | null }>({ teeth: new Set(), start: null })
+
+  const drag = useMemo(() => createToothDrag({
+    hitTest: (x, y) => {
+      const el = document.elementFromPoint(x, y)?.closest('[data-fdi]')
+      if (!el || !rootRef.current?.contains(el)) return null
+      const n = Number(el.getAttribute('data-fdi'))
+      return Number.isInteger(n) ? n : null
+    },
+    ...chartDragRules(() => live.current),
+    onPreview: (teeth, start) => setPreview({ teeth, start }),
+    onCommit: r => commitSweep(r, () => live.current),
+  }), [])
 
   useEffect(() => {
-    function stopPaint() {
-      paintingRef.current = null
-      paintedRef.current = new Set()
+    const move = (e: PointerEvent) => drag.pointerMove(e)
+    const up = (e: PointerEvent) => drag.pointerUp(e)
+    const cancel = (e: PointerEvent) => drag.pointerCancel(e)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
+    return () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
     }
-    window.addEventListener('mouseup', stopPaint)
-    return () => window.removeEventListener('mouseup', stopPaint)
-  }, [])
+  }, [drag])
 
-  // The rules themselves live in teeth/toothInteraction.ts, because the 3D
-  // chart has to obey exactly the same ones and they decide what gets billed
-  // and who gets paid. This component is left with the DRAWING consequences:
-  // which direction a drag is going, and which teeth it has already visited.
-  const clickCtx = (): ClickContext => ({
-    owners: toothOwner, activeItemId, markMode, disabled,
-  })
-
-  function handlePointerDown(num: number) {
-    switch (decideToothClick(num, clickCtx())) {
-      case 'none': return
-      case 'implant': onToggleImplant?.(num); return
-      case 'design': onToggleDesign?.(num); return
+  function handlePointerDown(e: React.PointerEvent, num: number) {
+    if (e.pointerType === 'mouse') e.preventDefault()  // no text selection while sweeping
+    if (drag.pointerDown(e.nativeEvent, num)) {
+      // A finger is captured by the tooth it pressed; let go of it so the
+      // sweep reads the tooth under the finger, not the first one.
+      try { (e.currentTarget as Element).releasePointerCapture(e.pointerId) } catch { /* not captured */ }
     }
-    // Only a plain toggle starts a drag. A mark never paints — see the rules.
-    paintingRef.current = ownsTooth(toothOwner, num, activeItemId) ? 'remove' : 'add'
-    paintedRef.current = new Set([num])
-    onToggleTooth(num)
-  }
-
-  function handlePointerEnter(num: number) {
-    if (paintedRef.current.has(num)) return
-    if (decideDragPaint(num, clickCtx(), paintingRef.current) !== 'toggle') return
-    paintedRef.current.add(num)
-    onToggleTooth(num)
   }
 
   const order = (arr: number[]) => mirror ? [...arr].reverse() : arr
@@ -141,6 +144,8 @@ export function MultiOdontogramPicker({
     const bridgeColor = bridgeToRight(num, archNums)
     const isImplant = implantSet.has(s)
     const isDesigned = designSet.has(s)
+    // In the sweep under way: drawn lightly until the release makes it so.
+    const swept = preview.teeth.has(num) ? preview.start : null
 
     // Over the tooth (on the arch's outer side), for a tooth of the active
     // item: one click makes it an implant, another takes that back.
@@ -148,6 +153,7 @@ export function MultiOdontogramPicker({
       <button
         type="button"
         onMouseDown={e => e.stopPropagation()}
+        onPointerDown={e => e.stopPropagation()}
         onClick={() => onToggleImplant?.(num)}
         data-chrome="chart"
         data-tiny
@@ -180,8 +186,8 @@ export function MultiOdontogramPicker({
       {implantButton}
       <motion.button
         type="button"
-        onMouseDown={e => { e.preventDefault(); handlePointerDown(num) }}
-        onMouseEnter={() => handlePointerEnter(num)}
+        data-fdi={num}
+        onPointerDown={e => handlePointerDown(e, num)}
         whileHover={canClick ? { scale: 1.12, y: isUpper ? -2 : 2 } : undefined}
         whileTap={canClick ? { scale: 0.95 } : undefined}
         className={[
@@ -191,11 +197,16 @@ export function MultiOdontogramPicker({
             ? 'text-white shadow-sm'
             : 'bg-white text-slate-400 border border-slate-200/80 hover:border-accent/40',
           isActive ? 'ring-2 ring-white/80 shadow-md' : '',
+          swept?.mode === 'teeth' && swept.paint === 'add' ? 'ring-2 ring-accent ring-offset-1 bg-accent/15 text-accent' : '',
+          swept?.mode === 'teeth' && swept.paint === 'remove' ? 'opacity-45' : '',
+          swept?.mode === 'implant' ? 'ring-2 ring-dashed ring-slate-900/60 ring-offset-1' : '',
           disabled ? 'opacity-40 cursor-not-allowed' : canClick ? 'cursor-pointer' : 'cursor-default',
         ].join(' ')}
         style={{
           width: 34,
           height: 40,
+          // A sweep that starts on a tooth must not scroll the page (teeth/toothDrag.ts).
+          touchAction: 'none',
           transform: `rotate(${rotation}deg)`,
           ...(isOwned ? { backgroundColor: owner!.color } : {}),
         }}
@@ -261,7 +272,7 @@ export function MultiOdontogramPicker({
 
 
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3">
       {/* ── Legend chips ──────────────────────────────────────────────────── */}
       {legend.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -426,9 +437,9 @@ export function MultiOdontogramPicker({
                 if (!activeItemId) return
                 const activeItem = items.find(i => i.id === activeItemId)
                 if (!activeItem) return
-                for (const tooth of activeItem.hambad.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))) {
-                  onToggleTooth(tooth)
-                }
+                // One change, like a sweep: one call when the caller takes a batch, else flushed tooth by tooth.
+                const teeth = activeItem.hambad.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+                if (teeth.length) commitSweep({ mode: 'teeth', paint: 'remove', teeth }, () => live.current)
               }}
             >
               <Trash2 size={14} />

@@ -1517,6 +1517,18 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
                 <strong>WivoX</strong> — {t('settingsPage.bothAClinicWithItsOwn')}
               </p>
             </div>
+
+            {/* The order reference (sql/140): the same one a Network order gets. */}
+            <div className="mt-6 pt-5 border-t border-ink-faint/15">
+              <label className="flex items-start gap-3 text-sm text-ink max-w-xl">
+                <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0" checked={settings.automaatneViide}
+                  onChange={e => setFlag('automaatneViide', e.target.checked)} />
+                <span>
+                  <span className="font-semibold">{t('settingsPage.autoReference')}</span>
+                  <span className="block text-xs text-ink-muted leading-relaxed">{t('settingsPage.autoReferenceHelp')}</span>
+                </span>
+              </label>
+            </div>
           </section>
         )}
 

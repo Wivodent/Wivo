@@ -55,6 +55,8 @@ function refusal(e: { code?: string; message?: string }): Answer {
   if (e.code === '42501') return notAllowed
   if (e.code === '54000') return { status: 429, body: { error: 'too_many' } }
   if (e.code === '22023') return { status: 400, body: { error: 'invalid' } }
+  // sql/140: a reference the client typed that the clinic already has.
+  if (e.code === '23505') return { status: 409, body: { error: 'duplicate_reference' } }
   return { status: 500, body: { error: 'failed' } }
 }
 
@@ -105,6 +107,8 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
   switch (action) {
     case 'catalog': return call('client_catalog')
     case 'orders': return call('client_orders')
+    // The reference the New order form shows filled in (sql/140); given out only when the order is sent.
+    case 'next_ref': return call('client_reference_preview')
     case 'order': {
       const orderId = id(b.orderId)
       return orderId ? call('client_order_detail', { p_order: orderId }) : bad

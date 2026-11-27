@@ -24,7 +24,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
-import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X } from 'lucide-react'
+import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X, Undo2 } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   network, networkConfigured, myAccount, saveAccount, directory, clinicByInvite, myConnections,
@@ -34,6 +34,8 @@ import {
 import { emptyOrder, orderProblems, type CatalogueItem, type ClientOrderStatus, type WivoOrderV1 } from '@shared/network/order'
 import { InfoButton } from '../../components/ui/InfoButton'
 import { WorkTypeArt } from '../../components/ui/WorkTypeArt'
+import { ToothPicker } from '../../components/teeth/ToothPicker'
+import { applyPaint } from '../../components/teeth/toothDrag'
 import {
   teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
   UPPER_TEETH, LOWER_TEETH, type FormStep,
@@ -625,6 +627,13 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
   const [files, setFiles] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [refError, setRefError] = useState<string | null>(null)
+  // The clinic's next reference (sql/140), filled in once; the client may write its own instead.
+  const nextRef = useQuery<string>({ queryKey: ['network', 'next_ref', clinicId], queryFn: api.nextRef, staleTime: 0, retry: false })
+  const autoRef = nextRef.data ?? null
+  useEffect(() => {
+    if (autoRef) setOrder(o => (o.patient_ref === '' ? { ...o, patient_ref: autoRef } : o))
+  }, [autoRef])
   const item = (catalog.data ?? []).find(c => c.name === order.work_type)
   const today = new Date().toISOString().slice(0, 10)
   const problems = orderProblems(order, catalog.data, today)
@@ -638,7 +647,8 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
   async function back() {
     if (step === 'review') return setStep('details')
     if (step === 'details') return setStep('work')
-    if (orderTouched(order, files.length)) {
+    // The reference the clinic filled in is not something the person wrote.
+    if (orderTouched({ ...order, patient_ref: order.patient_ref === autoRef ? '' : order.patient_ref }, files.length)) {
       const discard = await confirmDialog({
         title: t('network.discardTitle'), message: t('network.discardText'),
         confirmLabel: t('network.discard'), cancelLabel: t('network.keepEditing'), danger: true,
@@ -654,7 +664,11 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
       const id = await api.newOrder(order)
       for (const f of files) await api.upload(id, f)
       onSent(id)
-    } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
+    } catch (e) {
+      // A reference the clinic already has: back to the field, said there.
+      if (e instanceof NetworkError && e.code === 'duplicate_reference') { setRefError(t('network.errDuplicateRef')); setStep('details') }
+      else setError(errorText(e))
+    } finally { setBusy(false) }
   }
 
   const label = step === 'work' ? t('network.stepWork') : step === 'details' ? t('network.stepDetails') : t('network.stepReview')
@@ -709,7 +723,7 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
             </div>
           ))}
 
-          {needsTeeth && <TeethPicker value={order.teeth} arch={item!.teeth === 'arch'} onChange={teeth => set({ teeth })} />}
+          {needsTeeth && <TeethPicker value={order.teeth} arch={item!.teeth === 'arch'} workType={order.work_type} onChange={teeth => set({ teeth })} />}
           {footer(<button type="button" disabled={!workOk} onClick={() => setStep('details')} className="btn-primary min-h-12 flex-[2] justify-center rounded-2xl text-base font-bold">{t('network.next')}</button>)}
         </>
       )}
@@ -718,7 +732,15 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
         <>
           <div className="card grid grid-cols-1 gap-3 rounded-2xl p-3 sm:grid-cols-2">
             <label className="block sm:col-span-2"><span className="label flex items-center gap-1">{t('network.patientRef')} <InfoButton label={t('network.patientRef')} text={t('network.patientRefInfo')} /></span>
-              <input className="input h-12 text-base" maxLength={40} value={order.patient_ref} onChange={e => set({ patient_ref: e.target.value })} /></label>
+              <input className="input h-12 text-base" maxLength={40} value={order.patient_ref} aria-invalid={!!refError}
+                onChange={e => { setRefError(null); set({ patient_ref: e.target.value }) }} />
+              {refError
+                ? <span className="mt-1 block text-sm text-rose-600" role="alert">{refError}</span>
+                : autoRef && order.patient_ref === autoRef && <span className="mt-1 block text-sm text-ink-muted">{t('network.refFromClinic')}</span>}
+              {autoRef && order.patient_ref !== autoRef && (
+                <button type="button" className="mt-1 text-sm font-semibold text-accent" onClick={() => { setRefError(null); set({ patient_ref: autoRef }) }}>
+                  {t('network.useClinicRef', { ref: autoRef })}</button>
+              )}</label>
             <label className="block"><span className="label">{t('network.shade')}</span>
               <input className="input h-12 text-base" maxLength={20} placeholder="A2" value={order.shade ?? ''} onChange={e => set({ shade: e.target.value || null })} /></label>
             <label className="block"><span className="label">{t('network.due')}</span>
@@ -777,28 +799,34 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
   )
 }
 
-/** Teeth by tapping, as the mouth reads: upper right, upper left, lower right, lower left. */
-function TeethPicker({ value, arch, onChange }: { value: string; arch: boolean; onChange: (teeth: string) => void }) {
-  const chosen = new Set(parseTeeth(value))
-  const toggle = (n: number) => {
-    const next = new Set(chosen)
-    if (next.has(n)) next.delete(n); else next.add(n)
-    onChange(formatTeeth([...next]))
+/** The one colour of an order's teeth on the chart (the design's accent). */
+const ORDER_TOOTH_HEX = '#0a7f8a'
+
+/**
+ * Teeth on the same chart as Wivo's new-job form (components/teeth/ToothPicker):
+ * tap a tooth, or press and sweep across a row (16 → 26 too) to take or let go
+ * of several at once; a sweep that starts on a tooth does not scroll the page.
+ * Each tap or sweep is one change, and Undo takes it back.
+ */
+function TeethPicker({ value, arch, workType, onChange }: { value: string; arch: boolean; workType: string; onChange: (teeth: string) => void }) {
+  const [history, setHistory] = useState<string[]>([])
+  const change = (next: string) => {
+    if (next === value) return
+    setHistory(h => [...h.slice(-49), value])
+    onChange(next)
   }
+  const undo = () => {
+    const last = history[history.length - 1]
+    if (last === undefined) return
+    setHistory(h => h.slice(0, -1))
+    onChange(last)
+  }
+  const current = parseTeeth(value)
   const wholeArch = (teeth: readonly number[]) => {
-    const all = teeth.every(n => chosen.has(n))
-    const next = new Set(chosen)
-    for (const n of teeth) { if (all) next.delete(n); else next.add(n) }
-    onChange(formatTeeth([...next]))
+    const all = teeth.every(n => current.includes(n))
+    change(formatTeeth(applyPaint(current, [...teeth], all ? 'remove' : 'add')))
   }
-  const row = (teeth: readonly number[]) => (
-    <div className="grid grid-cols-8 gap-1">
-      {teeth.map(n => (
-        <button key={n} type="button" aria-pressed={chosen.has(n)} onClick={() => toggle(n)}
-          className={`h-8 rounded-md text-xs font-semibold ${chosen.has(n) ? 'bg-accent text-white' : 'bg-bg-sidebar text-ink-muted'}`}>{n}</button>
-      ))}
-    </div>
-  )
+  const items = [{ id: 'order', too: workType, hambad: value }]
   return (
     <div className="card space-y-2 rounded-2xl p-3">
       <div className="flex items-center justify-between gap-2">
@@ -811,12 +839,20 @@ function TeethPicker({ value, arch, onChange }: { value: string; arch: boolean; 
           <button type="button" onClick={() => wholeArch(LOWER_TEETH)} className="min-h-10 flex-1 rounded-xl border border-ink-faint/40 text-sm">{t('network.wholeLower')}</button>
         </div>
       )}
-      <p className="text-xs text-ink-muted">{t('network.upper')}</p>
-      {row(UPPER_TEETH.slice(0, 8))}
-      {row(UPPER_TEETH.slice(8))}
-      <p className="text-xs text-ink-muted">{t('network.lower')}</p>
-      {row(LOWER_TEETH.slice(0, 8))}
-      {row(LOWER_TEETH.slice(8))}
+      <ToothPicker
+        items={items}
+        activeItemId="order"
+        colorMap={{ [workType]: ORDER_TOOTH_HEX }}
+        onToggleTooth={tooth => change(formatTeeth(applyPaint(current, [tooth], current.includes(tooth) ? 'remove' : 'add')))}
+        onPaintTeeth={(teeth, paint) => change(formatTeeth(applyPaint(current, teeth, paint)))}
+        toolbar={
+          <button type="button" data-chrome="chart" onClick={undo} disabled={history.length === 0}
+            className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-ink-faint/30 bg-bg-card px-2.5 text-xs font-semibold text-ink-soft disabled:opacity-40">
+            <Undo2 size={14} aria-hidden="true" /> {t('teeth.undo')}
+          </button>
+        }
+        externalControls
+      />
     </div>
   )
 }

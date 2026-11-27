@@ -63,11 +63,13 @@ export function decideToothClick(tooth: number, ctx: ClickContext): ToothAction 
 /**
  * Decides what dragging ACROSS `tooth` should do, once a drag is under way.
  *
- * Deliberately never marks. Both marks move money, and a dragged mistake is the
- * easiest kind not to notice — so a drag only ever adds or removes teeth, and
- * only in the direction the drag started in. Dragging back over a tooth you
- * just added removes it; dragging over one that was already yours does not add
- * it twice.
+ * SUPERSEDED for the charts by the sweep in toothDrag.ts / toothDragRules.ts
+ * (2026-11-27), which no chart calls this any more. Two things changed there,
+ * on purpose: a sweep is a preview until release and then ONE change (so an
+ * undo takes it all back, and nothing moves money mid-gesture), and in the
+ * implant mode a sweep marks implants too, on the active work's own teeth only
+ * (Kevin's call). The design mark is still never swept. Kept for its tests and
+ * as the record of the old rule.
  */
 export function decideDragPaint(
   tooth: number,

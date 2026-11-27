@@ -16,9 +16,10 @@
  * click belongs to. Everything else lives in NewJobState so Back never loses it.
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Info, Bolt, FlipHorizontal2 } from 'lucide-react'
+import { Info, Bolt, FlipHorizontal2, Undo2 } from 'lucide-react'
 import type { ArchSelection, NewJobState, ValidationError } from '@shared/wizard'
 import type { MarkMode } from '@/components/teeth/toothInteraction'
+import { applyPaint, type Paint } from '@/components/teeth/toothDrag'
 import { useOdontogramMirrorToggle } from '@/components/JobDetail/MultiOdontogramPicker'
 import { hambadToTeeth, sortTeeth, baseTypeName, makeTypeKey, archTeeth } from '@shared/wizard'
 import { useWorkTypes } from '@/stores/useSettings'
@@ -163,6 +164,20 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
 
   const rulesOf = (key: string) => rulesByName.get(key) ?? rulesByName.get(baseTypeName(key))
 
+  // ── Undo: every change on the chart is one step back, a whole sweep included ──
+  type TeethSnapshot = Pick<NewJobState, 'selectedTeeth' | 'implantsByType'>
+  const [history, setHistory] = useState<TeethSnapshot[]>([])
+  /** Called once before each change the chart makes: a click, or a whole sweep on release. */
+  function remember() {
+    setHistory(h => [...h.slice(-49), { selectedTeeth: state.selectedTeeth, implantsByType: state.implantsByType }])
+  }
+  function undo() {
+    const last = history[history.length - 1]
+    if (!last) return
+    setHistory(h => h.slice(0, -1))
+    patch({ selectedTeeth: last.selectedTeeth, implantsByType: last.implantsByType })
+  }
+
   function setTeethFor(nimi: string, teeth: number[]) {
     markTouched(nimi)
     const sorted = sortTeeth(teeth)
@@ -182,6 +197,7 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
 
   function toggleTooth(fdi: number) {
     if (!activeType) return
+    remember()
     const cur = state.selectedTeeth[activeType] ?? []
     setTeethFor(activeType, cur.includes(fdi) ? cur.filter(tooth => tooth !== fdi) : [...cur, fdi])
   }
@@ -195,6 +211,7 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
    */
   function toggleImplantFor(key: string, fdi: number, teeth: readonly number[]) {
     if (!teeth.includes(fdi)) return
+    remember()
     const cur = state.implantsByType[key] ?? []
     const next = cur.includes(fdi) ? cur.filter(tooth => tooth !== fdi) : [...cur, fdi]
     patch({ implantsByType: { ...state.implantsByType, [key]: sortTeeth(next) } })
@@ -203,6 +220,20 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
   function toggleImplant(fdi: number) {
     if (!activeType) return
     toggleImplantFor(activeType, fdi, state.selectedTeeth[activeType] ?? [])
+  }
+
+  /** A sweep on the chart, as one change (teeth/toothDrag.ts). */
+  function paintTeeth(teeth: number[], paint: Paint) {
+    if (!activeType) return
+    remember()
+    setTeethFor(activeType, applyPaint(state.selectedTeeth[activeType] ?? [], teeth, paint))
+  }
+  /** A sweep in the implant mode: marks (or unmarks) implants on this type's own teeth, as one change. */
+  function paintImplantsFor(key: string, teeth: number[], on: boolean, own: readonly number[]) {
+    const mine = teeth.filter(tooth => own.includes(tooth))
+    if (mine.length === 0) return
+    remember()
+    patch({ implantsByType: { ...state.implantsByType, [key]: sortTeeth(applyPaint(state.implantsByType[key] ?? [], mine, on ? 'add' : 'remove')) } })
   }
 
   /** The teeth a work type has on this job: its picks, or for a jaw its arch. */
@@ -231,6 +262,9 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
       </ToolbarButton>
       <ToolbarButton active={mirror} onClick={toggleMirror} icon={<FlipHorizontal2 className="h-4 w-4" aria-hidden="true" />}>
         {mirror ? t('jobDetail.patientView') : t('jobDetail.dentistView')}
+      </ToolbarButton>
+      <ToolbarButton active={false} onClick={undo} disabled={history.length === 0} icon={<Undo2 className="h-4 w-4" aria-hidden="true" />}>
+        {t('teeth.undo')}
       </ToolbarButton>
     </>
   )
@@ -327,7 +361,18 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
     const next = current.includes(tooth)
       ? current.filter(other => other !== tooth)
       : [...current, tooth]
+    remember()
     patch({ selectedTeeth: { ...state.selectedTeeth, [key]: next } })
+  }
+
+  /** A sweep on an arch-level type: inside the chosen arch only, as one change. */
+  function paintArchTeeth(key: string, teeth: number[], paint: Paint) {
+    if (!state.selectedArch) return
+    const inArch = new Set(archTeeth(state.selectedArch))
+    const mine = teeth.filter(tooth => inArch.has(tooth))
+    if (mine.length === 0) return
+    remember()
+    patch({ selectedTeeth: { ...state.selectedTeeth, [key]: applyPaint(state.selectedTeeth[key] ?? archTeeth(state.selectedArch), mine, paint) } })
   }
 
   function changeArch(arch: ArchSelection) {
@@ -436,6 +481,11 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
               activeType={activeArchType ?? rules.archTypes[0]}
               colorMap={colorMap}
               onToggleTooth={tooth => toggleArchTooth(activeArchType ?? rules.archTypes[0], tooth)}
+              onPaintTeeth={(teeth, paint) => paintArchTeeth(activeArchType ?? rules.archTypes[0], teeth, paint)}
+              onPaintImplants={(teeth, on) => {
+                const key = activeArchType ?? rules.archTypes[0]
+                paintImplantsFor(key, teeth, on, teethOf(key))
+              }}
               // Where an All-on-4's implants are: marked by hand, never all of
               // the jaw at once (four implants carry twelve teeth).
               onToggleImplant={tooth => {
@@ -528,8 +578,10 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
             activeType={activeType}
             colorMap={colorMap}
             onToggleTooth={toggleTooth}
+            onPaintTeeth={paintTeeth}
             // Any picked tooth can sit on an implant (2.2.0).
             onToggleImplant={activeType ? toggleImplant : undefined}
+            onPaintImplants={activeType ? (teeth, on) => paintImplantsFor(activeType, teeth, on, state.selectedTeeth[activeType] ?? []) : undefined}
             implantButtons
             toolbar={toolbar}
             markMode={markMode}
@@ -543,20 +595,22 @@ export const StepTeeth: WizardStepComponent = ({ state, patch, rules, errors, sh
 }
 
 /** A button of the chart's toolbar, beside 2D/3D. `data-chrome`: the chart's own, not repainted white. */
-function ToolbarButton({ active, onClick, icon, children }: {
+function ToolbarButton({ active, onClick, icon, children, disabled }: {
   active: boolean
   onClick: () => void
   icon: ReactNode
   children: ReactNode
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-pressed={active}
+      disabled={disabled}
       data-chrome="chart"
       className={[
-        'inline-flex items-center gap-1.5 border font-semibold',
+        'inline-flex items-center gap-1.5 border font-semibold disabled:cursor-not-allowed disabled:opacity-40',
         active ? 'border-slate-900 bg-slate-900 text-white' : 'border-ink-faint/30 bg-bg-card text-ink-soft hover:text-ink',
       ].join(' ')}
     >

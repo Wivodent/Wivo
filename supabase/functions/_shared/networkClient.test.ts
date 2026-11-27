@@ -26,6 +26,8 @@ async function setup(settings: Record<string, { key: string }>) {
       }
       if (fn === 'network_connect') return { data: { state: 'confirmed', session: SESSION }, error: null }
       if (fn === 'client_orders') return { data: [], error: null }
+      if (fn === 'client_reference_preview') return { data: 'TF-DE-261127-001', error: null }
+      if (fn === 'client_new_order') return { data: null, error: { code: '23505', message: 'This reference is already used in this clinic' } }
       if (fn === 'client_order_detail') return { data: null, error: { code: '42501', message: 'Order not found (public.client_order_detail)' } }
       if (fn === 'client_file_slot') return { data: { file_id: ORDER_ID, path: 'client-orders/org/o/f' }, error: null }
       return { data: null, error: { message: 'Session not valid', code: '42501' } }
@@ -87,6 +89,14 @@ describe('network-client', () => {
     const gone = await handleNetworkClient({ action: 'catalog', session: SESSION }, deps)
     expect(gone).toEqual({ status: 401, body: { error: 'session' } })
     expect(await handleNetworkClient({ action: 'orders', session: 'short' }, deps)).toEqual({ status: 401, body: { error: 'session' } })
+  })
+
+  it('the reference the form shows comes from the clinic database; a reference it already has is said as such', async () => {
+    const { deps, calls } = await setup({})
+    expect(await handleNetworkClient({ action: 'next_ref', session: SESSION }, deps)).toEqual({ status: 200, body: { data: 'TF-DE-261127-001' } })
+    expect(calls[0]).toEqual({ fn: 'client_reference_preview', args: { p_session: SESSION } })
+    const order = { format: 'wivo-order', version: 1, work_type: 'Crown', teeth: '11', options: {}, shade: null, due: null, patient_ref: 'CASE-118', notes: null }
+    expect(await handleNetworkClient({ action: 'new_order', session: SESSION, order }, deps)).toEqual({ status: 409, body: { error: 'duplicate_reference' } })
   })
 
   it('an order that is not Wivo order v1 does not reach the database', async () => {

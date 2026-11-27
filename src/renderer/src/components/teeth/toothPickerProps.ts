@@ -25,6 +25,14 @@ export interface ToothPickerProps {
   onToggleImplant?: (tooth: number) => void
   /** Omit entirely when nobody is named as the designer. */
   onToggleDesign?: (tooth: number) => void
+  /**
+   * A whole sweep of teeth at once, on release (teeth/toothDrag.ts): add or
+   * remove them all as ONE change, so an undo takes the sweep back. Without it
+   * the chart calls `onToggleTooth` once per tooth.
+   */
+  onPaintTeeth?: (teeth: number[], paint: 'add' | 'remove') => void
+  /** The same for a sweep in the implant mode: mark (`on`) or unmark them all. */
+  onPaintImplants?: (teeth: number[], on: boolean) => void
   disabled?: boolean
   /**
    * The caller draws the marking and view buttons itself (the new-job form

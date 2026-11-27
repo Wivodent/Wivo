@@ -269,6 +269,8 @@ export interface WivoSettings {
   // install keeps every view it had. Never both false — the settings picker
   // only offers the three combinations above.
   laboriRezhiim: boolean
+  /** Fill a job's client reference in automatically (TF-DE-261127-001, sql/140). The owner can switch it off. */
+  automaatneViide: boolean
   // ─── Fikseeritud kulud iga töö kohta ───────────────────────────────────────
   // Applied automatically to every job's cost calculation. Covers things like
   // gloves, face shields, disinfection supplies — small per-patient costs that
@@ -343,6 +345,7 @@ function defaultSettings(): WivoSettings {
     kmMaar: 0,
     kliinilineRezhiim: false,
     laboriRezhiim: true,
+    automaatneViide: true,
     yldkulud: [],
     toopaevadNadalas: 5,
     makseTahtaegPaevades: 14,
@@ -497,6 +500,7 @@ function loadSettings(): WivoSettings {
       materialCosts: stored.materialCosts ?? {},
       kliinilineRezhiim: stored.kliinilineRezhiim ?? false,
       laboriRezhiim: stored.laboriRezhiim ?? true,
+      automaatneViide: stored.automaatneViide ?? true,
       designFee: stored.designFee ?? 0,
       defaultMachine: stored.defaultMachine ?? '',
       kasutajaNimi: stored.kasutajaNimi ?? '',
@@ -701,6 +705,8 @@ export function applyClinicRow(row: Partial<ClinicSettingsRow>): void {
       ? {
           kliinilineRezhiim: !!row.features.clinical,
           laboriRezhiim: row.features.laboratory ?? true,
+          // Absent on every row written before sql/140: on.
+          automaatneViide: row.features.auto_reference ?? true,
         }
       : {}),
     // Merged onto what is already loaded, never taken whole: a row written

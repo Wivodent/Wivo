@@ -13,6 +13,7 @@ import { WIZARD_INPUT, WIZARD_LABEL, WIZARD_HELP, WIZARD_ERROR } from '../wizard
 import { t } from '@/lib/i18n'
 import { PatientPicker } from '@/components/Patients/PatientPicker'
 import { useCustomers } from '@/hooks/useCustomers'
+import { useAutoClientReference } from '@/hooks/useAutoClientReference'
 
 /**
  * Step 5 — "Patsient ja tellimus" (docs/design patient-order.html).
@@ -55,6 +56,14 @@ export const StepOrder: WizardStepComponent = ({ state, patch, errors, showError
     // A client chosen under another answer is not this answer's client.
     patch({ orderSource: next, customer: null, customerReference: '', orderDoctor: next === 'own' ? state.orderDoctor : null })
   }
+
+  // The clinic's reference for the chosen client (sql/140), unless the owner switched it off.
+  useAutoClientReference({
+    on: settings.automaatneViide && source !== 'own',
+    customer: source === 'own' ? null : state.customer,
+    current: state.customerReference,
+    set: ref => patch({ customerReference: ref }),
+  })
 
   const patientError = showErrors ? fieldErrors(errors, 'patient')[0]?.message ?? null : null
   const customerError = showErrors ? fieldErrors(errors, 'customer')[0]?.message ?? null : null

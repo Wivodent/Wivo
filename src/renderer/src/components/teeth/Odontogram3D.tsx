@@ -52,7 +52,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 import { deriveOdontogramState } from './odontogramState'
-import { decideToothClick, decideDragPaint, ownsTooth, type MarkMode } from './toothInteraction'
+import type { MarkMode } from './toothInteraction'
+import { createToothDrag } from './toothDrag'
+import { chartDragRules, commitSweep, type LiveChart } from './toothDragRules'
 import {
   parseToothName,
   viewOffset,
@@ -165,6 +167,8 @@ export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
   const [hoverFdi, setHoverFdi] = useState<number | null>(null)
   const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
   const [loading, setLoading] = useState(true)
+  // The sweep under way (teeth/toothDrag.ts): glows like the hover until release.
+  const [preview, setPreview] = useState<ReadonlySet<number>>(() => new Set())
 
   // Handlers live inside a `useEffect` that runs ONCE, so they would otherwise
   // close over the first render's props forever — clicking a tooth would toggle
@@ -338,38 +342,29 @@ export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
     let orbiting = false
     const clearHover = (): void => { setHoverFdi(null); setHoverPos(null) }
 
-    /**
-     * The drag-paint pair, held as plain locals rather than refs.
-     *
-     * `painting` is the DIRECTION the drag committed to on the way down, so a
-     * drag that began on an unselected tooth only ever adds, and one that began
-     * on a selected tooth only ever removes. Without it, crossing a tooth you
-     * already own would toggle it off mid-sweep and the selection would come
-     * out as whatever the cursor's exact path happened to be.
-     *
-     * `done` is what this drag has already acted on. A pointer can report many
-     * moves over the same tooth, and each one would otherwise flip it again.
-     */
-    let painting: 'add' | 'remove' | null = null
-    const done = new Set<number>()
+    /** The chart as it is now, for the sweep's rules (the effect runs once; `live` follows the props). */
+    const liveChart = (): LiveChart => {
+      const ctx = live.current
+      const state = deriveOdontogramState(ctx.items, ctx.colorMap)
+      return { props: ctx, owners: state.owners, implants: state.implants, markMode: ctx.markMode }
+    }
+    const pickAt = (x: number, y: number): number | null => {
+      const mesh = pick({ clientX: x, clientY: y } as PointerEvent)
+      return mesh ? parseToothName(mesh.name) : null
+    }
+    // One controller with the 2D chart (teeth/toothDrag.ts): the teeth swept
+    // are a preview until release, then one change.
+    const drag = createToothDrag({
+      hitTest: pickAt,
+      ...chartDragRules(liveChart),
+      onPreview: teeth => setPreview(teeth),
+      onCommit: r => commitSweep(r, liveChart),
+    })
 
     const onMove = (e: PointerEvent): void => {
       if (orbiting) return  // mid-turn: the number would only chase the cursor
-      const mesh = pick(e)
-      const fdi = mesh ? parseToothName(mesh.name) : null
-
-      if (fdi !== null && painting !== null && !done.has(fdi)) {
-        const ctx = live.current
-        const state = deriveOdontogramState(ctx.items, ctx.colorMap)
-        // `decideDragPaint` never marks — see its own note. A dragged implant
-        // or design mark is the easiest kind of mistake not to notice, and both
-        // of them move money.
-        if (decideDragPaint(fdi, { ...ctx, owners: state.owners }, painting) === 'toggle') {
-          done.add(fdi)
-          ctx.onToggleTooth(fdi)
-        }
-      }
-
+      drag.pointerMove(e)
+      const fdi = pickAt(e.clientX, e.clientY)
       if (fdi === null) { clearHover(); return }
       const r = host.getBoundingClientRect()
       setHoverFdi(fdi)
@@ -396,28 +391,19 @@ export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
       if (gesture === 'orbit' || !mesh) { clearHover(); return }
       const fdi = parseToothName(mesh.name)
       if (fdi === null) return
-      const ctx = live.current
-      const state = deriveOdontogramState(ctx.items, ctx.colorMap)
-      switch (decideToothClick(fdi, { ...ctx, owners: state.owners })) {
-        case 'toggle':
-          painting = ownsTooth(state.owners, fdi, ctx.activeItemId) ? 'remove' : 'add'
-          done.clear()
-          done.add(fdi)
-          // Keeps the moves coming if the cursor slips off the canvas
-          // mid-sweep — otherwise the sweep just stops, with half the teeth
-          // marked and nothing saying why. Released on `pointerup`.
-          renderer.domElement.setPointerCapture(e.pointerId)
-          ctx.onToggleTooth(fdi)
-          break
-        case 'implant': ctx.onToggleImplant?.(fdi); break
-        case 'design': ctx.onToggleDesign?.(fdi); break
-      }
+      // Keeps the moves coming if the cursor slips off the canvas mid-sweep —
+      // otherwise the sweep just stops, with half the teeth taken and nothing
+      // saying why. Released on `pointerup`.
+      if (drag.pointerDown(e, fdi)) renderer.domElement.setPointerCapture(e.pointerId)
     }
 
-    const onUp = (): void => {
+    const onUp = (e: PointerEvent): void => {
       orbiting = false
-      painting = null
-      done.clear()
+      drag.pointerUp(e)
+    }
+    const onCancel = (e: PointerEvent): void => {
+      orbiting = false
+      drag.pointerCancel(e)
     }
     const onLeave = (): void => clearHover()
 
@@ -426,6 +412,7 @@ export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
     host.addEventListener('pointerdown', onDownCapture, true)
     el.addEventListener('pointerleave', onLeave)
     window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onCancel)
 
     return () => {
       disposed = true
@@ -434,6 +421,7 @@ export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
       host.removeEventListener('pointerdown', onDownCapture, true)
       el.removeEventListener('pointerleave', onLeave)
       window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onCancel)
       controls.removeEventListener('change', render)
       controls.dispose()
       // Only what this mount created. Geometry and textures belong to the
@@ -459,10 +447,10 @@ export function Odontogram3D({ onUnavailable, ...props }: Odontogram3DProps) {
     if (loading || teeth.size === 0) return
     const state = deriveOdontogramState(items, colorMap)
     for (const [fdi, mesh] of teeth) {
-      paintTooth(mesh, fdi, state, activeItemId, fdi === hoverFdi)
+      paintTooth(mesh, fdi, state, activeItemId, fdi === hoverFdi || preview.has(fdi))
     }
     renderRef.current()
-  }, [items, colorMap, activeItemId, loading, hoverFdi])
+  }, [items, colorMap, activeItemId, loading, hoverFdi, preview])
 
   const setView = useCallback((v: ViewName) => fitRef.current(v), [])
 

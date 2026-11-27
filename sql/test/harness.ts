@@ -280,6 +280,8 @@ const SAMPLE_OVERRIDE: Record<string, unknown> = {
   'wivo_update_install.to_version': '1.0.0',
   // sql/138: a file name with no folder in it.
   'client_order_file.file_name': 'scan.stl',
+  // sql/140: an orderer's letters, as its check accepts them.
+  'reference_party.code': 'TF',
 }
 
 /**

@@ -205,6 +205,8 @@ export function clinicApi(clinicId: string, apiUrl: string, session: string) {
   return {
     catalog: () => call<CatalogueItem[]>(clinicId, apiUrl, session, 'catalog'),
     orders: () => call<ClientOrderSummary[]>(clinicId, apiUrl, session, 'orders'),
+    /** The reference the clinic would give the next order (sql/140); given out only when it is sent. */
+    nextRef: () => call<string>(clinicId, apiUrl, session, 'next_ref'),
     order: (orderId: string) => call<ClientOrderDetail>(clinicId, apiUrl, session, 'order', { orderId }),
     newOrder: (order: WivoOrderV1) => call<string>(clinicId, apiUrl, session, 'new_order', { order }),
     message: (orderId: string, body: string) => call<string>(clinicId, apiUrl, session, 'message', { orderId, body }),
