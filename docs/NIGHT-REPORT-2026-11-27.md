@@ -5,8 +5,20 @@ Haru: `testing`. Midagi ei pushitud, haru ei vahetatud, ühegi andmebaasiga ei
 ei käivitatud. Versiooni ei tõstetud (package.json on endiselt 2.2.5). Iga osa
 on eraldi commit. Ühtegi osa ei tulnud revertida.
 
-**Lõpus:** täis testid rohelised (238 faili, 3000+ testi), `tsc` (web + node)
-puhas, `npm run build` (desktop) ja `npm run mobile:build` (telefon) õnnestusid.
+**Commit'id järjekorras:** `8d9cc55` (1), `781074a` (2), `1a87ad4` (3),
+`d1ed403`, `917b559`, `10c3e5e` (4), `f437c28` (raport), `7eef159`,
+`f2c3e05` (5), `35cf1d9` (testi parandus).
+
+**Lõpus (pärast viimast commit'i `35cf1d9`):** täis testid rohelised
+(239 faili, 3073 testi), `tsc` (web + node) puhas, `npm run build` (desktop)
+ja `npm run mobile:build` (telefon) õnnestusid.
+
+**Ausalt:** kaks testi loevad ainult gitis olevaid faile (`git grep`), nii et
+need kukkusid alles pärast commit'i `917b559`: telefoni Network-režiimis oli
+üks kõvasti kirjutatud "LV" ja `appVersion` test pidas Networki
+`network-token` funktsiooni kliiniku funktsiooniks. Mõlemad parandatud
+(`7eef159`, `35cf1d9`). Vahepealsetes commit'ides on seega üks-kaks punast
+testi; lõppseis on roheline.
 
 ---
 
@@ -24,7 +36,7 @@ puhas, `npm run build` (desktop) ja `npm run mobile:build` (telefon) õnnestusid
 | 4E Testid | **valmis** | samad |
 | 4F docs/NETWORK-SETUP.md | **valmis** | `10c3e5e` |
 | 4 Ladu ja arved kliendile | **ei tehtud** (plaanis järgmiseks, N13) | — |
-| 5 Vene keel | vt allpool | vt allpool |
+| 5 Vene keel | **valmis** valitud ekraanidele (1124 võtit + 159 uut) | `7eef159`, `f2c3e05` |
 | 5 Läti keel | **plaan** (allpool) | see raport |
 
 ## Migratsioonid järjekorras
@@ -259,7 +271,25 @@ Plaan ja otsused: **docs/PLAN-NETWORK-1.md** (N1–N13). Lühidalt:
 
 ## Osa 5: vene keel
 
-(täidetakse allpool, kui tõlked on tehtud)
+Tõlgitud **1124 olemasolevat võtit** (ingliskeelsest allikast, kõik
+kohatäited `{…}` kontrollitud), lisaks kõik täna lisatud uued tekstid vene
+keeles (Network, Orders, märk, FAKE DATA: **159 võtit**). `ru.ts`-is on nüüd
+~1610 võtit (oli ~170).
+
+| Ekraan | Eesliide | Võtmeid |
+|---|---|---|
+| Lisa töö (viisard ja reeglid) | `wizard.`, `wizardRules.` | 289 |
+| Payroll (ka palgareeglid, tiim, palgaread) | `workers.`, `earnings.`, `payLine.` | 288 |
+| Töö leht | `jobDetail.` | 256 |
+| Telefon, tahvel, menüü, sisselogimine, teine tegur, failid, hambad, nädalapäevad | `mobile.`, `board.`, `sidebar.`, `auth.`, `mfa.`, `files.`, `teeth.`, `common.`, `app.` | 239 |
+| Jobs tabel | `tableView.` | 52 |
+| Settings avaleht | `settingsHome.` | oli juba tõlgitud (43) |
+
+**Jäi tõlkimata:** 31 võtit, mis on funktsioonid (mitmuse vormid), näitavad
+inglise keelt; ülejäänud ekraanid (Settings sisu, Ladu, Statistika, Arved,
+Kalender, Audit) on järgmise korra töö (ROADMAP-2.5 L1). **Soovitus:**
+lase Riia töötajal üle vaadata eriti hambatehnika sõnad (культя, абатмент,
+переделка) — tõlge on minu, mitte emakeelse tehniku oma.
 
 ## Osa 5: läti keel (ainult plaan)
 
