@@ -282,6 +282,11 @@ const SAMPLE_OVERRIDE: Record<string, unknown> = {
   'client_order_file.file_name': 'scan.stl',
   // sql/140: an orderer's letters, as its check accepts them.
   'reference_party.code': 'TF',
+  // sql/144: values their checks accept.
+  'job_fit.decision': 'fitted',
+  'job_rating.direction': 'work',
+  'job_rating.score': 3,
+  'client_order_message.from_client': true,
 }
 
 /**

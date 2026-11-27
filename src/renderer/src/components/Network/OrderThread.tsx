@@ -53,6 +53,19 @@ export function OrderThread({ orderId, clientName, canWrite, showOrderFiles = tr
         <p className="label">{t('orders.messages')}</p>
         <div className="space-y-2">
           {items.map(m => {
+            if (m.fit_state) {
+              return (
+                <div key={m.id} className={`max-w-[85%] space-y-2 rounded-xl px-3 py-2 text-base ${m.fit_state === 'fitted' ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>
+                  <p className="flex items-center gap-1 font-semibold">
+                    {m.fit_state === 'fitted' ? <CheckCircle2 size={16} aria-hidden="true" /> : <PencilLine size={16} aria-hidden="true" />}
+                    {m.fit_state === 'fitted' ? t('feedback.clientFitted') : t('feedback.clientAdjust')}
+                  </p>
+                  {m.body !== '✓' && <p className="whitespace-pre-wrap">{m.body}</p>}
+                  {m.files.length > 0 && <FileList files={m.files} onError={setError} onOpenLarge={setLarge} />}
+                  <p className="text-xs text-ink-muted">{clientName} · {when(m.created_at)}</p>
+                </div>
+              )
+            }
             if (m.review_of && m.review_state) {
               return (
                 <div key={m.id} className={`max-w-[85%] rounded-xl px-3 py-2 text-base ${m.review_state === 'approved' ? 'bg-emerald-500/10' : 'bg-amber-500/10'}`}>

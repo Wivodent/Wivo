@@ -92,6 +92,8 @@ export interface ClinicSettingsRow {
     laboratory?: boolean
     /** Fill the client reference automatically (sql/140). Absent: on. */
     auto_reference?: boolean
+    /** The licence has `ratings` (sql/144), written by the owner's Wivo; the database reads it (ratings_on). */
+    ratings?: boolean
   }
   calendar: {
     ajajoonAlgus: number
@@ -152,6 +154,7 @@ export function toRow(s: WivoSettings, stages: PipelineStage[]): Omit<ClinicSett
       clinical: s.kliinilineRezhiim,
       laboratory: s.laboriRezhiim,
       auto_reference: s.automaatneViide,
+      ratings: s.hinnangud,
     },
     // Spread, so a field added to the settings shape is carried here without
     // this mapper having to be remembered — the omission that silently dropped
@@ -192,6 +195,7 @@ export const COLUMN_OF: Record<string, ClinicColumn> = {
   kliinilineRezhiim: 'features',
   laboriRezhiim: 'features',
   automaatneViide: 'features',
+  hinnangud: 'features',
   epost: 'email',
   fixedCostsPerJob: 'pricing',
   lisateenused: 'pricing',

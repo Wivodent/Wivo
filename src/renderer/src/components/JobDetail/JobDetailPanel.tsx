@@ -8,6 +8,7 @@ import { MATERIAL_SHADES, jobWorkItems, workItemDesigner } from '../../types/job
 import { usePipeline } from '../../context/PipelineContext'
 import { MarkSentButton } from '../Network/MarkSent'
 import { JobOrderThread } from '../Network/OrderThread'
+import { JobFeedback } from '../Feedback/Feedback'
 import { stageChipStyle } from '../../config/pipeline'
 import { ToothPicker } from '../teeth/ToothPicker'
 import { ShadePicker } from './ShadePicker'
@@ -1049,6 +1050,8 @@ export function JobDetailPanel({ job, onClose, onSave, onCreateCopy, onDelete, s
               {!activeRev && <div className="mx-5 mt-3 flex justify-end empty:hidden"><MarkSentButton job={job} /></div>}
               {/* A job from a Network order: its conversation, files and reviews go on here (sql/143). */}
               {!activeRev && <div className="mx-5 mt-3 empty:hidden"><JobOrderThread jobId={job.id} /></div>}
+              {/* Fitted / Needs adjustment and ratings (sql/144, module ratings). */}
+              {!activeRev && <div className="mx-5 mt-3 empty:hidden"><JobFeedback job={job} /></div>}
               <JobReadView
                 job={job}
                 isBottom={isBottom}

@@ -62,7 +62,7 @@ function periodEnd(p: Period, custom?: DateRange | null): Date | null {
   return null
 }
 
-function filterByPeriod(jobs: Job[], period: Period, custom?: DateRange | null): Job[] {
+export function filterByPeriod(jobs: Job[], period: Period, custom?: DateRange | null): Job[] {
   const start = periodStart(period, custom)
   if (!start) return jobs
   const end = periodEnd(period, custom)

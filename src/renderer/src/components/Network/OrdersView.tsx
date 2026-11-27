@@ -17,7 +17,7 @@ import {
   useSaveNetworkSettings, useConfirmClient, useClientVisibility, useEndClient,
   useAcceptOrder, useRejectOrder, usePostOrderMessage, defaultList, clientName,
   useDirectoryEntry, useSetDirectoryListed, useOrderCounts, useOrderJobs, useOrderJobsLive,
-  type NetworkClientRow, type ClientOrderRow, type CanSee, type OrderCounts,
+  type NetworkClientRow, type ClientOrderRow, type CanSee, type OrderCounts, PORTAL_KEY,
 } from '../../hooks/useNetworkPortal'
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates'
 import { usePermissions } from '../../hooks/usePermissions'
@@ -27,6 +27,9 @@ import { saveOrderFile } from '../../lib/fileLink'
 import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
 import { MarkSentButton } from './MarkSent'
 import { OrderThread } from './OrderThread'
+import { Stars } from '../Feedback/FeedbackFields'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '../../lib/supabase'
 import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, networkConfigured, type OrderTab } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
 import { describeError } from '../Patients/errors'
@@ -391,6 +394,7 @@ const ordersCount = (n: number) => (n === 1 ? t('orders.oneOrder') : t('orders.n
 
 function ConnectedClients({ clients, ordersPerClient, canChange }: { clients: NetworkClientRow[]; ordersPerClient: Map<string, number>; canChange: boolean }) {
   const [all, setAll] = useState(false)
+  const feedback = useClientFeedbackSummary()
   const sorted = [...clients].sort((a, b) => (ordersPerClient.get(b.id) ?? 0) - (ordersPerClient.get(a.id) ?? 0))
   return (
     <section className="card space-y-3 p-4">
@@ -403,21 +407,23 @@ function ConnectedClients({ clients, ordersPerClient, canChange }: { clients: Ne
       {!all && sorted.slice(0, 3).map(c => (
         <div key={c.id} className="flex justify-between gap-3 text-base">
           <span className="truncate text-ink">{clientName(c)}</span>
-          <span className="shrink-0 text-ink-muted">{ordersCount(ordersPerClient.get(c.id) ?? 0)}</span>
+          <span className="shrink-0 text-ink-muted">
+            {feedbackLine(feedback.get(c.id))}{ordersCount(ordersPerClient.get(c.id) ?? 0)}
+          </span>
         </div>
       ))}
-      {all && sorted.map(c => <ConnectedRow key={c.id} client={c} orders={ordersPerClient.get(c.id) ?? 0} canChange={canChange} />)}
+      {all && sorted.map(c => <ConnectedRow key={c.id} client={c} orders={ordersPerClient.get(c.id) ?? 0} canChange={canChange} feedback={feedback.get(c.id)} />)}
     </section>
   )
 }
 
-function ConnectedRow({ client, orders, canChange }: { client: NetworkClientRow; orders: number; canChange: boolean }) {
+function ConnectedRow({ client, orders, canChange, feedback }: { client: NetworkClientRow; orders: number; canChange: boolean; feedback?: ClientFeedbackRow }) {
   const visibility = useClientVisibility()
   const end = useEndClient()
   return (
     <div className="space-y-2 rounded-xl border border-ink-faint/20 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <p className="min-w-0 flex-1 text-base font-semibold text-ink">{clientName(client)} <span className="font-normal text-ink-muted">· {roleLabel(client.role)} · {ordersCount(orders)}</span></p>
+        <p className="min-w-0 flex-1 text-base font-semibold text-ink">{clientName(client)} <span className="font-normal text-ink-muted">· {roleLabel(client.role)} · {feedbackLine(feedback)}{ordersCount(orders)}</span></p>
         {canChange && (
           <button type="button" className="btn-ghost h-9 text-sm text-rose-600"
             onClick={async () => { if (await confirmDialog({ message: t('orders.endAsk', { name: clientName(client) }), danger: true })) end.mutate({ p_client: client.id }) }}>
@@ -538,6 +544,9 @@ function OrderDialog({ order, client, canDecide, canWrite, onClose }: { order: C
           {p?.notes && <div className="sm:col-span-2"><Field label={t('orders.notes')} value={p.notes} /></div>}
         </dl>
 
+        {/* sql/144: the clinic rates the client's input on an accepted order (module ratings). */}
+        {order.status === 'accepted' && canDecide && <RateClientRow orderId={order.id} />}
+
         {/* The conversation, its files and reviews (sql/143): the same component as on the job page. */}
         <div className="mt-5">
           <OrderThread orderId={order.id} clientName={clientName(client)} canWrite={canWrite} />
@@ -592,6 +601,57 @@ function Field({ label, value, info }: { label: string; value: string; info?: st
     <div>
       <dt className="label flex items-center gap-1">{label}{info && <InfoButton label={label} text={info} />}</dt>
       <dd className="whitespace-pre-wrap text-base text-ink">{value}</dd>
+    </div>
+  )
+}
+
+// ── Feedback on clients (sql/144, module ratings) ───────────────────────────
+interface ClientFeedbackRow { client_id: string; average: number | null; ratings: number; adjustments: number }
+
+/** For the owner: each client's average (the clinic's ratings of its input) and how many adjustments it asked for. */
+function useClientFeedbackSummary(): Map<string, ClientFeedbackRow> {
+  const { moduleOn, isOwner } = usePermissions()
+  const rows = useQuery<ClientFeedbackRow[]>({
+    queryKey: [...PORTAL_KEY, 'client-feedback'],
+    enabled: moduleOn('ratings') && isOwner,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('client_feedback_summary')
+      return error ? [] : (data ?? []) as ClientFeedbackRow[]
+    },
+  }).data ?? []
+  return new Map(rows.map(r => [r.client_id, r]))
+}
+
+/** "★ 4.2 · 1 adjustment · " before the orders count, only what there is. */
+function feedbackLine(f: ClientFeedbackRow | undefined): string {
+  if (!f) return ''
+  const parts: string[] = []
+  if (f.ratings > 0 && f.average !== null) parts.push(`★ ${Number(f.average).toFixed(1)}`)
+  if (f.adjustments > 0) parts.push(f.adjustments === 1 ? t('feedback.oneAdjustment') : t('feedback.nAdjustments', { n: f.adjustments }))
+  return parts.length ? `${parts.join(' · ')} · ` : ''
+}
+
+function RateClientRow({ orderId }: { orderId: string }) {
+  const { moduleOn } = usePermissions()
+  const [score, setScore] = useState<number | null>(null)
+  const [comment, setComment] = useState('')
+  const [state, setState] = useState<'idle' | 'saved' | string>('idle')
+  if (!moduleOn('ratings')) return null
+  return (
+    <div className="mt-5 space-y-2 rounded-xl border border-ink-faint/20 p-3">
+      <p className="text-sm font-semibold text-ink">{t('feedback.rateClient')} <span className="font-normal text-ink-muted">({t('feedback.optional')})</span></p>
+      <Stars value={score} onChange={n => { setScore(n); setState('idle') }} label={t('feedback.rateClient')} />
+      <div className="flex gap-2">
+        <input className="input h-10 flex-1 text-sm" maxLength={1000} value={comment} onChange={e => { setComment(e.target.value); setState('idle') }} placeholder={t('feedback.comment')} aria-label={t('feedback.comment')} />
+        <button type="button" disabled={score === null} className="btn-primary h-10 px-4 text-sm"
+          onClick={async () => {
+            const { error } = await supabase.rpc('rate_client', { p_order: orderId, p_score: score, p_comment: comment.trim() || null })
+            setState(error ? describeError(error) : 'saved')
+          }}>
+          {state === 'saved' ? t('feedback.saved') : t('feedback.save')}
+        </button>
+      </div>
+      {state !== 'idle' && state !== 'saved' && <p className="text-sm text-rose-600" role="alert">{state}</p>}
     </div>
   )
 }

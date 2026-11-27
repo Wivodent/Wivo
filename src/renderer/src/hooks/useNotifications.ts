@@ -23,6 +23,8 @@ export interface AppNotification {
     | 'option_assigned'
     // sql/138: a Network order or a request to connect; sql/142: a client's message or review answer on an order.
     | 'client_order' | 'client_request' | 'client_message' | 'client_review'
+    // sql/144: a job needs adjustment (its technician and designer); a client said how the sent work fitted.
+    | 'job_adjust' | 'client_fit'
   detail: Record<string, unknown>
   created_at: string
   read_at: string | null

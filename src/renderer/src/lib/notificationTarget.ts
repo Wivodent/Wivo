@@ -25,7 +25,7 @@ export type NotificationTarget =
 /** The partnership's own notices: the only ones that may open "Shared with us". */
 const PARTNER_KINDS = new Set(['job_shared', 'stage_handover', 'files_added', 'question'])
 /** The Network's notices about one order. */
-const ORDER_KINDS = new Set(['client_order', 'client_message', 'client_review'])
+const ORDER_KINDS = new Set(['client_order', 'client_message', 'client_review', 'client_fit'])
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

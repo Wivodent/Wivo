@@ -101,6 +101,11 @@ export function JobCard({ job, onClick, onStageChange, skippedStages, isDragging
               M
             </span>
           )}
+          {job.fitted_at && (
+            <span title={t('feedback.fitted')} aria-label={t('feedback.fitted')}>
+              <Check size={13} className="text-emerald-600" strokeWidth={3} />
+            </span>
+          )}
           {job.kiirtoo && (
             <span title={t('board.rushJob')}>
               <Zap size={13} className="text-orange-500" />

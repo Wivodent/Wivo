@@ -516,6 +516,8 @@ export interface Job {
   // has finished with it, not that the practice has it (migration 035).
   delivery_status: DeliveryStatus
   delivered_at: string | null
+  /** sql/144: the doctor or the client said it fitted (the job card's tick). Cleared by a "Needs adjustment". */
+  fitted_at?: string | null
   // --- Work items (migration 0XX) — multiple work types per job ---
   work_items: WorkItem[]    // e.g. [{too:'Kroon', hambad:'11,12'}, {too:'Sild', hambad:'14,15,16'}]
   // --- Revision list ---

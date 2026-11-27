@@ -74,6 +74,13 @@ export interface ClientOrderDetail {
   files: { id: string; file_name: string; size: number; created_at: string; message_id?: string | null; from_client?: boolean; mime_type?: string | null }[] | null
 }
 
+/** What the client already said on an order (sql/144), and whether the clinic has feedback on. */
+export interface OrderFeedback {
+  enabled: boolean
+  fit: { decision: 'fitted' | 'adjust'; reason: string | null; created_at: string } | null
+  rating: { score: number; comment: string | null } | null
+}
+
 /** A notice to the client from one clinic (sql/142): what happened, never a message's text. */
 export interface ClientNotice {
   id: string
@@ -236,6 +243,15 @@ export function clinicApi(clinicId: string, apiUrl: string, session: string) {
     upload: (orderId: string, file: File) => sendFile(clinicId, apiUrl, session, 'upload', { orderId }, file),
     /** One file with one of the client's own messages (sql/143). */
     messageUpload: (messageId: string, file: File) => sendFile(clinicId, apiUrl, session, 'message_upload', { messageId }, file),
+    /** sql/144: how the sent work fitted (Needs adjustment: a reason and a text); returns the message, for its photos. */
+    fit: (orderId: string, decision: 'fitted' | 'adjust', reason?: string, note?: string) =>
+      call<string>(clinicId, apiUrl, session, 'fit', { orderId, decision, reason: reason ?? null, note: note ?? null }),
+    /** sql/144: the client's rating of this clinic for one order, 1–5. */
+    rateClinic: (orderId: string, score: number, comment?: string) =>
+      call<null>(clinicId, apiUrl, session, 'rate_clinic', { orderId, score, comment: comment ?? null }),
+    /** sql/144: whether feedback is on here, and what the client already said on this order. */
+    feedback: (orderId: string) => call<OrderFeedback>(clinicId, apiUrl, session, 'feedback', { orderId })
+      .catch(() => ({ enabled: false, fit: null, rating: null }) as OrderFeedback),
     /** Approve a message that needs review, or request changes (the comment is required then). */
     review: (messageId: string, decision: 'approved' | 'changes', comment?: string) =>
       call<string>(clinicId, apiUrl, session, 'review', { messageId, decision, comment: comment ?? null }),

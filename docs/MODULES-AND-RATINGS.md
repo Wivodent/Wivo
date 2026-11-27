@@ -415,6 +415,36 @@ Puhas loogika **`shared/ratings/`**-isse: poole sammu valideerimine, keskmise
 arvutus (hindamata välja), boonusreegli hindamine koos miinimumiga. Need
 otsustavad raha ja on testitavad ilma andmebaasita.
 
+## 2.9 Mis on ehitatud (27.11.2026, sql/144)
+
+Dentiksi soovi järgi, plaanist osaliselt erinev:
+
+| Plaan (2.1–2.8) | Ehitatud |
+|---|---|
+| hinne 0–5 poole sammuga | **1–5 täisarvuna**, kommentaar valikuline |
+| tabel `job_ratings`, migratsioon 125 | tabel **`job_rating`**, migratsioon **144** (125 läks e-kirjade limiidile) |
+| pimedus: teise hinnet näeb pärast enda hinnet | **hinnatav näeb oma keskmist ja kommentaare**, mitte kes andis ega millise töö eest (`my_rating_summary`); töötajad ei näe teineteise hindeid; omanik näeb kõike |
+| boonus `payroll`-iga | **pole veel ehitatud** |
+
+Lisaks plaanile:
+
+- **Fitted / Needs adjustment** pärast viimast etappi (`job_fit`): arst (töö
+  tellinud, kliiniku arst) või omanik; Network-klient pärast "Sent". "Needs
+  adjustment" vajab põhjust (ümbertegemise põhjuste loendist) ja teksti, lisab
+  tööle revisjoni (`jobs.revisions`, esimene etapp) ja teavitab tehnikut ja
+  disainerit (`job_adjust`). "Fitted" paneb `jobs.fitted_at` (töökaardi linnuke).
+- **Suunad:** `work` (arst → tehnik ja disainer), `input` (tehnik/disainer →
+  arst), `client_to_clinic`, `clinic_to_client`. Keegi ei hinda ennast.
+- **Network:** kliendi vastus on ka sõnum tellimuse vestluses (`fit_state`,
+  fotod kaasas) ja üks kelluke (`client_fit`). Hinded jäävad kliiniku
+  andmebaasi; `published` on Network 2 jaoks ette valmistatud, keegi seda veel
+  ei loe.
+- **Statistika (omanik):** ümbertegemiste määr ja põhjused inimese kaupa ning
+  saadud hinded Production vahekaardil; töötüübi kaupa oli juba olemas.
+  Orders → Clients: kliendi keskmine ja paranduste arv (`client_feedback_summary`).
+- **Moodul:** omaniku Wivo kirjutab litsentsist `clinic_settings.features.ratings`,
+  iga funktsioon küsib `ratings_on()`.
+
 ---
 
 ## Järjekord

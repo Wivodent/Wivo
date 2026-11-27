@@ -29,7 +29,7 @@ import { format } from 'date-fns'
 import {
   network, networkConfigured, myAccount, saveAccount, directory, clinicByInvite, myConnections,
   requestConnection, endConnection, connect, clinicApi, NetworkError,
-  type Account, type Connection, type DirectoryClinic, type ClinicSession, type ClientOrderSummary, type ClientOrderDetail, type ClientNotice,
+  type Account, type Connection, type DirectoryClinic, type ClinicSession, type ClientOrderSummary, type ClientOrderDetail, type ClientNotice, type OrderFeedback,
 } from '../../lib/network'
 import { emptyOrder, orderProblems, orderImplants, type CatalogueItem, type ClientOrderStatus, type WivoOrderV1 } from '@shared/network/order'
 import { InfoButton } from '../../components/ui/InfoButton'
@@ -37,6 +37,7 @@ import { WorkTypeArt } from '../../components/ui/WorkTypeArt'
 import { ToothPicker } from '../../components/teeth/ToothPicker'
 import { applyPaint } from '../../components/teeth/toothDrag'
 import { AbutmentPicker } from '../../components/NewJobWizard/teeth/AbutmentPicker'
+import { Stars, AdjustFields } from '../../components/Feedback/FeedbackFields'
 import { teethCountLabel } from '../../components/NewJobWizard/teeth/WorkTypeTabs'
 import {
   teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
@@ -1225,6 +1226,87 @@ function ClientImage({ api, file, onOpen }: { api: Api; file: ThreadFile; onOpen
   )
 }
 
+/**
+ * After the work is sent (sql/144, the clinic's module `ratings`): "Fitted"
+ * or "Needs adjustment" (a reason, a text, photos if any: the clinic makes a
+ * remake), and an optional 1–5 rating of the clinic with a comment. What the
+ * client already said is shown; it stays in the clinic's database.
+ */
+function ClientFeedback({ api, orderId, clinicName, onDone }: { api: Api; orderId: string; clinicName: string; onDone: () => void }) {
+  const fb = useQuery<OrderFeedback>({ queryKey: ['network', 'feedback', orderId], queryFn: () => api.feedback(orderId) })
+  const [adjusting, setAdjusting] = useState(false)
+  const [reason, setReason] = useState('')
+  const [note, setNote] = useState('')
+  const [photos, setPhotos] = useState<File[]>([])
+  const [score, setScore] = useState<number | null>(null)
+  const [comment, setComment] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
+  const data = fb.data
+  useEffect(() => {
+    if (data?.rating) { setScore(data.rating.score); setComment(data.rating.comment ?? '') }
+  }, [data?.rating?.score]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!data?.enabled) return null
+
+  async function fit(decision: 'fitted' | 'adjust') {
+    setBusy(true); setError(null)
+    try {
+      const msg = await api.fit(orderId, decision, reason || undefined, note.trim() || undefined)
+      for (const f of photos) await api.messageUpload(msg, f)
+      setAdjusting(false); setReason(''); setNote(''); setPhotos([])
+      void fb.refetch(); onDone()
+    } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
+  }
+  async function rate() {
+    if (score === null) return
+    setBusy(true); setError(null)
+    try { await api.rateClinic(orderId, score, comment.trim() || undefined); setSaved(true); void fb.refetch() }
+    catch (e) { setError(errorText(e)) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="card space-y-3 rounded-2xl p-4">
+      <p className="text-sm font-bold">{t('network.howDidItFit')}</p>
+      {data.fit && (
+        <p className={`text-sm font-semibold ${data.fit.decision === 'fitted' ? 'text-emerald-700' : 'text-amber-700'}`}>
+          {data.fit.decision === 'fitted' ? t('network.youSaidFitted') : t('network.youAskedAdjustment')}</p>
+      )}
+      {!adjusting ? (
+        <div className="flex flex-wrap gap-2">
+          {data.fit?.decision !== 'fitted' && (
+            <button type="button" disabled={busy} onClick={() => void fit('fitted')} className="btn-primary min-h-11 justify-center rounded-xl px-4 text-sm">
+              <Check size={16} aria-hidden="true" /> {t('feedback.fitted')}</button>
+          )}
+          <button type="button" disabled={busy} onClick={() => setAdjusting(true)} className="min-h-11 rounded-xl border border-ink-faint/40 bg-bg-card px-4 text-sm">{t('feedback.needsAdjustment')}</button>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <AdjustFields reason={reason} note={note} onReason={setReason} onNote={setNote} />
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-dashed border-ink-faint px-3 text-sm text-ink-soft">
+            <Paperclip size={16} aria-hidden="true" /> {photos.length ? t('network.filesChosen', { n: photos.length }) : t('network.addPhotos')}
+            <input type="file" multiple accept="image/*,.pdf,.stl" className="hidden" onChange={e => setPhotos([...(e.target.files ?? [])].slice(0, 20))} />
+          </label>
+          <p className="text-xs text-ink-muted">{t('network.adjustMakesRemake', { clinic: clinicName })}</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setAdjusting(false)} className="min-h-11 flex-1 rounded-xl border border-ink-faint/40 bg-bg-card text-sm">{t('network.backStep')}</button>
+            <button type="button" disabled={busy || !reason || !note.trim()} onClick={() => void fit('adjust')} className="btn-primary min-h-11 flex-1 justify-center rounded-xl text-sm">{t('feedback.sendAdjustment')}</button>
+          </div>
+        </div>
+      )}
+      <div className="space-y-2 border-t border-ink-faint/15 pt-3">
+        <p className="text-sm font-semibold">{t('network.rateClinic', { clinic: clinicName })} <span className="font-normal text-ink-muted">({t('feedback.optional')})</span></p>
+        <Stars value={score} onChange={n => { setScore(n); setSaved(false) }} label={t('network.rateClinic', { clinic: clinicName })} />
+        <div className="flex gap-2">
+          <input className="input h-11 flex-1 rounded-xl text-base" maxLength={1000} value={comment} onChange={e => { setComment(e.target.value); setSaved(false) }} placeholder={t('feedback.comment')} aria-label={t('feedback.comment')} />
+          <button type="button" disabled={busy || score === null} onClick={() => void rate()} className="btn-primary h-11 rounded-xl px-4 text-sm">{saved ? t('feedback.saved') : t('feedback.save')}</button>
+        </div>
+      </div>
+      {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
+    </div>
+  )
+}
+
 /** The steps an order goes through as the client sees them; a date only where Wivo has one. */
 const PROGRESS: { key: 'received' | 'accepted' | 'production' | 'ready' | 'sent'; label: () => string }[] = [
   { key: 'received', label: () => t('network.progressReceived') },
@@ -1290,6 +1372,7 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
 
       {p.notes && <p className="card whitespace-pre-wrap rounded-2xl p-4 text-base text-ink-muted">{p.notes}</p>}
 
+      {d.status === 'sent' && <ClientFeedback api={api} orderId={orderId} clinicName={clinicName} onDone={() => void detail.refetch()} />}
       <ClientThread api={api} orderId={orderId} clinicName={clinicName} detail={detail} onError={setError} />
       {error && <p className="text-base text-rose-600">{error}</p>}
     </div>

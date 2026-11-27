@@ -206,7 +206,9 @@ export function sentMessage(
 
 // ── An order's conversation: files with their messages, reviews (sql/143) ────
 
-export interface ThreadMessage { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null }
+export interface ThreadMessage { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null
+  /** sql/144: the client's "Fitted" / "Needs adjustment" on sent work. */
+  fit_state?: 'fitted' | 'adjust' | null }
 export interface ThreadFile { id: string; file_name: string; size: number; created_at: string; message_id?: string | null; from_client?: boolean; mime_type?: string | null }
 
 /** Each message with its files, in order; files sent with the order itself (no message) apart. */

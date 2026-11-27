@@ -18,6 +18,7 @@ import { PatientsView } from './components/Patients/PatientsView'
 import { UnsortedView } from './components/Unsorted/UnsortedView'
 import { OrdersView, type OrdersFocus } from './components/Network/OrdersView'
 import { notificationTarget } from './lib/notificationTarget'
+import { RatingsLicenceSync } from './components/RatingsLicenceSync'
 import { LanguageSync } from './components/LanguageSync'
 import { supabase } from './lib/supabase'
 import { PartnerJobsView } from './components/Partners/PartnerJobsView'
@@ -653,6 +654,7 @@ export default function App() {
             {/* Renders nothing; pulls the clinic-owned settings down and pushes
                 local edits back. Inside AuthGuard because it needs the clinic. */}
             <ClinicSettingsSync />
+            <RatingsLicenceSync />
             <UiPrefsSync />
             <LanguageSync />
             {/* ONE subscription to the updater for the whole app. The sidebar

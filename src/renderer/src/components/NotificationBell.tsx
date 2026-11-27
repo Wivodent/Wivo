@@ -48,6 +48,13 @@ export const text = (n: AppNotification, stageLabel: (key: string) => string): s
   if (n.kind === 'client_request') return t('notifications.clientRequest')
   // sql/142: a client wrote on an order, or answered a review (sql/143).
   if (n.kind === 'client_message') return t('notifications.clientMessage', { ref: String(n.detail.ref ?? '') })
+  // sql/144: a job needs adjustment; a client said how the sent work fitted.
+  if (n.kind === 'job_adjust') return t('notifications.jobAdjust', { code })
+  if (n.kind === 'client_fit') {
+    return n.detail.decision === 'fitted'
+      ? t('notifications.clientFitted', { ref: String(n.detail.ref ?? '') })
+      : t('notifications.clientAdjust', { ref: String(n.detail.ref ?? '') })
+  }
   if (n.kind === 'client_review') {
     return n.detail.decision === 'approved'
       ? t('notifications.clientApproved', { ref: String(n.detail.ref ?? '') })

@@ -1,5 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
+import { MyFeedback } from './Feedback/Feedback'
 import { CalendarDays, Globe, Cpu, Pencil, Layers, ChevronUp, ChevronDown, ChevronLeft, Trash2, RotateCcw, Plus, X, ArrowRight, User, Palette, CalendarClock, Euro, Building2, Type, ListChecks, KeyRound, Mail, ShieldCheck, AlertTriangle, Database, Languages, Handshake, ScrollText, Bell
 } from 'lucide-react'
 import { useSettings, THEMES, TEXT_SIZES } from '../stores/useSettings'
@@ -1797,6 +1798,8 @@ export function SettingsPage({ initialGroup = 'home', initialWorkType, onOpenPat
 
           {/* Your name — stamped as the author on every patient note */}
           {activeGroup === 'profiil' && <ProfileSection auth={auth} />}
+          {/* sql/144: one's own ratings (the module `ratings`): the average and comments, never who. */}
+          {activeGroup === 'profiil' && <div className="mt-6 max-w-xl"><MyFeedback /></div>}
 
           {/* Authenticators, phones, sign out elsewhere (sql/097). */}
           {activeGroup === 'turvalisus' && <section className="2xl:col-span-2"><SecuritySection /></section>}

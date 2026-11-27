@@ -177,6 +177,26 @@ export async function handleNetworkClient(body: unknown, deps: NetworkClientDeps
       if (!messageId || !decision || (decision === 'changes' && !comment)) return bad
       return call('client_review', { p_message: messageId, p_decision: decision, p_comment: comment || null })
     }
+    // sql/144 (module ratings): how the sent work fitted, the client's rating of the clinic, what it already said.
+    case 'fit': {
+      const orderId = id(b.orderId)
+      const decision = b.decision === 'fitted' || b.decision === 'adjust' ? b.decision : null
+      const reason = typeof b.reason === 'string' ? b.reason.trim().slice(0, 80) : ''
+      const note = typeof b.note === 'string' ? b.note.trim().slice(0, 4000) : ''
+      if (!orderId || !decision || (decision === 'adjust' && (!reason || !note))) return bad
+      return call('client_fit', { p_order: orderId, p_decision: decision, p_reason: reason || null, p_note: note || null })
+    }
+    case 'rate_clinic': {
+      const orderId = id(b.orderId)
+      const score = typeof b.score === 'number' && Number.isInteger(b.score) && b.score >= 1 && b.score <= 5 ? b.score : null
+      const comment = typeof b.comment === 'string' ? b.comment.trim().slice(0, 1000) : ''
+      if (!orderId || score === null) return bad
+      return call('client_rate_clinic', { p_order: orderId, p_score: score, p_comment: comment || null })
+    }
+    case 'feedback': {
+      const orderId = id(b.orderId)
+      return orderId ? call('client_feedback', { p_order: orderId }) : bad
+    }
     case 'upload_done': {
       const fileId = id(b.fileId)
       return fileId ? call('client_file_done', { p_file: fileId }) : bad

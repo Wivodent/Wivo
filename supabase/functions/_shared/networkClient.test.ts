@@ -131,6 +131,18 @@ describe('network-client', () => {
     expect((await handleNetworkClient({ action: 'review', session: SESSION, messageId: ORDER_ID, decision: 'maybe' }, deps)).status).toBe(400)
   })
 
+  it('how it fitted and the rating of the clinic: checked here, the database decides (sql/144)', async () => {
+    const { deps, calls } = await setup({})
+    await handleNetworkClient({ action: 'fit', session: SESSION, orderId: ORDER_ID, decision: 'adjust', reason: 'Halb passivus', note: 'Rocks' }, deps)
+    expect(calls.at(-1)).toEqual({ fn: 'client_fit', args: { p_session: SESSION, p_order: ORDER_ID, p_decision: 'adjust', p_reason: 'Halb passivus', p_note: 'Rocks' } })
+    expect((await handleNetworkClient({ action: 'fit', session: SESSION, orderId: ORDER_ID, decision: 'adjust', reason: 'Muu', note: ' ' }, deps)).status).toBe(400)
+    await handleNetworkClient({ action: 'rate_clinic', session: SESSION, orderId: ORDER_ID, score: 5 }, deps)
+    expect(calls.at(-1)).toEqual({ fn: 'client_rate_clinic', args: { p_session: SESSION, p_order: ORDER_ID, p_score: 5, p_comment: null } })
+    expect((await handleNetworkClient({ action: 'rate_clinic', session: SESSION, orderId: ORDER_ID, score: 6 }, deps)).status).toBe(400)
+    await handleNetworkClient({ action: 'feedback', session: SESSION, orderId: ORDER_ID }, deps)
+    expect(calls.at(-1)?.fn).toBe('client_feedback')
+  })
+
   it('an order that is not Wivo order v1 does not reach the database', async () => {
     const { deps, calls } = await setup({})
     const a = await handleNetworkClient({ action: 'new_order', session: SESSION, order: { format: 'other' } }, deps)

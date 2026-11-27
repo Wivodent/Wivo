@@ -7,7 +7,7 @@ import {
 import { TrendingUp, Users, Clock, AlertCircle, Euro, CheckCircle, Package, Layers, Zap, Cpu, Timer, CalendarClock, UserX, UserPlus, Stethoscope, Repeat } from 'lucide-react'
 import type { Job } from '../../types/job'
 import {
-  type Period, type DateRange, useDashboardStats, customIsUsable,
+  type Period, type DateRange, useDashboardStats, customIsUsable, filterByPeriod,
 } from './useDashboardStats'
 import { useVisits } from '../../hooks/useVisits'
 import { usePatients } from '../../hooks/usePatients'
@@ -21,6 +21,7 @@ import {
   CHART_COLORS, TOOLTIP_STYLE, rowChartHeight, NAME_AXIS_WIDTH, truncateName,
 } from './chartTheme'
 import { MyView } from './MyView'
+import { FeedbackStats } from '../Feedback/Feedback'
 import { useAuth } from '../../context/AuthContext'
 import { usePermissions } from '../../hooks/usePermissions'
 import { t } from '@/lib/i18n'
@@ -197,6 +198,8 @@ export function Dashboard({ jobs }: DashboardProps) {
       {shownTab === 'rahandus' && <FinanceView jobs={jobs} period={period} custom={window} />}
 
       {shownTab === 'tootmine' && (<>
+      {/* sql/144: remakes and ratings per person, for the owner (module ratings). */}
+      <FeedbackStats jobs={filterByPeriod(jobs, period, window)} />
       {/* ─── Summary cards ─── */}
       <section>
         <h3 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-3">
