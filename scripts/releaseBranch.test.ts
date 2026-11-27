@@ -93,3 +93,39 @@ describe('"contains the published commit" is git\'s own answer', () => {
     expect(isAncestor(published)).toBe(false)
   })
 })
+
+describe('the installer build (build-clinic.mjs) applies the same rule', () => {
+  // @ts-expect-error plain .mjs without types
+  const lib = import('./release-lib.mjs') as Promise<{ latestLocalRelease: (dir: string, o?: object) => { version: string; commit: string | null } | null; compareXyz: (a: string, b: string) => number }>
+  const C = (n: number) => String(n).repeat(40).slice(0, 40)
+  const files: Record<string, string> = {
+    'r/2.2.4/release.json': JSON.stringify({ version: '2.2.4', commit: C(4) }),
+    'r/2.2.10/release.json': JSON.stringify({ version: '2.2.10', commit: C(1) }),
+    'r/2.2.5/release.json': JSON.stringify({ version: '2.2.5', commit: C(5) }),
+  }
+  const read = (p: string) => { const k = p.split(String.fromCharCode(92)).join('/'); if (!(k in files)) throw new Error('missing'); return files[k] }
+  const list = () => ['2.2.4', '2.2.5', '2.2.10', 'licence']
+
+  it('takes the newest release this machine built below the version being built', async () => {
+    const { latestLocalRelease } = await lib
+    expect(latestLocalRelease('r', { read, list })).toEqual({ version: '2.2.10', commit: C(1) })
+    expect(latestLocalRelease('r', { read, list, below: '2.2.6' })).toEqual({ version: '2.2.5', commit: C(5) })
+    // A rebuild of 2.2.5 does not count its own earlier build.
+    expect(latestLocalRelease('r', { read, list, below: '2.2.5' })).toEqual({ version: '2.2.4', commit: C(4) })
+    expect(latestLocalRelease('nowhere', { list: () => { throw new Error('no dir') } })).toBeNull()
+  })
+
+  it('compares versions as numbers (2.2.10 is above 2.2.9)', async () => {
+    const { compareXyz } = await lib
+    expect(compareXyz('2.2.10', '2.2.9')).toBeGreaterThan(0)
+    expect(compareXyz('2.2.6', '2.2.6')).toBe(0)
+    expect(compareXyz('2.1.9', '2.2.0')).toBeLessThan(0)
+  })
+
+  it('build-clinic.mjs asks releaseBranchProblem, not "testing only"', () => {
+    const src = readFileSync(join(__dirname, 'build-clinic.mjs'), 'utf8')
+    expect(src).toMatch(/releaseBranchProblem\(\{/)
+    expect(src).toMatch(/latestLocalRelease\(join\(ROOT, 'releases', clinic\.id\), \{ below: version \}\)/)
+    expect(src).not.toMatch(/the installer is built from testing/)
+  })
+})
