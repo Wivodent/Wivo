@@ -39,14 +39,21 @@ describe('unbilled work on an invoice', () => {
     })
     const lines = jobLines(j, book, options, 'TF-1')
     expect(lines.map(l => l.unit_price)).toEqual([2000, 300, 200, 50, 60])
-    expect(lines[2].description).toBe('TF-1 · Kroon · hambad 11,21')
+    expect(lines[2].description).toBe('TF-1 · Kroon · hambad 11, 21')
     expect(lines.reduce((s, l) => s + l.unit_price, 0)).toBe(2610)
   })
 
   it('a Latvian invoice’s lines in Latvian (sql/148); Estonian as before when not told', () => {
     const j = job({ hind: 2500, work_items: [{ id: 'w1', too: 'All-on-4', hambad: '', valikud: { bar: ['metal-bar'] } }, { id: 'w2', too: 'Kroon', hambad: '11,21' }] as Job['work_items'] })
-    expect(jobLines(j, book, options, null, invoiceLabels('lv').line)[2].description).toBe('Kroon · zobi 11,21')
-    expect(jobLines(j, book, options, null)[2].description).toBe('Kroon · hambad 11,21')
+    expect(jobLines(j, book, options, null, invoiceLabels('lv').line)[2].description).toBe('Kroon · zobi 11, 21')
+    expect(jobLines(j, book, options, null)[2].description).toBe('Kroon · hambad 11, 21')
+  })
+
+  it('many teeth as ranges, as on the Orders page: 17–27, not every number', () => {
+    const upper = '17,16,15,14,13,12,11,21,22,23,24,25,26,27'
+    const j = job({ hind: 1400, work_items: [{ id: 'w', too: 'Kroon', hambad: upper }] as Job['work_items'] })
+    expect(jobLines(j, book, options, null)[0].description).toBe('Kroon · hambad 17–27')
+    expect(jobLines(job({ hind: 999, hambad: `${upper},36,35,34` }), book, options, null)[0].description).toBe('All-on-4 (Metal bar) · hambad 17–27, 34–36')
   })
 
   it('a price set by hand: one line at the job’s own price, never something else', () => {

@@ -31,6 +31,7 @@ import { invoiceHtml, invoiceText, invoiceSubject } from '../_shared/invoiceHtml
 import { openSmtp, smtpProblems, safeError } from '../_shared/mail.ts'
 import { invoicePdf, invoicePdfName } from '../_shared/invoicePdf.ts'
 import { isServiceRequest, serviceClientKey } from '../_shared/serviceAuth.ts'
+import { mayMail } from '../_shared/mailAllow.ts'
 
 const env = (name: string) => Deno.env.get(name)
 
@@ -175,6 +176,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
       if (!verdict.send) {
         results.push({ clinic: row.clinic_id, invoice: inv.number, skipped: verdict.reason })
+        continue
+      }
+      // The test copy holds real data: mail only to its allowed addresses (EMAIL_ALLOW_ONLY, mailAllow.ts).
+      if (!mayMail(verdict.to, env('EMAIL_ALLOW_ONLY'))) {
+        results.push({ clinic: row.clinic_id, invoice: inv.number, skipped: 'testkoopia: aadress ei ole lubatud (EMAIL_ALLOW_ONLY)' })
         continue
       }
 

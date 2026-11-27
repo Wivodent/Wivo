@@ -41,6 +41,22 @@ const esc = (v: string | null | undefined): string =>
     .replace(/"/g, '&quot;')
 
 const CELL = 'padding:6px 0;font-size:14px;color:#111;'
+/**
+ * The number columns: right-aligned, never wrapping, as wide as what they hold
+ * (width:1%) and with room between them, so "Ühiku hind" / "Vienības cena"
+ * stays on one line and the amount never runs into it; the description takes
+ * what is left and wraps. On a narrow screen the unit price heading becomes
+ * "Hind" / "Cena" / "Price" (a media query; a client that drops the <style>
+ * keeps the whole heading, still on one line).
+ */
+export const NUM_COL = 'width:1%;text-align:right;white-space:nowrap;padding-left:16px;'
+// On a narrow screen: smaller margins, closer number columns, the short headings. Inline styles stay the wide default.
+const NARROW_STYLE = '<style>.wv-short{display:none}@media (max-width:480px){'
+  + 'body.wv-body{padding:8px!important}.wv-card{padding:12px!important}.wv-num{padding-left:8px!important;font-size:13px!important}'
+  + '.wv-full{display:none!important}.wv-short{display:inline!important}}</style>'
+/** A heading with its short form for a narrow screen; one form only when both are the same. */
+const heading = (full: string, short: string) =>
+  full === short ? esc(full) : `<span class="wv-full">${esc(full)}</span><span class="wv-short">${esc(short)}</span>`
 const MUTED = 'color:#666;'
 
 /** The clinic's template, with anything it left blank falling back to ours. */
@@ -122,9 +138,9 @@ export function invoiceHtml(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): strin
   const rows = doc.lines.map(l => `
     <tr>
       <td style="${CELL}border-bottom:1px solid #ddd;">${esc(l.description)}</td>
-      <td style="${CELL}border-bottom:1px solid #ddd;text-align:right;">${esc(l.qtyText)}</td>
-      <td style="${CELL}border-bottom:1px solid #ddd;text-align:right;">${esc(l.unitPriceText)}</td>
-      <td style="${CELL}border-bottom:1px solid #ddd;text-align:right;">${esc(l.totalText)}</td>
+      <td class="wv-num" style="${CELL}border-bottom:1px solid #ddd;${NUM_COL}">${esc(l.qtyText)}</td>
+      <td class="wv-num" style="${CELL}border-bottom:1px solid #ddd;${NUM_COL}">${esc(l.unitPriceText)}</td>
+      <td class="wv-num" style="${CELL}border-bottom:1px solid #ddd;${NUM_COL}">${esc(l.totalText)}</td>
     </tr>`).join('')
 
   const paidRows = doc.totals.showPaid ? `
@@ -139,9 +155,9 @@ export function invoiceHtml(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): strin
 
   return tidy(`<!doctype html>
 <html lang="${doc.language}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
-<body style="margin:0;padding:24px;background:#f5f7fa;font-family:Arial,Helvetica,sans-serif;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#fff;padding:32px;">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${NARROW_STYLE}</head>
+<body class="wv-body" style="margin:0;padding:24px;background:#f5f7fa;font-family:Arial,Helvetica,sans-serif;">
+<table role="presentation" class="wv-card" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px;margin:0 auto;background:#fff;padding:32px;">
   <tr><td>
 
     ${/* The letter. Above the document, because that is where a person starts
@@ -178,9 +194,9 @@ export function invoiceHtml(doc: InvoiceDoc, tpl?: Partial<MailTemplate>): strin
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;">
       <tr>
         <th align="left"   style="${CELL}border-bottom:2px solid #111;">${esc(L.description)}</th>
-        <th align="right"  style="${CELL}border-bottom:2px solid #111;">${esc(L.quantity)}</th>
-        <th align="right"  style="${CELL}border-bottom:2px solid #111;">${esc(L.unitPrice)}</th>
-        <th align="right"  style="${CELL}border-bottom:2px solid #111;">${esc(L.amount)}</th>
+        <th align="right"  class="wv-num" style="${CELL}border-bottom:2px solid #111;${NUM_COL}">${heading(L.quantity, L.quantityShort)}</th>
+        <th align="right"  class="wv-num" style="${CELL}border-bottom:2px solid #111;${NUM_COL}">${heading(L.unitPrice, L.unitPriceShort)}</th>
+        <th align="right"  class="wv-num" style="${CELL}border-bottom:2px solid #111;${NUM_COL}">${esc(L.amount)}</th>
       </tr>
       ${rows}
     </table>

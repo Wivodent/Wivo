@@ -20,6 +20,7 @@ import { handleSendInvoice } from '../_shared/sendInvoice.ts'
 import { serviceClientKey } from '../_shared/serviceAuth.ts'
 import { APP_ALLOWED_HEADERS, callerVersionHeaders } from '../_shared/appVersion.ts'
 import { openSmtp, smtpProblems, safeError } from '../_shared/mail.ts'
+import { logWarn } from '../_shared/logSafe.ts'
 import { invoiceHtml, invoiceText } from '../_shared/invoiceHtml.ts'
 import { invoicePdf, invoicePdfName } from '../_shared/invoicePdf.ts'
 
@@ -67,6 +68,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
     },
     safeError,
+    allowOnly: env('EMAIL_ALLOW_ONLY'),
+    // Scrubbed again on the way out (logSafe): the line carries nothing personal to begin with.
+    log: line => logWarn('send-invoice', line),
   })
   return json(answer.status, answer.body)
 })

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('./supabase', () => ({ supabase: {} }))
-const { prefillLetter } = await import('./invoiceSend')
+const { prefillLetter, sendErrorFrom } = await import('./invoiceSend')
 const { buyerDetailsMissing } = await import('./invoiceBuyer')
 
 const invoice = {
@@ -28,5 +28,21 @@ describe('a company client’s details on an invoice', () => {
     expect(buyerDetailsMissing({ kind: 'clinic', reg_code: '1', vat_number: '', address: null })).toEqual(['vat', 'address'])
     expect(buyerDetailsMissing({ reg_code: null, vat_number: null, address: null })).toEqual(['reg', 'vat', 'address'])
     expect(buyerDetailsMissing({ kind: 'person' })).toEqual([])
+  })
+})
+
+describe('why "Send by e-mail" failed, from what supabase-js hands back', () => {
+  const http = (status: number, body: unknown) => ({ name: 'FunctionsHttpError', context: { status, json: async () => body } })
+  it('the function’s own answer: refused, or the mail server’s kind with its words', async () => {
+    expect((await sendErrorFrom(http(422, { error: 'refused', code: 'paevalimiit' }))).code).toBe('paevalimiit')
+    const smtp = await sendErrorFrom(http(502, { error: 'send_failed', reason: 'smtp_auth', detail: '535 Authentication failed' }))
+    expect([smtp.code, smtp.detail]).toEqual(['smtp_auth', '535 Authentication failed'])
+    expect((await sendErrorFrom(http(503, { error: 'smtp_not_set_up' }))).code).toBe('smtp_not_set_up')
+  })
+  it('no answer of ours: the function is not there (not deployed), or could not be reached', async () => {
+    expect((await sendErrorFrom(http(404, { code: 'NOT_FOUND', message: 'Requested function was not found' }))).code).toBe('not_deployed')
+    expect((await sendErrorFrom({ name: 'FunctionsFetchError', context: {} })).code).toBe('unreachable')
+    expect((await sendErrorFrom({ name: 'FunctionsRelayError' })).code).toBe('unreachable')
+    expect((await sendErrorFrom(new Error('x'))).code).toBe('failed')
   })
 })

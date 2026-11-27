@@ -133,9 +133,9 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
           <thead>
             <tr className="border-b-2 border-[#111]">
               <th className="text-left py-1.5 font-semibold">{L.description}</th>
-              <th className="text-right py-1.5 font-semibold w-20">{L.quantity}</th>
-              <th className="text-right py-1.5 font-semibold w-28">{L.unitPrice}</th>
-              <th className="text-right py-1.5 font-semibold w-28">{L.amount}</th>
+              <th className="text-right py-1.5 pl-3 font-semibold w-24 whitespace-nowrap">{L.quantity}</th>
+              <th className="text-right py-1.5 pl-3 font-semibold w-32 whitespace-nowrap">{L.unitPrice}</th>
+              <th className="text-right py-1.5 pl-3 font-semibold w-28 whitespace-nowrap">{L.amount}</th>
             </tr>
           </thead>
           <tbody>

@@ -7,6 +7,8 @@
  * Not sent: why, in words, and the invoice stays as it was.
  */
 import { useMemo, useState } from 'react'
+import { usePermissions } from '../../hooks/usePermissions'
+import { classifySmtpError } from '@shared/billing/smtpError'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Mail, Paperclip, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -20,8 +22,18 @@ import { splitAddresses, looksLikeEmail, HAND_SEND_MAX_RECIPIENTS } from '@share
 import type { InvoiceFull } from '../../types/invoice'
 import { t } from '@/lib/i18n'
 
-export function sendErrorText(code: SendErrorCode, detail?: string): string {
+export function sendErrorText(code: SendErrorCode): string {
   switch (code) {
+    case 'smtp_connect': return t('sendInvoice.errSmtpConnect')
+    case 'smtp_auth': return t('sendInvoice.errSmtpAuth')
+    case 'sender_rejected': return t('sendInvoice.errSenderRejected')
+    case 'recipient_rejected': return t('sendInvoice.errRecipientRejected')
+    case 'smtp_other': return t('sendInvoice.errSmtpOther')
+    case 'not_deployed': return t('sendInvoice.errNotDeployed')
+    case 'unreachable': return t('sendInvoice.errUnreachable')
+    case 'testaadress-vigane': return t('sendInvoice.errTestAddressInvalid')
+    case 'test_copy_needs_test_address': return t('sendInvoice.errTestCopyNeedsTestAddress')
+    case 'test_address_not_allowed': return t('sendInvoice.errTestAddressNotAllowed')
     case 'saatja-puudub': return t('sendInvoice.errNoSender')
     case 'tuhistatud': return t('sendInvoice.errCancelled')
     case 'paevalimiit': return t('sendInvoice.errDailyLimit')
@@ -30,7 +42,6 @@ export function sendErrorText(code: SendErrorCode, detail?: string): string {
     case 'liiga-palju-saajaid': return t('sendInvoice.errTooMany', { n: HAND_SEND_MAX_RECIPIENTS })
     case 'teema-puudub': return t('sendInvoice.errNoSubject')
     case 'smtp_not_set_up': return t('sendInvoice.errSmtp')
-    case 'send_failed': return t('sendInvoice.errServer', { detail: detail ?? '' })
     case 'not_allowed': return t('sendInvoice.errNotAllowed')
     case 'signed_out': return t('sendInvoice.errSignedOut')
     default: return t('sendInvoice.errFailed')
@@ -75,7 +86,8 @@ function SendForm({ invoice, start, myEmail, onSent, onClose }: {
   const [message, setMessage] = useState(start.message)
   const [copy, setCopy] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{ text: string; detail?: string } | null>(null)
+  const { isOwner } = usePermissions()
   const addresses = splitAddresses(to)
   const badAddress = addresses.find(a => !looksLikeEmail(a))
   const ok = addresses.length > 0 && addresses.length <= HAND_SEND_MAX_RECIPIENTS && !badAddress && !!subject.trim()
@@ -86,7 +98,7 @@ function SendForm({ invoice, start, myEmail, onSent, onClose }: {
       await sendInvoiceByEmail({ invoiceId: invoice.id, to: addresses, subject: subject.trim(), message, copyToMe: copy })
       onSent()
     } catch (e) {
-      setError(e instanceof SendInvoiceError ? sendErrorText(e.code, e.detail) : sendErrorText('failed'))
+      setError(e instanceof SendInvoiceError ? { text: sendErrorText(e.code), detail: e.detail } : { text: sendErrorText('failed') })
     } finally { setBusy(false) }
   }
 
@@ -113,7 +125,13 @@ function SendForm({ invoice, start, myEmail, onSent, onClose }: {
           {myEmail ? t('sendInvoice.copyToMe', { email: myEmail }) : t('sendInvoice.copyToMeNoEmail')}
         </label>
         <p className="text-[11px] text-ink-faint">{t('sendInvoice.replyTo')}</p>
-        {error && <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5" role="alert">{error}</p>}
+        {error && (
+          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5 space-y-1" role="alert">
+            <p>{error.text}</p>
+            {/* The mail server's own words, passwords taken out: for the owner, who sets the mailbox up. */}
+            {isOwner && error.detail && <ServerDetails detail={error.detail} />}
+          </div>
+        )}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onClose} className="btn-ghost border border-ink-faint/25">{t('invoices.cancel')}</button>
           <button type="button" disabled={!ok || busy} onClick={() => void send()} className="btn-primary disabled:opacity-50">
@@ -125,8 +143,19 @@ function SendForm({ invoice, start, myEmail, onSent, onClose }: {
   )
 }
 
-/** The invoice's sending history: who sent it, when, to whom, the subject; failures with their reason. */
+/** "Details": what the mail server said. */
+function ServerDetails({ detail }: { detail: string }) {
+  return (
+    <details className="text-xs">
+      <summary className="cursor-pointer text-red-800">{t('sendInvoice.details')}</summary>
+      <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-[11px] text-ink">{detail}</pre>
+    </details>
+  )
+}
+
+/** The invoice's sending history: who sent it, when, to whom, the subject; a failure's reason in words, its details for the owner. */
 export function InvoiceSendHistory({ invoiceId, nameOf }: { invoiceId: string; nameOf: (id: string | null) => string }) {
+  const { isOwner } = usePermissions()
   const log = useQuery<{ id: string; sent_by: string | null; sent_at: string; recipients: string[]; subject: string; ok: boolean; error: string | null; redirected_to: string | null }[]>({
     queryKey: ['invoice-send-log', invoiceId],
     queryFn: async () => {
@@ -146,7 +175,8 @@ export function InvoiceSendHistory({ invoiceId, nameOf }: { invoiceId: string; n
           </p>
           <p className="text-ink-muted">{t('sendInvoice.historyTo', { to: e.recipients.join(', ') })}{e.redirected_to ? ` (${t('sendInvoice.redirected', { to: e.redirected_to })})` : ''}</p>
           <p className="text-ink-muted truncate">{e.subject}</p>
-          {e.error && <p className="text-red-700">{e.error}</p>}
+          {e.error && <p className="text-red-700">{sendErrorText(classifySmtpError(e.error))}</p>}
+          {e.error && isOwner && <ServerDetails detail={e.error} />}
         </div>
       ))}
     </section>

@@ -35,7 +35,11 @@ export interface InvoiceLabels {
   payer: string
   description: string
   quantity: string
+  /** "Qty": the quantity column's heading on a narrow screen. */
+  quantityShort: string
   unitPrice: string
+  /** "Hind": the unit price column's heading where the whole one does not fit on one line. */
+  unitPriceShort: string
   amount: string
   /** The amount before VAT, at one rate (or exempt). Estonian keeps "Summa", as its invoices always said. */
   net: (rate: number, exempt: boolean) => string
@@ -57,7 +61,7 @@ export interface InvoiceLabels {
 
 const ET: InvoiceLabels = {
   invoice: 'ARVE', number: 'Number', date: 'Kuupäev', dueDate: 'Maksetähtaeg', serviceDate: 'Teenuse osutamise kuupäev',
-  payer: 'Maksja', description: 'Kirjeldus', quantity: 'Kogus', unitPrice: 'Ühiku hind', amount: 'Summa',
+  payer: 'Maksja', description: 'Kirjeldus', quantity: 'Kogus', quantityShort: 'Kogus', unitPrice: 'Ühiku hind', unitPriceShort: 'Hind', amount: 'Summa',
   net: () => 'Summa',
   vat: rate => `Käibemaks ${rate}%`, vatExempt: 'Käibemaksuta',
   totalDue: 'Kokku tasuda', received: 'Laekunud', outstanding: 'Tasumata', payment: 'Makse',
@@ -68,7 +72,7 @@ const ET: InvoiceLabels = {
 
 const EN: InvoiceLabels = {
   invoice: 'INVOICE', number: 'Number', date: 'Date', dueDate: 'Due date', serviceDate: 'Date of service',
-  payer: 'Payer', description: 'Description', quantity: 'Quantity', unitPrice: 'Unit price', amount: 'Amount',
+  payer: 'Payer', description: 'Description', quantity: 'Quantity', quantityShort: 'Qty', unitPrice: 'Unit price', unitPriceShort: 'Price', amount: 'Amount',
   net: (rate, exempt) => (exempt ? 'Amount (VAT exempt)' : `Taxable amount at ${rate}%`),
   vat: rate => `VAT ${rate}%`, vatExempt: 'VAT exempt',
   totalDue: 'Total due', received: 'Received', outstanding: 'Outstanding', payment: 'Payment',
@@ -79,7 +83,7 @@ const EN: InvoiceLabels = {
 
 const LV: InvoiceLabels = {
   invoice: 'RĒĶINS', number: 'Numurs', date: 'Datums', dueDate: 'Apmaksas termiņš', serviceDate: 'Pakalpojuma sniegšanas datums',
-  payer: 'Maksātājs', description: 'Apraksts', quantity: 'Daudzums', unitPrice: 'Vienības cena', amount: 'Summa',
+  payer: 'Maksātājs', description: 'Apraksts', quantity: 'Daudzums', quantityShort: 'Daudz.', unitPrice: 'Vienības cena', unitPriceShort: 'Cena', amount: 'Summa',
   net: (rate, exempt) => (exempt ? 'Summa (atbrīvots no PVN)' : `Ar PVN ${rate}% apliekamā summa`),
   vat: rate => `PVN ${rate}%`, vatExempt: 'Atbrīvots no PVN',
   totalDue: 'Kopā apmaksai', received: 'Saņemts', outstanding: 'Neapmaksāts', payment: 'Maksājums',

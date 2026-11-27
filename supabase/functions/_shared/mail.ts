@@ -132,7 +132,10 @@ export function openSmtp(fromAddress: string, fromName: string): MailSender {
  * clinic member can read.
  */
 export function safeError(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err)
+  let raw = err instanceof Error ? err.message : String(err)
+  // A server that quotes the password back: never passed on, whatever the wording around it.
+  const pass = Deno.env.get('SMTP_PASS')
+  if (pass && pass.length >= 4) raw = raw.split(pass).join('<peidetud>')
   return raw
     .replace(/AUTH\s+\S+/gi, 'AUTH <peidetud>')
     .replace(/password[=:]\s*\S+/gi, 'password=<peidetud>')

@@ -22,8 +22,9 @@ const prepared = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 
-function setup(opts: { prep?: ReturnType<typeof prepared>; prepError?: { code?: string; message?: string }; sendFails?: boolean; smtp?: boolean } = {}) {
+function setup(opts: { prep?: ReturnType<typeof prepared>; prepError?: { code?: string; message?: string }; sendFails?: boolean | string; smtp?: boolean; allowOnly?: string } = {}) {
   const sent: Outgoing[] = []
+  const logged: string[] = []
   const records: Record<string, unknown>[] = []
   const rendered: { language: string; subject: string; message: string }[] = []
   const deps: SendInvoiceDeps = {
@@ -31,10 +32,12 @@ function setup(opts: { prep?: ReturnType<typeof prepared>; prepError?: { code?: 
     record: async args => { records.push(args); return { error: null } },
     smtpReady: () => opts.smtp ?? true,
     render: async (doc, letter) => { rendered.push({ language: doc.language, ...letter }); return { html: '<p/>', text: '', pdf: new Uint8Array([1]), filename: 'rekins-DEN-2026-0003.pdf' } },
-    send: async mail => { if (opts.sendFails) throw new Error('550 mailbox unavailable'); sent.push(mail) },
+    send: async mail => { if (opts.sendFails) throw new Error(typeof opts.sendFails === 'string' ? opts.sendFails : '550 mailbox unavailable'); sent.push(mail) },
     safeError: e => (e as Error).message,
+    allowOnly: opts.allowOnly,
+    log: line => { logged.push(line) },
   }
-  return { deps, sent, records, rendered }
+  return { deps, sent, records, rendered, logged }
 }
 const body = (over: Record<string, unknown> = {}) => ({ invoiceId: INV, to: ['buh@zobi.lv', 'boss@zobi.lv'], subject: 'Rēķins DEN-2026-0003', message: 'Labdien!', copyToMe: true, ...over })
 
@@ -49,11 +52,47 @@ describe('sending one invoice by hand', () => {
     expect(records[0]).toMatchObject({ p_invoice: INV, p_by: 'u1', p_to: ['buh@zobi.lv', 'boss@zobi.lv'], p_copy: true, p_ok: true, p_error: null })
   })
 
-  it('the mail server refuses: the error is recorded, nothing is marked sent, and the answer says so', async () => {
-    const { deps, records } = setup({ sendFails: true })
+  it('the mail server refuses: what kind of refusal, the server’s words for the details, recorded, nothing marked sent', async () => {
+    const said = '550 5.1.1 <buh@zobi.lv>: Recipient address rejected: User unknown'
+    const { deps, records } = setup({ sendFails: said })
     const a = await handleSendInvoice('Bearer x', body(), deps)
-    expect(a).toEqual({ status: 502, body: { error: 'send_failed', message: '550 mailbox unavailable' } })
-    expect(records[0]).toMatchObject({ p_ok: false, p_error: '550 mailbox unavailable' })
+    expect(a).toEqual({ status: 502, body: { error: 'send_failed', reason: 'recipient_rejected', detail: said } })
+    expect(records[0]).toMatchObject({ p_ok: false, p_error: said })
+    const kinds: [string, string][] = [['535 5.7.8 Authentication failed', 'smtp_auth'], ['Connection refused (os error 111)', 'smtp_connect'],
+      ['553 5.7.1 Sender address rejected: not owned by user', 'sender_rejected']]
+    for (const [text, reason] of kinds) {
+      expect((await handleSendInvoice('Bearer x', body(), setup({ sendFails: text }).deps)).body).toMatchObject({ error: 'send_failed', reason })
+    }
+  })
+
+  it('the function log: the invoice, the outcome, the reply code; never an address, a name or the subject', async () => {
+    const failed = setup({ sendFails: '550 5.1.1 <buh@zobi.lv>: Recipient address rejected' })
+    await handleSendInvoice('Bearer x', body(), failed.deps)
+    const ok = setup()
+    await handleSendInvoice('Bearer x', body(), ok.deps)
+    const refused = setup({ prep: prepared({ sent_today: 20 }) })
+    await handleSendInvoice('Bearer x', body(), refused.deps)
+    expect(failed.logged).toEqual([`invoice ${INV}: send failed recipient_rejected (550 5.1.1)`])
+    expect(ok.logged).toEqual([`invoice ${INV}: sent to 2`])
+    expect(refused.logged).toEqual([`invoice ${INV}: refused paevalimiit`])
+    for (const line of [...failed.logged, ...ok.logged, ...refused.logged]) expect(line).not.toMatch(/@|Zobi|Rēķins|Labdien/)
+  })
+
+  it('the test copy (EMAIL_ALLOW_ONLY): real addresses refused before sending; a test address must be allowed; a copy only if allowed', async () => {
+    const real = setup({ allowOnly: '@wivodent.com' })
+    expect((await handleSendInvoice('Bearer x', body(), real.deps)).body).toEqual({ error: 'refused', code: 'test_copy_needs_test_address' })
+    expect(real.sent).toEqual([])
+    const wrongTest = setup({ allowOnly: '@wivodent.com', prep: prepared({ email: { saatjaAadress: 'arved@dentiks.lv', paevaLimiit: 20, testAadress: 'test@dentiks.lv' } }) })
+    expect((await handleSendInvoice('Bearer x', body(), wrongTest.deps)).body).toEqual({ error: 'refused', code: 'test_address_not_allowed' })
+    const allowed = setup({ allowOnly: '@wivodent.com' })
+    await handleSendInvoice('Bearer x', body({ to: ['kevin@wivodent.com'] }), allowed.deps)
+    // anna@dentiks.lv (the sender's own copy) is not allowed on the test copy: left out.
+    expect(allowed.sent[0]).toMatchObject({ to: ['kevin@wivodent.com'], bcc: [] })
+  })
+
+  it('a test address that is not an address says so', async () => {
+    const bad = setup({ prep: prepared({ email: { saatjaAadress: 'arved@dentiks.lv', paevaLimiit: 20, testAadress: 'not an address' } }) })
+    expect((await handleSendInvoice('Bearer x', body(), bad.deps)).body).toEqual({ error: 'refused', code: 'testaadress-vigane' })
   })
 
   it('refused before anything is sent: no sender address, the daily cap, a bad address; not set up; not allowed', async () => {
@@ -82,6 +121,20 @@ describe('sending one invoice by hand', () => {
     expect((await handleSendInvoice(null, body(), deps)).status).toBe(401)
     expect((await handleSendInvoice('Bearer x', body({ invoiceId: 'x' }), deps)).status).toBe(400)
     expect((await handleSendInvoice('Bearer x', body({ to: ['a@b.lv', 3] }), deps)).status).toBe(400)
+  })
+
+  it('the e-mail’s number columns: right-aligned, never wrapping, as wide as their content; the short heading on a narrow screen', () => {
+    const p = prepared()
+    for (const lang of ['et', 'lv', 'en'] as const) {
+      const html = invoiceHtml(invoiceDoc(p.invoice, { name: 'Dentiks' }, lang))
+      const L = invoiceDoc(p.invoice, null, lang).labels
+      const col = 'width:1%;text-align:right;white-space:nowrap;padding-left:16px;'
+      expect(html, lang).toContain(L.quantity === L.quantityShort ? `${col}">${L.quantity}</th>` : `${col}"><span class="wv-full">${L.quantity}</span><span class="wv-short">${L.quantityShort}</span></th>`)
+      expect(html, lang).toContain(`${col}"><span class="wv-full">${L.unitPrice}</span><span class="wv-short">${L.unitPriceShort}</span></th>`)
+      expect(html, lang).toContain(`${col}">${L.amount}</th>`)
+      expect(html).not.toMatch(/table-layout:fixed|width:\d+px;text-align:right/)
+      expect(html).toContain('@media (max-width:480px)')
+    }
   })
 
   it('an Estonian clinic’s invoice reads as before in the e-mail; a Latvian one in Latvian', () => {

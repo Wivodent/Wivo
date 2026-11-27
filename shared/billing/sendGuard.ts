@@ -189,6 +189,7 @@ export const remainingToday = (policy: MailPolicy, sentToday: number): number =>
 // ── One invoice, sent by hand (sql/148) ─────────────────────────────────────
 
 export type HandSendBlockCode = 'saatja-puudub' | 'tuhistatud' | 'paevalimiit' | 'saajad-puuduvad' | 'saaja-vigane' | 'liiga-palju-saajaid' | 'teema-puudub'
+  | 'testaadress-vigane'
 
 export type HandSendVerdict =
   | { send: true; to: string[]; redirected: boolean }
@@ -222,7 +223,7 @@ export function mayHandSendInvoice(
   if (!subject.trim()) return { send: false, code: 'teema-puudub' }
   if (!Number.isFinite(policy.paevaLimiit) || sentToday >= policy.paevaLimiit) return { send: false, code: 'paevalimiit' }
   if (policy.testAadress) {
-    return looksLikeEmail(policy.testAadress) ? { send: true, to: [policy.testAadress.trim()], redirected: true } : { send: false, code: 'saaja-vigane' }
+    return looksLikeEmail(policy.testAadress) ? { send: true, to: [policy.testAadress.trim()], redirected: true } : { send: false, code: 'testaadress-vigane' }
   }
   return { send: true, to, redirected: false }
 }

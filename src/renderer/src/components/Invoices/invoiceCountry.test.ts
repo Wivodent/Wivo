@@ -32,4 +32,12 @@ describe('Latvian invoices on the screens', () => {
     expect(panel).toContain('<SendInvoiceDialog invoice={invoice}')
     expect(panel).toContain('<InvoiceSendHistory invoiceId={invoice.id}')
   })
+  it('a failure says why in words; the mail server’s own words only for the owner, under Details', () => {
+    const dialog = read('src/renderer/src/components/Invoices/SendInvoiceDialog.tsx')
+    expect(dialog).toContain('{isOwner && error.detail && <ServerDetails detail={error.detail} />}')
+    expect(dialog).toContain('{e.error && isOwner && <ServerDetails detail={e.error} />}')
+    for (const code of ['smtp_connect', 'smtp_auth', 'sender_rejected', 'recipient_rejected', 'not_deployed', 'paevalimiit', 'test_copy_needs_test_address', 'testaadress-vigane'])
+      expect(dialog).toContain(`case '${code}':`)
+    expect(read('src/renderer/src/components/Invoices/InvoicesView.tsx')).toContain('sendErrorText(classifySmtpError(invoice.send_error))')
+  })
 })

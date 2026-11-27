@@ -27,6 +27,10 @@ import { quoteJob, ITEM_SOURCES } from '@shared/pricing/quote'
 import { invoiceLabels, type InvoiceLabels } from '@shared/billing/invoiceDoc'
 import type { PriceBook } from '@shared/pricing/priceBook'
 import { workWithOptionsLabel, type WorkOption } from '@shared/pricing/workOptions'
+import { teethLabel } from './orderView'
+
+/** Teeth as an invoice line says them: neighbours in an arch as a range ("17–27"), as on the Orders page. */
+const teethText = (teeth: string): string => teethLabel(teeth) || teeth.trim()
 
 export interface CandidateLine { description: string; unit_price: number }
 
@@ -77,7 +81,7 @@ export function jobLines(job: Job, book: PriceBook, library: readonly WorkOption
       if (ITEM_SOURCES.includes(l.source)) {
         item++
         const teeth = items[item]?.hambad?.trim()
-        out.push({ description: lead([l.label, teeth ? words.teeth(teeth) : null].filter(Boolean).join(' · ')), unit_price: l.amount })
+        out.push({ description: lead([l.label, teeth ? words.teeth(teethText(teeth)) : null].filter(Boolean).join(' · ')), unit_price: l.amount })
       } else {
         out.push({ description: lead(l.label), unit_price: l.amount })
       }
@@ -87,7 +91,7 @@ export function jobLines(job: Job, book: PriceBook, library: readonly WorkOption
   // One line at the job's own price, its design fee and extras apart as before.
   const work = workWithOptionsLabel(items, library) || job.too?.trim() || words.work
   const out: CandidateLine[] = [{
-    description: lead([work, job.hambad ? words.teeth(job.hambad) : null].filter(Boolean).join(' · ')),
+    description: lead([work, job.hambad ? words.teeth(teethText(job.hambad)) : null].filter(Boolean).join(' · ')),
     unit_price: round2(Number(job.hind ?? 0)),
   }]
   if (Number(job.disain_hind ?? 0) > 0) out.push({ description: lead(words.design), unit_price: round2(Number(job.disain_hind)) })

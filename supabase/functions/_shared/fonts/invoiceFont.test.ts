@@ -81,9 +81,11 @@ describe('the invoice PDF’s font, carried with the functions', () => {
   it('the PDF’s header and totals hold longer labels (Latvian) without overlapping', () => {
     const pdf = readFileSync(join(here, '..', 'invoicePdf.ts'), 'utf8')
     // A value after its label: where it always stood, further right only for a longer label.
-    expect(pdf).toContain('const after = (label: string, at: number) => M + Math.max(at, font.widthOfTextAtSize(prep(label), 10) + 8)')
-    expect(pdf).toContain('text(doc.dueDate, after(L.dueDate, 75), 10, bold)')
+    expect(pdf).toContain('const valueX = M + Math.max(55, ...shown.map(l => font.widthOfTextAtSize(prep(l), 10) + 10))')
+    expect(pdf).toContain('text(doc.dueDate, valueX, 10, bold)')
     expect(pdf).toContain('if (doc.serviceDate) {')
+    // Each column heading on one line: the short one ("Hind", "Cena") where the whole does not fit.
+    expect(pdf).toContain('right(fits(L.unitPrice, cUnit - cQty - 14) ? L.unitPrice : L.unitPriceShort, cUnit, 9, bold)')
     // The rule above the total sits under the VAT row, not through it.
     expect(pdf).toContain('start: { x: tl, y: y + 7 }, end: { x: M + W, y: y + 7 },')
   })

@@ -21,7 +21,8 @@ import { clinicCountry, invoicesAvailable } from '../../lib/country'
 import { stageChipStyle } from '../../config/pipeline'
 import { describeError } from '../Patients/errors'
 import { InvoiceForm } from './InvoiceForm'
-import { SendInvoiceDialog, InvoiceSendHistory } from './SendInvoiceDialog'
+import { SendInvoiceDialog, InvoiceSendHistory, sendErrorText } from './SendInvoiceDialog'
+import { classifySmtpError } from '@shared/billing/smtpError'
 import { useClinicProfiles } from '../../hooks/useClinicProfiles'
 import { PaymentPlansPanel } from './PaymentPlansPanel'
 import { InvoicePrintView } from './InvoicePrintView'
@@ -420,7 +421,9 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint
         )}
 
         {invoice.send_error && (
-          <p className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">{t('sendInvoice.lastError', { error: invoice.send_error })}</p>
+          <p className="text-[11px] text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5">
+            {t('sendInvoice.lastError', { error: sendErrorText(classifySmtpError(invoice.send_error)) })}
+          </p>
         )}
         <InvoiceSendHistory invoiceId={invoice.id} nameOf={nameOf} />
         {sending && <SendInvoiceDialog invoice={invoice} onClose={() => setSending(false)} />}
