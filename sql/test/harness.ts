@@ -278,6 +278,8 @@ const SAMPLE_OVERRIDE: Record<string, unknown> = {
   'wivo_schema_migration.package_sha256': 'b'.repeat(64),
   'wivo_update_check.result': 'refused',
   'wivo_update_install.to_version': '1.0.0',
+  // sql/138: a file name with no folder in it.
+  'client_order_file.file_name': 'scan.stl',
 }
 
 /**

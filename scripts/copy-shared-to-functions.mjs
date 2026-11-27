@@ -10,6 +10,10 @@ export const COPIES = [
   ['shared/auth/loginAddress.ts', 'supabase/functions/_shared/generated/loginAddress.ts'],
   ['shared/release/release.ts', 'supabase/functions/_shared/generated/release.ts'],
   ['shared/privacy/scrub.ts', 'supabase/functions/_shared/generated/scrub.ts'],
+  // Wivo Network (docs/PLAN-NETWORK-1.md): the clinic's network-client and the Network's own functions.
+  ['shared/network/token.ts', 'supabase/functions/_shared/generated/networkToken.ts'],
+  ['shared/network/order.ts', 'supabase/functions/_shared/generated/order.ts'],
+  ['shared/network/token.ts', 'network/functions/_shared/generated/token.ts'],
 ]
 
 export const header = (source) => [

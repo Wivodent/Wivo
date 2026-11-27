@@ -68,6 +68,8 @@ describe('Security Advisor lints', () => {
          -- Since sql/098 every table has the restrictive "mfa_required"; locked
          -- shut means no policy that could let anyone in.
          and not exists (select 1 from pg_policy p where p.polrelid = c.oid and p.polpermissive)
-       order by 1`)).toEqual(['bug_report', 'wivo_instance', 'wivo_schema_migration', 'wivo_trust', 'wivo_update_check', 'wivo_update_install'])
+       order by 1`)).toEqual(['bug_report',
+      // sql/138: a client's sessions, only their hashes; read by the client_* functions alone.
+      'network_client_session', 'wivo_instance', 'wivo_schema_migration', 'wivo_trust', 'wivo_update_check', 'wivo_update_install'])
   })
 })
