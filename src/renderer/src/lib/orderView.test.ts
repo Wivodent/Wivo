@@ -28,12 +28,15 @@ describe('an order\'s tab on the Orders page', () => {
     expect(orderTab(o, { ...sent, problem: true }, DONE)).toBe('problem')
     // Sent before 145 (no sent_at): received.
     expect(orderTab(o, { ...sent, sent_at: null }, DONE)).toBe('arrived')
+    // sql/146: its job deleted: Cancelled by clinic, never back to In progress (the job cannot be read then).
+    expect(orderTab({ ...o, cancelled_at: '2026-11-27T10:00:00Z' }, undefined, DONE)).toBe('cancelled')
+    expect(orderTab({ ...o, cancelled_at: '2026-11-27T10:00:00Z' }, sent, DONE)).toBe('cancelled')
     // A job that cannot be read (gone, or no right to it) is not guessed at.
     expect(orderTab(o, undefined, DONE)).toBe('in_progress')
   })
   it('counts every tab from the rows, none made up', () => {
     const c = countByTab(['new', 'new', 'sent'] as const, x => x)
-    expect(c).toEqual({ new: 2, in_progress: 0, ready: 0, sent: 1, arrived: 0, problem: 0, rejected: 0 })
+    expect(c).toEqual({ new: 2, in_progress: 0, ready: 0, sent: 1, arrived: 0, problem: 0, rejected: 0, cancelled: 0 })
     expect(clientStatusOfTab('new')).toBe('received')
     expect(clientStatusOfTab('ready')).toBe('ready')
   })

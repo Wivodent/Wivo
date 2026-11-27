@@ -10,6 +10,7 @@ import { MarkSentButton } from '../Network/MarkSent'
 import { JobOrderThread } from '../Network/OrderThread'
 import { JobFeedback } from '../Feedback/Feedback'
 import { JobDelivery } from '../Delivery/JobDelivery'
+import { JobDeleteDialog } from '../JobDelete/JobDeleteDialog'
 import { stageChipStyle } from '../../config/pipeline'
 import { ToothPicker } from '../teeth/ToothPicker'
 import { ShadePicker } from './ShadePicker'
@@ -62,7 +63,8 @@ interface JobDetailPanelProps {
   onSave: (input: JobInput) => Promise<void>
   /** "Duplicate": the copy is a NEW job; the original is never written. Hidden without it. */
   onCreateCopy?: (input: JobInput) => Promise<void>
-  onDelete?: (id: string) => Promise<void>
+  /** Into the bin; from a Network order with a reason and the code typed (sql/146, JobDeleteDialog). */
+  onDelete?: (id: string, opts?: { reason?: string | null; confirm?: string | null }) => Promise<void>
   saving?: boolean
   position?: 'side' | 'bottom' | 'fullscreen'  // default: side
   initialDate?: string           // pre-fill valmis_aeg for new jobs (ISO or datetime-local)
@@ -885,9 +887,9 @@ export function JobDetailPanel({ job, onClose, onSave, onCreateCopy, onDelete, s
     setSaveError(null)
   }
 
-  async function handleDelete() {
+  async function handleDelete(opts: { reason: string | null; confirm: string | null }) {
     if (!job || !onDelete) return
-    await onDelete(job.id)
+    await onDelete(job.id, opts)
     onClose()
   }
 
@@ -965,33 +967,18 @@ export function JobDetailPanel({ job, onClose, onSave, onCreateCopy, onDelete, s
           </div>
           <div className="flex items-center gap-2">
             {job && onDelete && (
-              deleteConfirm ? (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-red-600 font-medium">{t('jobDetail.delete')}</span>
-                  <button
-                    type="button"
-                    onClick={handleDelete}
-                    className="text-xs bg-red-500 text-white px-2 py-1 rounded-lg hover:bg-red-600 transition-colors"
-                  >
-                    {t('jobDetail.yes')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteConfirm(false)}
-                    className="text-xs text-ink-muted hover:text-ink px-2 py-1 rounded-lg transition-colors"
-                  >
-                    {t('jobDetail.no')}
-                  </button>
-                </div>
-              ) : (
+              <>
                 <button
                   type="button"
                   onClick={() => setDeleteConfirm(true)}
+                  aria-label={t('jobDelete.delete')}
                   className="btn-ghost text-red-400 hover:text-red-600 hover:bg-red-50 p-2"
                 >
                   <Trash2 size={15} />
                 </button>
-              )
+                {/* What the job is tied to decides what deleting asks (sql/146). */}
+                {deleteConfirm && <JobDeleteDialog jobId={job.id} jobCode={job.job_code} onConfirm={handleDelete} onClose={() => setDeleteConfirm(false)} />}
+              </>
             )}
             {job && !editing && canEdit && (
               <button type="button" onClick={() => {

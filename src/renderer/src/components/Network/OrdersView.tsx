@@ -28,12 +28,12 @@ import { saveOrderFile } from '../../lib/fileLink'
 import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
 import { MarkSentButton } from './MarkSent'
 import { OrderThread } from './OrderThread'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../../lib/supabase'
 import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, networkConfigured, ORDER_TABS, type OrderTab, type OrderJobState } from '../../lib/orderView'
 import { notConfirmed, reminderDays, isReceived } from '../../lib/delivery'
 import { JobDelivery } from '../Delivery/JobDelivery'
-import { RateRow } from '../Feedback/Feedback'
+import { RateClientRow } from '../Feedback/Feedback'
 import { useAuth } from '../../context/AuthContext'
 import { confirmDialog } from '../../lib/confirm'
 import { describeError } from '../Patients/errors'
@@ -52,7 +52,8 @@ const when = (iso: string) => format(new Date(iso), 'd MMM yyyy HH:mm', { locale
 const ago = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true, locale: dateLocale })
 const tabLabel = (tab: OrderTab): string =>
   tab === 'new' ? t('orders.tabNew') : tab === 'in_progress' ? t('orders.tabInProgress') : tab === 'ready' ? t('orders.tabReady')
-    : tab === 'sent' ? t('orders.tabSent') : tab === 'arrived' ? t('orders.tabReceived') : tab === 'problem' ? t('orders.tabProblem') : t('orders.tabRejected')
+    : tab === 'sent' ? t('orders.tabSent') : tab === 'arrived' ? t('orders.tabReceived') : tab === 'problem' ? t('orders.tabProblem')
+    : tab === 'cancelled' ? t('orders.tabCancelled') : t('orders.tabRejected')
 /** The tabs that show their count, as in the design: the ones that need doing (and a delivery problem). */
 const COUNTED: readonly OrderTab[] = ['new', 'in_progress', 'ready', 'problem']
 
@@ -102,7 +103,8 @@ export function OrdersView({ focus, onOpenJob }: { focus?: OrdersFocus; onOpenJo
     const o = focus.orderId ? orders.find(x => x.id === focus.orderId) : undefined
     if (!o) return  // not loaded yet: the next render tries again
     handled.current = focus.n
-    if (o.status === 'accepted' && o.job_id && onOpenJob) { onOpenJob(o.job_id); return }
+    // A cancelled order's job is in the bin: the order itself opens (sql/146).
+    if (o.status === 'accepted' && o.job_id && !o.cancelled_at && onOpenJob) { onOpenJob(o.job_id); return }
     setTab(tabOf(o))
     setOpenId(o.id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -446,6 +448,7 @@ function ConnectedRow({ client, orders, canChange, feedback }: { client: Network
 
 // ── Orders ──────────────────────────────────────────────────────────────────
 function statusText(o: ClientOrderRow): string {
+  if (o.cancelled_at) return t('orders.statusCancelled')
   return o.status === 'received' ? t('orders.statusNew') : o.status === 'accepted' ? t('orders.statusAccepted') : t('orders.statusRejected')
 }
 
@@ -502,6 +505,7 @@ function OrderRow({ order, tab, client, counts, canAccept, onOpen, job }: {
           {late && <span className="rounded-lg bg-amber-500/20 px-2 py-0.5 text-sm font-bold text-amber-800">{t('delivery.notConfirmed')}</span>}
         </div>
         {tab === 'rejected' && order.reject_reason && <p className="text-sm text-rose-700">{t('orders.rejectedBecause', { reason: order.reject_reason })}</p>}
+        {tab === 'cancelled' && <p className="text-sm text-rose-700">{order.cancel_reason ? t('orders.cancelledBecause', { reason: order.cancel_reason }) : t('orders.statusCancelled')}</p>}
         {error && <p className="text-sm text-rose-600">{error}</p>}
       </div>
       <div className="flex shrink-0 flex-col gap-2">
@@ -529,6 +533,10 @@ function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { ord
   const run = async (fn: () => Promise<unknown>) => { setError(null); try { await fn() } catch (e) { setError(describeError(e)) } }
   const p = order.payload
   const optionNames = useOptionLabels()(p?.options)
+  // sql/146: only someone on the job (its technician or designer) or the owner rates the client.
+  const { user } = useAuth()
+  const { isOwner } = usePermissions()
+  const onJob = isOwner || (!!user && !!job && (job.assigned_to === user.id || job.designed_by === user.id))
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="order-h" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -559,7 +567,9 @@ function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { ord
         {order.status === 'accepted' && job && <div className="mt-5 empty:hidden"><JobDelivery job={job} orderId={order.id} /></div>}
 
         {/* sql/144: the clinic rates the client's input (module ratings), once received (sql/145), and changes it later. */}
-        {order.status === 'accepted' && canDecide && order.job_id && job && isReceived(job) && <RateClientRow orderId={order.id} jobId={order.job_id} />}
+        {order.status === 'accepted' && order.job_id && job && isReceived(job) && onJob && (
+          <div className="mt-5 rounded-xl border border-ink-faint/20 p-3"><RateClientRow orderId={order.id} jobId={order.job_id} /></div>
+        )}
 
         {/* The conversation, its files and reviews (sql/143): the same component as on the job page. */}
         <div className="mt-5">
@@ -567,6 +577,8 @@ function OrderDialog({ order, client, canDecide, canWrite, job, onClose }: { ord
         </div>
 
         {order.status === 'rejected' && <p className="mt-5 rounded-xl bg-rose-50 p-3 text-base text-rose-700">{t('orders.rejectedBecause', { reason: order.reject_reason ?? '' })}</p>}
+        {/* sql/146: the job was deleted; restoring it takes the order back to where it was. */}
+        {order.cancelled_at && order.job_id && <CancelledOrder jobId={order.job_id} reason={order.cancel_reason ?? null} when={order.cancelled_at} />}
 
         {order.status === 'received' && canDecide && (
           <div className="mt-6 space-y-4 rounded-xl border-2 border-ink-faint/20 p-4">
@@ -645,34 +657,29 @@ function feedbackLine(f: ClientFeedbackRow | undefined): string {
   return parts.length ? `${parts.join(' · ')} · ` : ''
 }
 
-/**
- * The clinic's rating of the client's input: open for good once the order is
- * received, with what this person gave before (sql/145: a change later is
- * kept).
- */
-function RateClientRow({ orderId, jobId }: { orderId: string; jobId: string }) {
-  const { moduleOn } = usePermissions()
-  const { user } = useAuth()
+/** An order whose job was deleted (sql/146): why, when, and Restore for whoever may restore jobs. */
+function CancelledOrder({ jobId, reason, when: at }: { jobId: string; reason: string | null; when: string }) {
+  const { can } = usePermissions()
+  const qc = useQueryClient()
   const [error, setError] = useState<string | null>(null)
-  const on = moduleOn('ratings')
-  const mine = useQuery<{ score: number; comment: string | null; created_at: string; updated_at: string } | null>({
-    queryKey: ['feedback', jobId, 'client', user?.id],
-    enabled: on && !!user,
-    queryFn: async () => {
-      const { data, error: e } = await supabase.from('job_rating').select('score, comment, created_at, updated_at')
-        .eq('job_id', jobId).eq('direction', 'clinic_to_client').eq('rater_profile', user!.id).limit(1)
-      return e ? null : (data?.[0] as { score: number; comment: string | null; created_at: string; updated_at: string } | undefined) ?? null
-    },
-  })
-  if (!on || !mine.isFetched) return null
+  const [busy, setBusy] = useState(false)
+  async function restore() {
+    setBusy(true); setError(null)
+    const { error: e } = await supabase.rpc('restore_job', { p_job: jobId })
+    setBusy(false)
+    if (e) { setError(describeError(e)); return }
+    void qc.invalidateQueries({ queryKey: [...PORTAL_KEY] })
+    void qc.invalidateQueries({ queryKey: ['jobs'] })
+    void qc.invalidateQueries({ queryKey: ['deleted_jobs'] })
+  }
   return (
-    <div className="mt-5 space-y-2 rounded-xl border border-ink-faint/20 p-3">
-      <RateRow key={mine.data?.updated_at ?? 'none'} label={t('feedback.rateClient')} current={mine.data ?? null}
-        onSave={async (score, comment) => {
-          setError(null)
-          const { error: e } = await supabase.rpc('rate_client', { p_order: orderId, p_score: score, p_comment: comment })
-          if (e) setError(describeError(e)); else void mine.refetch()
-        }} />
+    <div className="mt-5 space-y-2 rounded-xl border-2 border-rose-200 bg-rose-50 p-3 text-base text-rose-800">
+      <p className="font-semibold">{t('orders.cancelledOn', { date: when(at) })}</p>
+      {reason && <p>{t('orders.cancelledBecause', { reason })}</p>}
+      <p className="text-sm">{t('orders.cancelledRestoreHint')}</p>
+      {can('jobs.delete') && (
+        <button type="button" disabled={busy} onClick={() => void restore()} className="btn-primary h-10 px-4 text-sm">{t('orders.restoreJob')}</button>
+      )}
       {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
     </div>
   )

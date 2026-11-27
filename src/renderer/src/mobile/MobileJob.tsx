@@ -28,6 +28,7 @@ import { usePermissions } from '../hooks/usePermissions'
 import { MarkSentButton } from '../components/Network/MarkSent'
 import { JobFeedback } from '../components/Feedback/Feedback'
 import { JobDelivery } from '../components/Delivery/JobDelivery'
+import { JobOrderThread } from '../components/Network/OrderThread'
 import { t, dateLocale } from '@/lib/i18n'
 
 export function MobileJob({ id, onClose }: { id: string; onClose: () => void }) {
@@ -104,6 +105,8 @@ function OwnJob({ job, onClose }: { job: Job; onClose: () => void }) {
       <div className="flex empty:hidden"><MarkSentButton job={job} className="h-12 w-full text-base" /></div>
       {/* Sent: Received, or a delivery problem (sql/145), as on the desk. */}
       <div className="empty:hidden"><JobDelivery job={job} /></div>
+      {/* A job from a Network order: its conversation, folded as on the desk. */}
+      <div className="empty:hidden"><JobOrderThread jobId={job.id} /></div>
       {/* Fitted / Needs adjustment and ratings (sql/144), as on the desk. */}
       <div className="empty:hidden"><JobFeedback job={job} /></div>
 
@@ -124,7 +127,7 @@ function OwnJob({ job, onClose }: { job: Job; onClose: () => void }) {
       <JobThread jobId={job.id} camera />
 
       {/* Last, away from the thumb's usual path: as on the desk, Delete jobs and "Delete? Yes". */}
-      <MobileDeleteJob jobId={job.id} onDeleted={onClose} />
+      <MobileDeleteJob jobId={job.id} jobCode={job.job_code} onDeleted={onClose} />
     </main>
   )
 }

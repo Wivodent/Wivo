@@ -24,6 +24,8 @@ export const READ_FUNCTIONS: ReadonlySet<string> = new Set([
   'app_min_version_for_me', 'audit_people', 'audit_search', 'can_move_stage', 'clinic_settings_private',
   'customers_full', 'deleted_jobs', 'has_mfa', 'job_activity', 'job_files', 'job_skipped_stages', 'job_thread', 'may_edit_job_stages',
   'client_feedback_summary', 'my_rating_summary',
+  // sql/146: what a job is tied to, before deleting it.
+  'job_delete_check',
   'open_questions', 'partner_orgs', 'partner_stock', 'pay_settings', 'preview_order_reference', 'team_accounts', 'update_status',
 ])
 

@@ -305,13 +305,28 @@ export function useJobNote() {
 }
 
 // --- Delete a job ---
+/**
+ * Into the bin (sql/089). Through delete_job (sql/146): a job with money tied
+ * to it is refused, and a job from a Network order needs its code typed and a
+ * reason for the client (its order becomes "Cancelled by clinic"). A database
+ * before 146: the plain delete, as before.
+ */
+export interface DeleteJobInput { id: string; reason?: string | null; confirm?: string | null }
 export function useDeleteJob() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('jobs').delete().eq('id', id)
-      if (error) throw error
+    mutationFn: async (input: string | DeleteJobInput) => {
+      const { id, reason = null, confirm = null } = typeof input === 'string' ? { id: input } : input
+      const { error } = await supabase.rpc('delete_job', { p_job: id, p_reason: reason, p_confirm: confirm })
+      if (!error) return
+      if (error.code !== 'PGRST202' && error.code !== '42883') throw error
+      const { error: plain } = await supabase.from('jobs').delete().eq('id', id)
+      if (plain) throw plain
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY })
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: QUERY_KEY })
+      void qc.invalidateQueries({ queryKey: ['deleted_jobs'] })
+      void qc.invalidateQueries({ queryKey: ['network_portal'] })
+    },
   })
 }

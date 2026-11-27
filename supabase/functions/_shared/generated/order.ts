@@ -155,7 +155,9 @@ export function emptyOrder(): WivoOrderV1 {
 /**
  * 'received' is the clinic having the order (shown as New); after 'sent'
  * (sql/145) comes 'arrived' (the client said Received) or 'problem' (a
- * delivery problem the clinic has not resolved yet).
+ * delivery problem the clinic has not resolved yet). 'cancelled' (sql/146):
+ * the clinic deleted the job the order became; restoring it takes the order
+ * back to where it was.
  */
-export type ClientOrderStatus = 'received' | 'in_progress' | 'ready' | 'sent' | 'arrived' | 'problem' | 'rejected'
-export const CLIENT_ORDER_STATUSES: readonly ClientOrderStatus[] = ['received', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected']
+export type ClientOrderStatus = 'received' | 'in_progress' | 'ready' | 'sent' | 'arrived' | 'problem' | 'rejected' | 'cancelled'
+export const CLIENT_ORDER_STATUSES: readonly ClientOrderStatus[] = ['received', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected', 'cancelled']

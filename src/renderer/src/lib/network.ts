@@ -59,6 +59,8 @@ export interface ClientOrderSummary {
   due: string | null
   status: ClientOrderStatus
   reject_reason: string | null
+  /** sql/146: why the clinic cancelled it. */
+  cancel_reason?: string | null
   messages: number
 }
 
@@ -68,6 +70,8 @@ export interface ClientOrderDetail {
   payload: WivoOrder
   status: ClientOrderStatus
   reject_reason: string | null
+  /** sql/146: why the clinic cancelled it. */
+  cancel_reason?: string | null
   /** sql/143: needs_review on the clinic's messages; review_of / review_state on the client's answers. */
   messages: { id: string; from_client: boolean; body: string; created_at: string; needs_review?: boolean; review_of?: string | null; review_state?: 'approved' | 'changes' | null
     /** sql/145: the fit answer, and the delivery answers (Received, a problem, the clinic's resolution) with their reason. */
@@ -91,7 +95,7 @@ export interface OrderFeedback {
 /** A notice to the client from one clinic (sql/142): what happened, never a message's text. */
 export interface ClientNotice {
   id: string
-  kind: 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined' | 'received_reminder' | 'problem_resolved'
+  kind: 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined' | 'received_reminder' | 'problem_resolved' | 'cancelled' | 'reinstated'
   order_id: string | null
   ref: string | null
   reason: string | null

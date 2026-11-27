@@ -12,13 +12,14 @@ const read = (rel: string) => readFileSync(join(__dirname, rel), 'utf8')
 describe('the ratings module gates every piece', () => {
   it('the job card, my feedback, the owner statistics, the client ratings', () => {
     const fb = read('Feedback.tsx')
-    expect(fb).toMatch(/const on = moduleOn\('ratings'\) && done && \(isDoctor \|\| isMaker\)/)
+    expect(fb).toMatch(/const on = moduleOn\('ratings'\) && done && \(mayFit \|\| rateWork \|\| rateInput \|\| rateClient\)/)
     expect(fb).toMatch(/if \(!moduleOn\('ratings'\) \|\| !summary\) return null/)
     expect(fb).toMatch(/const on = moduleOn\('ratings'\) && isOwner/)
     const orders = read('../Network/OrdersView.tsx')
     expect(orders).toMatch(/enabled: moduleOn\('ratings'\) && isOwner/)
-    expect(orders).toMatch(/if \(!on \|\| !mine\.isFetched\) return null/)
-    expect(orders).toMatch(/const on = moduleOn\('ratings'\)/)
+    // The clinic's rating of a client (sql/146: one component, on the order and the job page).
+    expect(fb).toMatch(/if \(!on \|\| !mine\.isFetched\) return null/)
+    expect(fb).toMatch(/const on = moduleOn\('ratings'\)\r?\n/)
   })
   it('the owner’s Wivo writes the licence’s answer for the database, only once the licence is read', () => {
     const sync = read('../RatingsLicenceSync.tsx')

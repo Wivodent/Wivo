@@ -52,6 +52,9 @@ export interface ClientOrderRow {
   reject_reason: string | null
   job_id: string | null
   created_at: string
+  /** sql/146: the clinic deleted the job; the client was told, with the reason. */
+  cancelled_at?: string | null
+  cancel_reason?: string | null
 }
 
 export interface OrderMessage { id: string; from_client: boolean; body: string; created_at: string; author_id: string | null }
@@ -227,10 +230,10 @@ export function useOrderJobs(jobIds: readonly string[]) {
       // sql/145: when it left and arrived, and which have an open delivery problem. A database before it: the board state only.
       let list: OrderJobState[]
       try {
-        list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status, sent_at, received_at, received_via, received_note').in('id', part).is('deleted_at', null)))
+        list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status, assigned_to, designed_by, sent_at, received_at, received_via, received_note').in('id', part).is('deleted_at', null)))
       } catch (e) {
         if ((e as { code?: string }).code !== '42703') throw e
-        list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status').in('id', part).is('deleted_at', null)))
+        list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status, assigned_to, designed_by').in('id', part).is('deleted_at', null)))
       }
       const open = await inChunks(ids, part => rows<{ job_id: string }>(supabase.from('delivery_problem').select('job_id').in('job_id', part).is('resolved_at', null)))
       const withProblem = new Set(open.map(p => p.job_id))

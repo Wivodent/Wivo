@@ -40,6 +40,8 @@ import { AbutmentPicker } from '../../components/NewJobWizard/teeth/AbutmentPick
 import { Stars, AdjustFields } from '../../components/Feedback/FeedbackFields'
 import { ProblemFields } from '../../components/Delivery/DeliveryFields'
 import { problemReasonText, resolutionText } from '../../lib/delivery'
+import { newestAt } from '../../lib/threadFold'
+import { useThreadFold, ThreadHeader } from '../../components/Network/ThreadFold'
 import { teethCountLabel } from '../../components/NewJobWizard/teeth/WorkTypeTabs'
 import {
   teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
@@ -472,6 +474,9 @@ export function noticeText(n: Pick<ClientNotice, 'kind' | 'ref' | 'reason'>, cli
     // sql/145
     case 'received_reminder': return t('network.noticeDidItArrive', { ref, clinic })
     case 'problem_resolved': return t('network.noticeProblemResolved', { ref, clinic })
+    // sql/146: the clinic deleted the job (with its reason), or restored it.
+    case 'cancelled': return n.reason ? t('network.noticeCancelledWhy', { ref, clinic, reason: n.reason }) : t('network.noticeCancelled', { ref, clinic })
+    case 'reinstated': return t('network.noticeReinstated', { ref, clinic })
   }
 }
 
@@ -685,15 +690,17 @@ type Api = ReturnType<typeof clinicApi>
 const STATUS_STYLE: Record<ClientOrderStatus, string> = {
   received: 'bg-sky-500/15 text-sky-800', in_progress: 'bg-blue-500/15 text-blue-700', ready: 'bg-emerald-500/15 text-emerald-700',
   sent: 'bg-emerald-600 text-white', arrived: 'bg-emerald-800 text-white', problem: 'bg-rose-600 text-white', rejected: 'bg-rose-500/15 text-rose-700',
+  cancelled: 'bg-ink-faint/25 text-ink',
 }
 /** 'received' is the clinic having the order (New); 'arrived' is the client having the work (Received, sql/145). */
 const statusLabel = (s: ClientOrderStatus): string =>
   s === 'received' ? t('network.statusReceived') : s === 'in_progress' ? t('network.statusInProgress')
     : s === 'ready' ? t('network.statusReady') : s === 'sent' ? t('network.statusSent')
-    : s === 'arrived' ? t('network.statusArrived') : s === 'problem' ? t('network.statusProblem') : t('network.statusRejected')
+    : s === 'arrived' ? t('network.statusArrived') : s === 'problem' ? t('network.statusProblem')
+    : s === 'cancelled' ? t('network.statusCancelled') : t('network.statusRejected')
 
 /** My orders' tabs (sql/145): everything, or one status. */
-const MY_TABS: readonly ('all' | ClientOrderStatus)[] = ['all', 'received', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected']
+const MY_TABS: readonly ('all' | ClientOrderStatus)[] = ['all', 'received', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected', 'cancelled']
 const myTabLabel = (k: 'all' | ClientOrderStatus): string => (k === 'all' ? t('network.tabAll') : k === 'received' ? t('network.tabNew') : statusLabel(k))
 
 function StatusBadge({ status }: { status: ClientOrderStatus }) {
@@ -1106,6 +1113,8 @@ function ClientThread({ api, orderId, clinicName, detail, onError }: {
   const [busy, setBusy] = useState(false)
   const [changesFor, setChangesFor] = useState<string | null>(null)
   const [comment, setComment] = useState('')
+  // Folds: open by itself with unread messages from the clinic, else as the client left it (this device).
+  const fold = useThreadFold('network', orderId, 'client', messages, true)
   const open = async (f: ThreadFile) => {
     try {
       const { url } = await api.download(f.id, f.file_name)
@@ -1142,7 +1151,8 @@ function ClientThread({ api, orderId, clinicName, detail, onError }: {
       )}
       {d.messages && (
         <div className="card space-y-2.5 rounded-2xl p-4">
-          <p className="text-sm font-bold">{t('network.messages')}</p>
+          <ThreadHeader compact count={messages.length} last={newestAt(messages)} unread={fold.unread} open={fold.open} onToggle={fold.toggle} />
+          {fold.open && <>
           {items.map(m => {
             // sql/144, 145: the client's own fit and delivery answers, and the clinic's resolution of a problem.
             if (m.delivery_state || m.fit_state) {
@@ -1223,6 +1233,7 @@ function ClientThread({ api, orderId, clinicName, detail, onError }: {
               <Send size={18} aria-hidden="true" />
             </button>
           </div>
+          </>}
         </div>
       )}
       {large && (
@@ -1280,15 +1291,9 @@ function ClientFeedback({ api, orderId, clinicName, onDone }: { api: Api; orderI
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
   const [photos, setPhotos] = useState<File[]>([])
-  const [score, setScore] = useState<number | null>(null)
-  const [comment, setComment] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [saved, setSaved] = useState(false)
   const data = fb.data
-  useEffect(() => {
-    if (data?.rating) { setScore(data.rating.score); setComment(data.rating.comment ?? '') }
-  }, [data?.rating?.score]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!data?.enabled) return null
 
   async function fit(decision: 'fitted' | 'adjust') {
@@ -1299,12 +1304,6 @@ function ClientFeedback({ api, orderId, clinicName, onDone }: { api: Api; orderI
       setAdjusting(false); setReason(''); setNote(''); setPhotos([])
       void fb.refetch(); onDone()
     } catch (e) { setError(errorText(e)) } finally { setBusy(false) }
-  }
-  async function rate() {
-    if (score === null) return
-    setBusy(true); setError(null)
-    try { await api.rateClinic(orderId, score, comment.trim() || undefined); setSaved(true); void fb.refetch() }
-    catch (e) { setError(errorText(e)) } finally { setBusy(false) }
   }
 
   return (
@@ -1336,17 +1335,9 @@ function ClientFeedback({ api, orderId, clinicName, onDone }: { api: Api; orderI
           </div>
         </div>
       )}
-      <div className="space-y-2 border-t border-ink-faint/15 pt-3">
-        <p className="text-sm font-semibold">{t('network.rateClinic', { clinic: clinicName })} <span className="font-normal text-ink-muted">({t('feedback.optional')})</span></p>
-        <p className="text-xs text-ink-muted">{data.rating?.updated_at && data.rating.created_at && data.rating.updated_at.slice(0, 19) !== data.rating.created_at.slice(0, 19)
-          ? t('feedback.changedOn', { date: format(new Date(data.rating.updated_at), 'd MMM yyyy', { locale: dateLocale }) })
-          : t('feedback.canChange')}</p>
-        <Stars value={score} onChange={n => { setScore(n); setSaved(false) }} label={t('network.rateClinic', { clinic: clinicName })} />
-        <div className="flex gap-2">
-          <input className="input h-11 flex-1 rounded-xl text-base" maxLength={1000} value={comment} onChange={e => { setComment(e.target.value); setSaved(false) }} placeholder={t('feedback.comment')} aria-label={t('feedback.comment')} />
-          <button type="button" disabled={busy || score === null} onClick={() => void rate()} className="btn-primary h-11 rounded-xl px-4 text-sm">{saved ? t('feedback.saved') : t('feedback.save')}</button>
-        </div>
-      </div>
+      {/* Made only once what the client gave before has loaded, so the form shows it (sql/146). */}
+      <ClinicRating key={data.rating?.updated_at ?? 'none'} clinicName={clinicName} current={data.rating}
+        onSave={async (score, comment) => { await api.rateClinic(orderId, score, comment ?? undefined); await fb.refetch() }} />
       {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
     </div>
   )
@@ -1417,6 +1408,37 @@ function ClientDelivery({ api, orderId, clinicName, status, onDone }: { api: Api
   )
 }
 
+/** The client's 1–5 of the clinic: what it gave before, changed at any time (one row, sql/146). */
+export function ClinicRating({ clinicName, current, onSave }: {
+  clinicName: string
+  current: OrderFeedback['rating']
+  onSave: (score: number, comment: string | null) => Promise<void>
+}) {
+  const [score, setScore] = useState<number | null>(current?.score ?? null)
+  const [comment, setComment] = useState(current?.comment ?? '')
+  const [state, setState] = useState<'idle' | 'busy' | 'saved' | { error: string }>('idle')
+  const changed = !!current?.updated_at && !!current.created_at && current.updated_at.slice(0, 19) !== current.created_at.slice(0, 19)
+  async function save() {
+    if (score === null) return
+    setState('busy')
+    try { await onSave(score, comment.trim() || null); setState('saved') } catch (e) { setState({ error: errorText(e) }) }
+  }
+  return (
+    <div className="space-y-2 border-t border-ink-faint/15 pt-3">
+      <p className="text-sm font-semibold">{t('network.rateClinic', { clinic: clinicName })} <span className="font-normal text-ink-muted">({t('feedback.optional')})</span></p>
+      {current && <p className="text-xs text-ink-muted">{changed
+        ? t('feedback.changedOn', { date: format(new Date(current.updated_at!), 'd MMM yyyy', { locale: dateLocale }) })
+        : t('feedback.canChange')}</p>}
+      <Stars value={score} onChange={n => { setScore(n); setState('idle') }} label={t('network.rateClinic', { clinic: clinicName })} />
+      <div className="flex gap-2">
+        <input className="input h-11 flex-1 rounded-xl text-base" maxLength={1000} value={comment} onChange={e => { setComment(e.target.value); setState('idle') }} placeholder={t('feedback.comment')} aria-label={t('feedback.comment')} />
+        <button type="button" disabled={state === 'busy' || score === null} onClick={() => void save()} className="btn-primary h-11 rounded-xl px-4 text-sm">{state === 'saved' ? t('feedback.saved') : t('feedback.save')}</button>
+      </div>
+      {typeof state === 'object' && <p className="text-sm text-rose-600" role="alert">{state.error}</p>}
+    </div>
+  )
+}
+
 /** The steps an order goes through as the client sees them; a date only where Wivo has one. */
 const PROGRESS: { key: 'received' | 'accepted' | 'production' | 'ready' | 'sent' | 'arrived'; label: () => string }[] = [
   { key: 'received', label: () => t('network.progressReceived') },
@@ -1427,7 +1449,7 @@ const PROGRESS: { key: 'received' | 'accepted' | 'production' | 'ready' | 'sent'
   { key: 'arrived', label: () => t('network.progressArrived') },
 ]
 /** How far an order is along PROGRESS: the index of its current step. A delivery problem stays at Sent. */
-export const progressIndex = (s: Exclude<ClientOrderStatus, 'rejected'>): number =>
+export const progressIndex = (s: Exclude<ClientOrderStatus, 'rejected' | 'cancelled'>): number =>
   s === 'received' ? 0 : s === 'in_progress' ? 2 : s === 'ready' ? 3 : s === 'arrived' ? 5 : 4
 
 function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
@@ -1442,7 +1464,7 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
   const item = (catalog.data ?? []).find(c => c.name === p.work_type)
   const options = chosenOptionLabels(p.options, (key, id) => item?.groups.find(g => g.key === key)?.options.find(o => o.id === id)?.name)
   const teeth = teethLabel(p.teeth)
-  const at = d.status === 'rejected' ? -1 : progressIndex(d.status)
+  const at = d.status === 'rejected' || d.status === 'cancelled' ? -1 : progressIndex(d.status)
 
   return (
     <div className="space-y-3">
@@ -1462,6 +1484,8 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
 
       {d.status === 'rejected'
         ? <p className="rounded-2xl bg-rose-500/10 p-4 text-base text-rose-700">{t('network.rejectedBecause', { reason: d.reject_reason ?? '' })}</p>
+        : d.status === 'cancelled'
+        ? <p className="rounded-2xl bg-rose-500/10 p-4 text-base text-rose-700">{d.cancel_reason ? t('network.cancelledBecause', { clinic: clinicName, reason: d.cancel_reason }) : t('network.cancelledNoReason', { clinic: clinicName })}</p>
         : (
           <div className="card space-y-3 rounded-2xl p-4">
             <p className="text-sm font-bold">{t('network.progress')}</p>

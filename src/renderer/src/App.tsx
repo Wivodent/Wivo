@@ -351,8 +351,8 @@ function AppContent() {
   )
 
   const handleDelete = useCallback(
-    async (id: string) => {
-      await deleteJob.mutateAsync(id)
+    async (id: string, opts?: { reason?: string | null; confirm?: string | null }) => {
+      await deleteJob.mutateAsync({ id, ...opts })
       closePanel()
     },
     [deleteJob, closePanel]
@@ -404,9 +404,16 @@ function AppContent() {
     [updateJob]
   )
 
+  // Each job on its own: one with money tied to it, or from a Network order
+  // (which needs its code typed, sql/146), stays, and the rest go to the bin.
   const handleBulkDelete = useCallback(
     async (ids: string[]) => {
-      await Promise.all(ids.map(id => deleteJob.mutateAsync(id)))
+      setMoveError(null)
+      const results = await Promise.allSettled(ids.map(id => deleteJob.mutateAsync(id)))
+      const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      if (failed.length > 0) {
+        setMoveError({ message: t('jobDelete.someNotDeleted', { n: failed.length, total: ids.length, e: describeError(failed[0].reason) }) })
+      }
     },
     [deleteJob]
   )

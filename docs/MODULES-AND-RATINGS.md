@@ -469,6 +469,19 @@ Järjekord on nüüd **Sent → Received → Fitted / Needs adjustment**.
 - Received ja probleem töötavad ka ilma `ratings` moodulita; mooduli taga on
   ainult hinded ja Fitted / Needs adjustment.
 
+## 2.11 Üks hinne hindaja, hinnatava ja töö kohta (27.11.2026, sql/146)
+
+- Unikaalne indeks `job_rating_one` (töö + hindaja + hinnatav). Uus salvestus
+  muudab sama rida (muudatus `job_rating_change`-is), muutmata salvestus ei tee
+  midagi; keskmised tulevad ridadest, nii et kordamine neid ei liiguta.
+- Hindab ainult osaline ja ainult pärast Received: `work` tellinud arst (või
+  omanik, kui arsti pole ja töö pole tellimusest); `input` tehnik/disainer;
+  `clinic_to_client` töö tehnik, disainer või omanik; `client_to_clinic` tellimuse
+  klient. Tellimuse töö puhul ütleb Fitted / Needs adjustment klient.
+- Vea põhjus testist ("vorm tühi pärast uuesti avamist"): vorm võttis
+  algväärtuse enne, kui salvestatud hinne laaditi, ja kliendi hinne kliinikult
+  ei laadinud seda üldse. Nüüd tehakse vorm alles pärast laadimist.
+
 ---
 
 ## Järjekord

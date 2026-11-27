@@ -96,6 +96,7 @@ reason if it was rejected:
 | `arrived` | the client said Received, the clinic confirmed it by phone, or it was handed over in person (sql/145); also work sent before 145 | Received |
 | `problem` | the client reported a problem with the delivery, and the clinic has not marked it resolved (sql/145) | Problem |
 | `rejected` | refused, with the clinic's reason | Rejected |
+| `cancelled` | the clinic deleted the job the order became, with a reason the client sees (`cancel_reason`, sql/146); restoring the job takes the order back to where it was | Cancelled by clinic |
 
 `received` is the clinic having the order; `arrived` is the client having the
 work. After `sent` the client answers through `network-client`: `received`,

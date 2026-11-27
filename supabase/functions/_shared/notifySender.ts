@@ -128,7 +128,7 @@ async function sendEmails(deps: SenderDeps, dry: boolean, key: string | undefine
 }
 
 // ── The Network clients' e-mails (sql/142) ──────────────────────────────────
-type ClientKind = 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined' | 'received_reminder' | 'problem_resolved'
+type ClientKind = 'message' | 'accepted' | 'rejected' | 'ready' | 'sent' | 'connected' | 'declined' | 'received_reminder' | 'problem_resolved' | 'cancelled' | 'reinstated'
 interface ClientPending { id: string; email: string; kind: ClientKind; ref: string | null; clinic: string }
 
 /**
@@ -149,6 +149,9 @@ export function clientSubject(n: Pick<ClientPending, 'kind' | 'ref' | 'clinic'>)
     // sql/145
     case 'received_reminder': return `Did your order ${ref} arrive?`
     case 'problem_resolved': return `${n.clinic} resolved the delivery problem on ${ref}`
+    // sql/146: never the reason in the subject.
+    case 'cancelled': return `${n.clinic} cancelled ${ref}`
+    case 'reinstated': return `${ref} is back at ${n.clinic}`
   }
 }
 

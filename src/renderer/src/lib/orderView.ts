@@ -14,13 +14,15 @@ import { deliveryStep } from './delivery'
  * (sql/138, 145): 'arrived' is the tab "Received" (the client has it), not
  * the order's own 'received' (which is New).
  */
-export type OrderTab = 'new' | 'in_progress' | 'ready' | 'sent' | 'arrived' | 'problem' | 'rejected'
-export const ORDER_TABS: readonly OrderTab[] = ['new', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected']
+export type OrderTab = 'new' | 'in_progress' | 'ready' | 'sent' | 'arrived' | 'problem' | 'rejected' | 'cancelled'
+export const ORDER_TABS: readonly OrderTab[] = ['new', 'in_progress', 'ready', 'sent', 'arrived', 'problem', 'rejected', 'cancelled']
 
 export interface OrderJobState {
   id: string; status: string | null; delivery_status: string | null
   /** sql/145: when it left and arrived; absent on a database before it. */
   sent_at?: string | null; received_at?: string | null; received_via?: string | null; received_note?: string | null
+  /** Who is on the job (sql/146: they and the owner rate the client). */
+  assigned_to?: string | null; designed_by?: string | null
   /** sql/145: an open delivery problem on the job. */
   problem?: boolean
 }
@@ -31,10 +33,12 @@ export interface OrderJobState {
  * received, or sent; ready at the last stage, else in progress). A job that
  * cannot be read counts as in progress.
  */
-export function orderTab(order: { status: 'received' | 'accepted' | 'rejected'; job_id: string | null },
+export function orderTab(order: { status: 'received' | 'accepted' | 'rejected'; job_id: string | null; cancelled_at?: string | null },
   job: OrderJobState | undefined, doneStageKey: string): OrderTab {
   if (order.status === 'received') return 'new'
   if (order.status === 'rejected') return 'rejected'
+  // sql/146: its job was deleted (never "in progress" again until it is restored).
+  if (order.cancelled_at) return 'cancelled'
   if (!job) return 'in_progress'
   const step = deliveryStep(job, !!job.problem)
   // A database before sql/145 knows only Sent.
@@ -50,7 +54,7 @@ export function orderTab(order: { status: 'received' | 'accepted' | 'rejected'; 
 export const clientStatusOfTab = (tab: OrderTab): ClientOrderStatus => (tab === 'new' ? 'received' : tab)
 
 export function countByTab<T>(items: readonly T[], tabOf: (item: T) => OrderTab): Record<OrderTab, number> {
-  const out: Record<OrderTab, number> = { new: 0, in_progress: 0, ready: 0, sent: 0, arrived: 0, problem: 0, rejected: 0 }
+  const out: Record<OrderTab, number> = { new: 0, in_progress: 0, ready: 0, sent: 0, arrived: 0, problem: 0, rejected: 0, cancelled: 0 }
   for (const it of items) out[tabOf(it)]++
   return out
 }

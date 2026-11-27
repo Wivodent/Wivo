@@ -23,6 +23,9 @@ import { sendOrderMessage } from '../../lib/orderMessages'
 import { threadItems, reviewAnswer, latestReview, isImageFile, fileBadge, type ThreadFile, type ThreadMessage } from '../../lib/orderView'
 import { describeError } from '../Patients/errors'
 import { problemReasonText, resolutionText } from '../../lib/delivery'
+import { useAuth } from '../../context/AuthContext'
+import { newestAt } from '../../lib/threadFold'
+import { useThreadFold, ThreadHeader } from './ThreadFold'
 import { t, dateLocale } from '@/lib/i18n'
 
 const when = (iso: string) => format(new Date(iso), 'd MMM yyyy HH:mm', { locale: dateLocale })
@@ -34,8 +37,12 @@ export function OrderThread({ orderId, clientName, canWrite, showOrderFiles = tr
   /** The files sent with the order itself (not with a message). */
   showOrderFiles?: boolean
 }) {
-  const thread = useOrderThread(orderId).data
+  const threadQ = useOrderThread(orderId)
+  const thread = threadQ.data
   const messages = (thread?.messages ?? []) as (ThreadMessage & { id: string })[]
+  // Folds: open by itself with unread messages from the client, else as this person left it.
+  const { user } = useAuth()
+  const fold = useThreadFold(user?.id ?? null, orderId, 'clinic', messages, threadQ.isFetched)
   const files = (thread?.files ?? []) as ThreadFile[]
   const { messages: items, orderFiles } = threadItems(messages, files)
   const [error, setError] = useState<string | null>(null)
@@ -50,8 +57,9 @@ export function OrderThread({ orderId, clientName, canWrite, showOrderFiles = tr
         </div>
       )}
 
-      <div>
-        <p className="label">{t('orders.messages')}</p>
+      <div className="space-y-2">
+        <ThreadHeader count={messages.length} last={newestAt(messages)} unread={fold.unread} open={fold.open} onToggle={fold.toggle} />
+        {fold.open && <>
         <div className="space-y-2">
           {items.map(m => {
             // sql/145: Received, a delivery problem (red), the clinic's resolution.
@@ -112,6 +120,7 @@ export function OrderThread({ orderId, clientName, canWrite, showOrderFiles = tr
           })}
         </div>
         {canWrite && <Compose orderId={orderId} onError={setError} />}
+        </>}
       </div>
       {error && <p className="text-sm text-rose-600" role="alert">{error}</p>}
       {large && (
