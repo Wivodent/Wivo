@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext'
 import { useRealtimeInvalidate } from './useRealtimeInvalidate'
 import type { WivoOrderV1 } from '@shared/network/order'
 import { readDirectoryEntry, setDirectoryListed, type DirectoryEntry, type DirectoryError } from '../lib/networkDirectory'
+import type { OrderJobState } from '../lib/orderView'
 
 export const PORTAL_KEY = ['network_portal'] as const
 
@@ -170,5 +171,59 @@ export function useSetDirectoryListed() {
   return useMutation<DirectoryEntry, DirectoryError, boolean>({
     mutationFn: setDirectoryListed,
     onSuccess: entry => { qc.setQueryData([...DIRECTORY_KEY, clinicId], entry) },
+  })
+}
+
+/** A long id list read in parts: one address holds only so many ids. */
+async function inChunks<T>(ids: readonly string[], read: (part: string[]) => Promise<T[]>, size = 100): Promise<T[]> {
+  const parts: string[][] = []
+  for (let i = 0; i < ids.length; i += size) parts.push(ids.slice(i, i + size))
+  return (await Promise.all(parts.map(read))).flat()
+}
+
+/** The Orders page hears the board: a job moved to its last stage or sent changes its order's tab. */
+export function useOrderJobsLive(enabled = true): void {
+  useRealtimeInvalidate('jobs', [[...PORTAL_KEY, 'jobs']], enabled)
+}
+
+export interface OrderCounts { files: Map<string, number>; messages: Map<string, number> }
+
+/**
+ * How many finished files and messages each order has, counted from the rows
+ * the person may read (row security as for the orders). Two reads for all
+ * orders, not one per order.
+ */
+export function useOrderCounts(orderIds: readonly string[]) {
+  const { clinicId } = useAuth()
+  const ids = [...orderIds].sort()
+  return useQuery<OrderCounts>({
+    queryKey: [...PORTAL_KEY, 'counts', clinicId, ids.join(',')],
+    enabled: !!clinicId && ids.length > 0,
+    queryFn: async () => {
+      const count = (list: { order_id: string }[]) => {
+        const m = new Map<string, number>()
+        for (const r of list) m.set(r.order_id, (m.get(r.order_id) ?? 0) + 1)
+        return m
+      }
+      const [files, messages] = await Promise.all([
+        inChunks(ids, part => rows<{ order_id: string }>(supabase.from('client_order_file').select('order_id').in('order_id', part).not('completed_at', 'is', null))),
+        inChunks(ids, part => rows<{ order_id: string }>(supabase.from('client_order_message').select('order_id').in('order_id', part))),
+      ])
+      return { files: count(files), messages: count(messages) }
+    },
+  })
+}
+
+/** The board state of the jobs accepted orders became: which tab each order is in (lib/orderView orderTab). */
+export function useOrderJobs(jobIds: readonly string[]) {
+  const { clinicId } = useAuth()
+  const ids = [...new Set(jobIds)].sort()
+  return useQuery<Map<string, OrderJobState>>({
+    queryKey: [...PORTAL_KEY, 'jobs', clinicId, ids.join(',')],
+    enabled: !!clinicId && ids.length > 0,
+    queryFn: async () => {
+      const list = await inChunks(ids, part => rows<OrderJobState>(supabase.from('jobs').select('id, status, delivery_status').in('id', part).is('deleted_at', null)))
+      return new Map(list.map(j => [j.id, j]))
+    },
   })
 }

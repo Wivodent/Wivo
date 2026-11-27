@@ -1,28 +1,36 @@
 /**
- * Orders from outside (docs/PLAN-NETWORK-1.md): technicians, doctors, clinics
- * and labs with a Wivo Network account send orders straight into this Wivo.
+ * Orders from outside (docs/PLAN-NETWORK-1.md; layout docs/design/orders.html):
+ * technicians, doctors, clinics and labs with a Wivo Network account send
+ * orders straight into this Wivo.
  *
- * For an older owner who is not technical: big boxes, few words, an "i" for
- * the rest. Top to bottom: set it up (owner, once), who asks to connect, new
- * orders, then everything decided and everyone connected.
+ * Top to bottom: the heading with "taking orders" and Settings (the owner);
+ * four counts; the orders by tab (New, In progress, Ready, Sent, Rejected)
+ * beside who asks to connect, the invite link with the directory switch, and
+ * the connected clients. Every number is counted from rows this person may
+ * read; nothing is shown that Wivo does not have (no ratings, no "unread").
  */
 import { useMemo, useState } from 'react'
-import { Inbox, UserPlus, Check, X, Download, Send, Settings2, Globe2, Copy } from 'lucide-react'
-import { format } from 'date-fns'
+import { Inbox, Check, X, Download, Send, Settings2, Globe2, Copy } from 'lucide-react'
+import { format, formatDistanceToNow } from 'date-fns'
 import {
   useNetworkSettings, useNetworkClients, useClientOrders, useOrderThread, usePortalLive,
   useSaveNetworkSettings, useConfirmClient, useClientVisibility, useEndClient,
   useAcceptOrder, useRejectOrder, usePostOrderMessage, defaultList, clientName,
-  useDirectoryEntry, useSetDirectoryListed,
-  type NetworkClientRow, type ClientOrderRow, type CanSee,
+  useDirectoryEntry, useSetDirectoryListed, useOrderCounts, useOrderJobs, useOrderJobsLive,
+  type NetworkClientRow, type ClientOrderRow, type CanSee, type OrderCounts,
 } from '../../hooks/useNetworkPortal'
 import { useWorkflowTemplates } from '../../hooks/useWorkflowTemplates'
 import { usePermissions } from '../../hooks/usePermissions'
+import { usePipeline } from '../../context/PipelineContext'
+import { useSettings, useWorkTypes } from '../../stores/useSettings'
 import { saveOrderFile } from '../../lib/fileLink'
 import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
+import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, type OrderTab } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
 import { describeError } from '../Patients/errors'
 import { InfoButton } from '../ui/InfoButton'
+import { WorkTypeArt } from '../ui/WorkTypeArt'
+import { UNKNOWN_WORK_TYPE } from '@shared/pricing/workTypes'
 import { t, dateLocale } from '@/lib/i18n'
 
 const SEE_KEYS: (keyof CanSee)[] = ['status', 'messages', 'files', 'prices']
@@ -31,78 +39,129 @@ const seeLabel = (k: keyof CanSee): string =>
 const roleLabel = (r: NetworkClientRow['role']): string =>
   r === 'technician' ? t('network.roleTechnician') : r === 'doctor' ? t('network.roleDoctor') : r === 'clinic' ? t('network.roleClinic') : t('network.roleLab')
 const when = (iso: string) => format(new Date(iso), 'd MMM yyyy HH:mm', { locale: dateLocale })
+const ago = (iso: string) => formatDistanceToNow(new Date(iso), { addSuffix: true, locale: dateLocale })
+const tabLabel = (tab: OrderTab): string =>
+  tab === 'new' ? t('orders.tabNew') : tab === 'in_progress' ? t('orders.tabInProgress') : tab === 'ready' ? t('orders.tabReady')
+    : tab === 'sent' ? t('orders.tabSent') : t('orders.tabRejected')
+/** The tabs that show their count, as in the design: the ones that need doing. */
+const COUNTED: readonly OrderTab[] = ['new', 'in_progress', 'ready']
 
 export function OrdersView() {
   const { isOwner, can } = usePermissions()
   usePortalLive()
+  useOrderJobsLive()
+  const { doneStageKey } = usePipeline()
   const settings = useNetworkSettings(isOwner)
   const clients = useNetworkClients().data ?? []
   const orders = useClientOrders().data ?? []
+  const jobs = useOrderJobs(orders.filter(o => o.status === 'accepted' && o.job_id).map(o => o.job_id!)).data
+  const counts = useOrderCounts(orders.map(o => o.id)).data
+  const directoryOn = isOwner && !!settings.data?.network_clinic_id
+  const entry = useDirectoryEntry(directoryOn).data
   const [openId, setOpenId] = useState<string | null>(null)
+  const [tab, setTab] = useState<OrderTab>('new')
+  const [showSettings, setShowSettings] = useState(false)
+
   const byId = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients])
+  const tabOf = (o: ClientOrderRow) => orderTab(o, o.job_id ? jobs?.get(o.job_id) : undefined, doneStageKey)
+  const perTab = countByTab(orders, tabOf)
+  const shown = orders.filter(o => tabOf(o) === tab)
   const requests = clients.filter(c => c.state === 'requested')
   const connected = clients.filter(c => c.state === 'confirmed')
-  const fresh = orders.filter(o => o.status === 'received')
-  const decided = orders.filter(o => o.status !== 'received')
+  const ordersPerClient = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const o of orders) m.set(o.client_id, (m.get(o.client_id) ?? 0) + 1)
+    return m
+  }, [orders])
   const open = orders.find(o => o.id === openId) ?? null
   const on = settings.data?.enabled ?? false
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
-      <div className="flex items-center gap-3">
-        <Inbox size={28} className="text-accent" aria-hidden="true" />
-        <h1 className="text-2xl font-bold text-ink">{t('orders.title')}</h1>
-        <InfoButton label={t('orders.title')} text={t('orders.titleInfo')} />
+    <div className="mx-auto max-w-6xl space-y-5 p-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-ink">
+            <Inbox size={26} className="text-accent" aria-hidden="true" /> {t('orders.heading')}
+            <InfoButton label={t('orders.heading')} text={t('orders.titleInfo')} />
+          </h1>
+          <p className="text-base text-ink-muted">{t('orders.subtitle')}</p>
+        </div>
+        {isOwner && settings.isFetched && (
+          <div className="card flex flex-wrap items-center gap-2 px-4 py-2" data-testid="orders-state">
+            <span className={`h-2.5 w-2.5 rounded-full ${on ? 'bg-emerald-600' : 'bg-ink-faint'}`} aria-hidden="true" />
+            <span className="text-base font-semibold text-ink">{on ? t('orders.taking') : t('orders.notTaking')}</span>
+            {on && entry?.listed && <span className="text-sm text-ink-muted">· {t('orders.visibleInDirectory')}</span>}
+            <button type="button" onClick={() => setShowSettings(s => !s)} aria-expanded={showSettings || !on}
+              className="btn-ghost h-9 px-3 text-sm"><Settings2 size={16} aria-hidden="true" /> {t('orders.settings')}</button>
+          </div>
+        )}
       </div>
 
-      {isOwner && <SetupCard key={settings.data?.org_id ?? 'none'} row={settings.data ?? null} />}
+      {isOwner && (showSettings || (settings.isFetched && !on)) && (
+        <SetupCard key={settings.data?.org_id ?? 'none'} row={settings.data ?? null} onSaved={() => setShowSettings(false)} />
+      )}
       {isOwner && !on && settings.isFetched && <p className="text-base text-ink-muted">{t('orders.offHint')}</p>}
 
-      {requests.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
-            <UserPlus size={20} aria-hidden="true" /> {t('orders.requests')} <span className="rounded-full bg-sky-500 px-2 text-sm text-white">{requests.length}</span>
-            <InfoButton label={t('orders.requests')} text={t('orders.requestsInfo')} />
-          </h2>
-          {requests.map(c => <RequestCard key={c.id} client={c} canDecide={isOwner} />)}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label={t('orders.statNew')} value={perTab.new} sub={t('orders.statNewSub')} strong onClick={() => setTab('new')} />
+        <Stat label={t('orders.statInProgress')} value={perTab.in_progress} sub={t('orders.statInProgressSub')} onClick={() => setTab('in_progress')} />
+        <Stat label={t('orders.statReady')} value={perTab.ready} sub={t('orders.statReadySub')} onClick={() => setTab('ready')} />
+        <Stat label={t('orders.statClients')} value={connected.length}
+          sub={requests.length > 0 ? t('orders.statAsking', { n: requests.length }) : t('orders.statConnected')} warn={requests.length > 0} />
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-3">
+        <section className="card overflow-hidden p-0 lg:col-span-2" aria-label={t('orders.heading')}>
+          <div className="flex flex-wrap gap-2 border-b border-ink-faint/20 px-4 py-3" role="tablist">
+            {(['new', 'in_progress', 'ready', 'sent', 'rejected'] as const).map(k => (
+              <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+                className={`h-10 rounded-full px-4 text-sm ${tab === k ? 'bg-accent font-bold text-white' : 'border border-ink-faint/30 text-ink hover:bg-bg-sidebar'}`}>
+                {tabLabel(k)}{COUNTED.includes(k) ? ` · ${perTab[k]}` : ''}
+              </button>
+            ))}
+          </div>
+          {shown.length === 0 && <p className="p-6 text-base text-ink-muted">{tab === 'new' ? t('orders.noNewOrders') : t('orders.tabEmpty')}</p>}
+          {shown.map(o => (
+            <OrderRow key={o.id} order={o} tab={tab} client={byId.get(o.client_id)} counts={counts}
+              canAccept={can('jobs.write')} onOpen={() => setOpenId(o.id)} />
+          ))}
         </section>
-      )}
 
-      <section className="space-y-3">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-ink">
-          {t('orders.newOrders')} {fresh.length > 0 && <span className="rounded-full bg-sky-500 px-2 text-sm text-white">{fresh.length}</span>}
-        </h2>
-        {fresh.length === 0 && <p className="card p-5 text-base text-ink-muted">{t('orders.noNewOrders')}</p>}
-        {fresh.map(o => <OrderRow key={o.id} order={o} client={byId.get(o.client_id)} onOpen={() => setOpenId(o.id)} />)}
-      </section>
-
-      {decided.length > 0 && (
-        <details className="card p-4">
-          <summary className="cursor-pointer text-base font-semibold text-ink">{t('orders.decided', { n: decided.length })}</summary>
-          <div className="mt-3 space-y-2">
-            {decided.map(o => <OrderRow key={o.id} order={o} client={byId.get(o.client_id)} onOpen={() => setOpenId(o.id)} />)}
-          </div>
-        </details>
-      )}
-
-      {connected.length > 0 && (
-        <details className="card p-4">
-          <summary className="cursor-pointer text-base font-semibold text-ink">{t('orders.connected', { n: connected.length })}</summary>
-          <div className="mt-3 space-y-3">
-            {connected.map(c => <ConnectedRow key={c.id} client={c} canChange={isOwner} />)}
-          </div>
-        </details>
-      )}
+        <div className="space-y-5">
+          {requests.length > 0 && (
+            <section className="space-y-3 rounded-2xl border-2 border-amber-300 bg-amber-500/10 p-4">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-ink">{t('orders.requests')}
+                <InfoButton label={t('orders.requests')} text={t('orders.requestsInfo')} /></h2>
+              {requests.map(c => <RequestCard key={c.id} client={c} canDecide={isOwner} />)}
+            </section>
+          )}
+          {directoryOn && <InviteCard ordersOn={on} />}
+          {connected.length > 0 && <ConnectedClients clients={connected} ordersPerClient={ordersPerClient} canChange={isOwner} />}
+        </div>
+      </div>
 
       {open && <OrderDialog order={open} client={byId.get(open.client_id)} canDecide={can('jobs.write')} onClose={() => setOpenId(null)} />}
     </div>
   )
 }
 
-// ── Setting it up (the owner, once) ────────────────────────────────────────
-function SetupCard({ row }: { row: { enabled: boolean; network_public_key: string | null; network_clinic_id: string | null; session_hours: number } | null }) {
+function Stat({ label, value, sub, strong, warn, onClick }: { label: string; value: number; sub: string; strong?: boolean; warn?: boolean; onClick?: () => void }) {
+  const body = (
+    <>
+      <span className={`text-sm font-semibold ${strong ? 'text-accent' : 'text-ink-muted'}`}>{label}</span>
+      <span className="text-3xl font-bold text-ink">{value}</span>
+      <span className={`text-sm ${warn ? 'font-semibold text-amber-700' : 'text-ink-muted'}`}>{sub}</span>
+    </>
+  )
+  const cls = `card flex flex-col gap-1 p-4 text-left ${strong ? 'border-2 border-accent' : ''}`
+  return onClick
+    ? <button type="button" onClick={onClick} className={`${cls} hover:ring-2 hover:ring-accent/30`}>{body}</button>
+    : <div className={cls}>{body}</div>
+}
+
+// ── Setting it up (the owner) ──────────────────────────────────────────────
+function SetupCard({ row, onSaved }: { row: { enabled: boolean; network_public_key: string | null; network_clinic_id: string | null; session_hours: number } | null; onSaved: () => void }) {
   const save = useSaveNetworkSettings()
-  const [open, setOpen] = useState(!row?.enabled)
   const [enabled, setEnabled] = useState(row?.enabled ?? false)
   const [key, setKey] = useState(row?.network_public_key ?? '')
   const [clinicId, setClinicId] = useState(row?.network_clinic_id ?? '')
@@ -114,49 +173,43 @@ function SetupCard({ row }: { row: { enabled: boolean; network_public_key: strin
     setError(null)
     try {
       await save.mutateAsync({ p_enabled: enabled && ready, p_public_key: key.trim() || null, p_network_clinic: clinicId.trim() || null, p_session_hours: hours })
-      setOpen(false)
+      onSaved()
     } catch (e) { setError(describeError(e)) }
   }
 
   return (
-    <div className="card p-5">
-      <button type="button" onClick={() => setOpen(o => !o)} className="flex w-full items-center gap-3 text-left">
+    <div className="card space-y-4 p-5">
+      <div className="flex items-center gap-3">
         <Globe2 size={24} className="text-accent" aria-hidden="true" />
         <span className="flex-1">
           <span className="block text-lg font-semibold text-ink">{t('orders.setupTitle')}</span>
           <span className={`text-base ${row?.enabled ? 'text-emerald-600' : 'text-ink-muted'}`}>{row?.enabled ? t('orders.setupOn') : t('orders.setupOff')}</span>
         </span>
-        <Settings2 size={20} className="text-ink-muted" aria-hidden="true" />
-      </button>
-      {row?.network_clinic_id && <DirectorySection ordersOn={row.enabled} />}
-      {open && (
-        <div className="mt-4 space-y-4">
-          <label className="flex items-center gap-3 text-base">
-            <input type="checkbox" className="h-6 w-6" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
-            {t('orders.setupEnable')}
-          </label>
-          <div>
-            <span className="label flex items-center gap-1">{t('orders.setupKey')} <InfoButton label={t('orders.setupKey')} text={t('orders.setupKeyInfo')} /></span>
-            <input className="input h-11 font-mono" value={key} onChange={e => setKey(e.target.value)} spellCheck={false} />
-          </div>
-          <div>
-            <span className="label flex items-center gap-1">{t('orders.setupClinicId')} <InfoButton label={t('orders.setupClinicId')} text={t('orders.setupClinicIdInfo')} /></span>
-            <input className="input h-11 font-mono" value={clinicId} onChange={e => setClinicId(e.target.value)} spellCheck={false} />
-          </div>
-          <div>
-            <span className="label">{t('orders.setupHours')}</span>
-            <input type="number" min={1} max={24} className="input h-11 w-32" value={hours} onChange={e => setHours(Math.max(1, Math.min(24, Number(e.target.value) || 8)))} />
-          </div>
-          {enabled && !ready && <p className="text-sm text-amber-600">{t('orders.setupNeedsBoth')}</p>}
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-          <button type="button" onClick={submit} disabled={save.isPending} className="btn-primary h-12 px-6 text-base">{t('orders.save')}</button>
-        </div>
-      )}
+      </div>
+      <label className="flex items-center gap-3 text-base">
+        <input type="checkbox" className="h-6 w-6" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
+        {t('orders.setupEnable')}
+      </label>
+      <div>
+        <span className="label flex items-center gap-1">{t('orders.setupKey')} <InfoButton label={t('orders.setupKey')} text={t('orders.setupKeyInfo')} /></span>
+        <input className="input h-11 font-mono" value={key} onChange={e => setKey(e.target.value)} spellCheck={false} />
+      </div>
+      <div>
+        <span className="label flex items-center gap-1">{t('orders.setupClinicId')} <InfoButton label={t('orders.setupClinicId')} text={t('orders.setupClinicIdInfo')} /></span>
+        <input className="input h-11 font-mono" value={clinicId} onChange={e => setClinicId(e.target.value)} spellCheck={false} />
+      </div>
+      <div>
+        <span className="label">{t('orders.setupHours')}</span>
+        <input type="number" min={1} max={24} className="input h-11 w-32" value={hours} onChange={e => setHours(Math.max(1, Math.min(24, Number(e.target.value) || 8)))} />
+      </div>
+      {enabled && !ready && <p className="text-sm text-amber-600">{t('orders.setupNeedsBoth')}</p>}
+      {error && <p className="text-sm text-rose-600">{error}</p>}
+      <button type="button" onClick={submit} disabled={save.isPending} className="btn-primary h-12 px-6 text-base">{t('orders.save')}</button>
     </div>
   )
 }
 
-// ── The directory and the invite link (the owner) ──────────────────────────
+// ── The invite link and the directory (the owner) ──────────────────────────
 const directoryProblemText = (p: DirectoryProblem | undefined): string =>
   p === 'not_allowed' ? t('orders.directoryNotAllowed')
     : p === 'orders_off' ? t('orders.directoryOrdersOff')
@@ -165,12 +218,12 @@ const directoryProblemText = (p: DirectoryProblem | undefined): string =>
     : t('app.notAvailableYet')
 
 /**
- * Listed or not in the Wivo Network directory, and the invite link. Read and
- * changed through the clinic's network-directory function (the owner and the
- * second factor, then a request signed with the clinic's own key); the app
- * never writes to the Network itself.
+ * The invite link and "Show my clinic in the directory". Read and changed
+ * through the clinic's network-directory function (the owner and the second
+ * factor, then a request signed with the clinic's own key); the app never
+ * writes to the Network itself.
  */
-function DirectorySection({ ordersOn }: { ordersOn: boolean }) {
+function InviteCard({ ordersOn }: { ordersOn: boolean }) {
   const entry = useDirectoryEntry(true)
   const setListed = useSetDirectoryListed()
   const [copied, setCopied] = useState(false)
@@ -189,51 +242,56 @@ function DirectorySection({ ordersOn }: { ordersOn: boolean }) {
   }
 
   return (
-    <div className="mt-4 space-y-4 border-t border-ink-faint pt-4" data-testid="network-directory">
-      {entry.isLoading && <p className="text-base text-ink-muted">{t('orders.directoryLoading')}</p>}
+    <section className="card space-y-3 p-4" data-testid="network-directory">
+      <h2 className="flex items-center gap-2 text-lg font-bold text-ink">{t('orders.inviteTitle')}
+        <InfoButton label={t('orders.inviteLink')} text={t('orders.inviteLinkInfo')} /></h2>
+      <p className="text-sm text-ink-muted">{t('orders.inviteText')}</p>
+      {entry.isLoading && <p className="text-sm text-ink-muted">{t('orders.directoryLoading')}</p>}
+      {link && (
+        <div className="flex gap-2">
+          <input className="input h-11 min-w-0 flex-1 truncate font-mono text-sm" value={link} readOnly
+            onFocus={ev => ev.currentTarget.select()} aria-label={t('orders.inviteLink')} />
+          <button type="button" onClick={() => void copy()} aria-label={t('orders.copyInvite')}
+            className="h-11 shrink-0 rounded-xl border border-accent px-3 text-sm font-bold text-accent hover:bg-accent/10">
+            <Copy size={16} className="mr-1 inline" aria-hidden="true" />{copied ? t('orders.inviteCopied') : t('orders.copy')}
+          </button>
+        </div>
+      )}
       {e && (
-        <>
-          <div>
-            <label className="flex items-center gap-3 text-base">
-              <input type="checkbox" className="h-6 w-6" checked={e.listed}
-                disabled={setListed.isPending || (!ordersOn && !e.listed)}
-                onChange={ev => setListed.mutate(ev.target.checked)} />
-              {t('orders.directoryListed')}
-              <InfoButton label={t('orders.directoryListed')} text={t('orders.directoryListedInfo')} />
-            </label>
-            <p className="ml-9 text-sm text-ink-muted">{t('orders.directoryShownAs', { name: e.name, place: place || '—' })}</p>
-            {!ordersOn && e.listed && <p className="ml-9 text-sm text-amber-600">{t('orders.directoryListedButOff')}</p>}
-          </div>
-          {link && (
-            <div>
-              <span className="label flex items-center gap-1">{t('orders.inviteLink')} <InfoButton label={t('orders.inviteLink')} text={t('orders.inviteLinkInfo')} /></span>
-              <div className="flex flex-wrap gap-2">
-                <input className="input h-11 min-w-0 flex-1 font-mono text-sm" value={link} readOnly onFocus={ev => ev.currentTarget.select()} aria-label={t('orders.inviteLink')} />
-                <button type="button" onClick={() => void copy()} className="btn-ghost h-11 px-4 text-base">
-                  <Copy size={16} aria-hidden="true" /> {copied ? t('orders.inviteCopied') : t('orders.copyInvite')}
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+        <div className="space-y-1 border-t border-ink-faint/20 pt-3">
+          <label className="flex items-center justify-between gap-3 text-base font-semibold text-ink">
+            <span className="flex items-center gap-1">{t('orders.directoryShort')}
+              <InfoButton label={t('orders.directoryListed')} text={t('orders.directoryListedInfo')} /></span>
+            <input type="checkbox" className="h-6 w-6 shrink-0" checked={e.listed}
+              aria-label={t('orders.directoryListed')}
+              disabled={setListed.isPending || (!ordersOn && !e.listed)}
+              onChange={ev => setListed.mutate(ev.target.checked)} />
+          </label>
+          <p className="text-sm text-ink-muted">{t('orders.directoryShownAs', { name: e.name, place: place || '—' })}</p>
+          {!ordersOn && e.listed && <p className="text-sm text-amber-600">{t('orders.directoryListedButOff')}</p>}
+        </div>
       )}
       {(entry.isError || setListed.isError) && <p className="text-sm text-rose-600" role="alert">{directoryProblemText(problem)}</p>}
-    </div>
+    </section>
   )
 }
 
 // ── Someone asks to connect ─────────────────────────────────────────────────
 function SeeToggles({ value, onChange, disabled }: { value: CanSee; onChange: (v: CanSee) => void; disabled?: boolean }) {
   return (
-    <div className="flex flex-wrap gap-4">
+    <div className="flex flex-wrap gap-x-4 gap-y-2">
       {SEE_KEYS.map(k => (
-        <label key={k} className="flex items-center gap-2 text-base">
+        <label key={k} className="flex items-center gap-2 text-sm">
           <input type="checkbox" className="h-5 w-5" disabled={disabled} checked={value[k]} onChange={e => onChange({ ...value, [k]: e.target.checked })} />
           {seeLabel(k)}
         </label>
       ))}
     </div>
   )
+}
+
+function Avatar({ name }: { name: string }) {
+  return <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent font-bold text-white" aria-hidden="true">{initials(name)}</span>
 }
 
 function RequestCard({ client, canDecide }: { client: NetworkClientRow; canDecide: boolean }) {
@@ -245,32 +303,33 @@ function RequestCard({ client, canDecide }: { client: NetworkClientRow; canDecid
   const run = async (fn: () => Promise<unknown>) => { setError(null); try { await fn() } catch (e) { setError(describeError(e)) } }
 
   return (
-    <div className="card space-y-4 border-2 border-sky-400/50 p-5">
-      <div>
-        <p className="text-lg font-semibold text-ink">{clientName(client)}</p>
-        <p className="text-base text-ink-muted">{roleLabel(client.role)}{client.country ? ` · ${client.country}` : ''} · {when(client.requested_at)}</p>
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <Avatar name={clientName(client)} />
+        <div className="min-w-0">
+          <p className="truncate text-base font-bold text-ink">{clientName(client)}</p>
+          <p className="text-sm text-ink-muted">{roleLabel(client.role)}{client.country ? ` · ${client.country}` : ''} · {ago(client.requested_at)}</p>
+        </div>
       </div>
       {canDecide ? (
         <>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('orders.addTo')}>
-            {(['clients', 'clinics'] as const).map(l => (
-              <button key={l} type="button" role="radio" aria-checked={list === l} onClick={() => setList(l)}
-                className={`h-11 rounded-xl border-2 px-4 text-base ${list === l ? 'border-accent bg-accent/10 font-semibold' : 'border-ink-faint/30'}`}>
-                {l === 'clients' ? t('orders.addToClients') : t('orders.addToClinics')}
-              </button>
-            ))}
-          </div>
-          <div>
-            <p className="label">{t('orders.theySee')}</p>
-            <SeeToggles value={see} onChange={setSee} />
-          </div>
-          <div className="flex flex-wrap gap-3">
+          <label className="block text-sm font-semibold text-ink">{t('orders.addAs')}
+            <select className="input mt-1 h-11 text-base" value={list} onChange={e => setList(e.target.value as 'clients' | 'clinics')}>
+              <option value="clients">{t('orders.addToClients')}</option>
+              <option value="clinics">{t('orders.addToClinics')}</option>
+            </select>
+          </label>
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold text-ink">{t('orders.theySee')}</summary>
+            <div className="mt-2"><SeeToggles value={see} onChange={setSee} /></div>
+          </details>
+          <div className="flex gap-2">
             <button type="button" disabled={confirm.isPending}
               onClick={() => run(() => confirm.mutateAsync({ p_client: client.id, p_list: list, p_can_see: see }))}
-              className="btn-primary h-12 px-6 text-base"><Check size={18} aria-hidden="true" /> {t('orders.confirm')}</button>
+              className="btn-primary h-11 flex-1 justify-center text-sm"><Check size={16} aria-hidden="true" /> {t('orders.confirm')}</button>
             <button type="button" disabled={end.isPending}
               onClick={() => run(async () => { if (await confirmDialog({ message: t('orders.declineAsk', { name: clientName(client) }), danger: true })) await end.mutateAsync({ p_client: client.id }) })}
-              className="btn-ghost h-12 px-5 text-base"><X size={18} aria-hidden="true" /> {t('orders.decline')}</button>
+              className="btn-ghost h-11 flex-1 justify-center border border-ink-faint/30 text-sm"><X size={16} aria-hidden="true" /> {t('orders.decline')}</button>
           </div>
         </>
       ) : <p className="text-sm text-ink-muted">{t('orders.ownerDecides')}</p>}
@@ -279,24 +338,47 @@ function RequestCard({ client, canDecide }: { client: NetworkClientRow; canDecid
   )
 }
 
-function ConnectedRow({ client, canChange }: { client: NetworkClientRow; canChange: boolean }) {
+// ── Connected clients ───────────────────────────────────────────────────────
+const ordersCount = (n: number) => (n === 1 ? t('orders.oneOrder') : t('orders.nOrders', { n }))
+
+function ConnectedClients({ clients, ordersPerClient, canChange }: { clients: NetworkClientRow[]; ordersPerClient: Map<string, number>; canChange: boolean }) {
+  const [all, setAll] = useState(false)
+  const sorted = [...clients].sort((a, b) => (ordersPerClient.get(b.id) ?? 0) - (ordersPerClient.get(a.id) ?? 0))
+  return (
+    <section className="card space-y-3 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-bold text-ink">{t('orders.connectedTitle')}</h2>
+        <button type="button" className="text-sm font-semibold text-accent hover:underline" onClick={() => setAll(a => !a)} aria-expanded={all}>
+          {all ? t('orders.showFewer') : t('orders.allN', { n: clients.length })}
+        </button>
+      </div>
+      {!all && sorted.slice(0, 3).map(c => (
+        <div key={c.id} className="flex justify-between gap-3 text-base">
+          <span className="truncate text-ink">{clientName(c)}</span>
+          <span className="shrink-0 text-ink-muted">{ordersCount(ordersPerClient.get(c.id) ?? 0)}</span>
+        </div>
+      ))}
+      {all && sorted.map(c => <ConnectedRow key={c.id} client={c} orders={ordersPerClient.get(c.id) ?? 0} canChange={canChange} />)}
+    </section>
+  )
+}
+
+function ConnectedRow({ client, orders, canChange }: { client: NetworkClientRow; orders: number; canChange: boolean }) {
   const visibility = useClientVisibility()
   const end = useEndClient()
   return (
-    <div className="rounded-xl border border-ink-faint/20 p-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <p className="flex-1 text-base font-semibold text-ink">{clientName(client)} <span className="font-normal text-ink-muted">· {roleLabel(client.role)}</span></p>
+    <div className="space-y-2 rounded-xl border border-ink-faint/20 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="min-w-0 flex-1 text-base font-semibold text-ink">{clientName(client)} <span className="font-normal text-ink-muted">· {roleLabel(client.role)} · {ordersCount(orders)}</span></p>
         {canChange && (
-          <button type="button" className="btn-ghost h-10 text-sm text-rose-600"
+          <button type="button" className="btn-ghost h-9 text-sm text-rose-600"
             onClick={async () => { if (await confirmDialog({ message: t('orders.endAsk', { name: clientName(client) }), danger: true })) end.mutate({ p_client: client.id }) }}>
             {t('orders.end')}
           </button>
         )}
       </div>
-      <div className="mt-2">
-        <SeeToggles value={client.can_see} disabled={!canChange || visibility.isPending}
-          onChange={v => visibility.mutate({ p_client: client.id, p_can_see: v })} />
-      </div>
+      <SeeToggles value={client.can_see} disabled={!canChange || visibility.isPending}
+        onChange={v => visibility.mutate({ p_client: client.id, p_can_see: v })} />
     </div>
   )
 }
@@ -306,19 +388,65 @@ function statusText(o: ClientOrderRow): string {
   return o.status === 'received' ? t('orders.statusNew') : o.status === 'accepted' ? t('orders.statusAccepted') : t('orders.statusRejected')
 }
 
-function OrderRow({ order, client, onOpen }: { order: ClientOrderRow; client?: NetworkClientRow; onOpen: () => void }) {
+/** The order's work type picture: the clinic's own type when the name matches one, else by the name alone. */
+function OrderArt({ workType, size }: { workType: string; size: number }) {
+  const { resolve } = useWorkTypes()
+  const known = resolve(workType)
+  return <WorkTypeArt size={size} iconSize={Math.round(size * 0.6)} type={known === UNKNOWN_WORK_TYPE ? { nimi: workType, match: [] } : known} />
+}
+
+/** An order's chosen options by their names in this clinic's option library. */
+function useOptionLabels(): (options: Record<string, string[]> | null | undefined) => string[] {
+  const library = useSettings().settings.tooValikud
+  return options => chosenOptionLabels(options, (_g, id) => library.find(o => o.id === id)?.nimi)
+}
+
+function Chip({ children, tone }: { children: React.ReactNode; tone?: 'blue' }) {
+  return <span className={`rounded-lg px-2 py-0.5 text-sm ${tone === 'blue' ? 'bg-sky-500/15 font-semibold text-sky-800' : 'border border-ink-faint/30 bg-bg-card text-ink'}`}>{children}</span>
+}
+
+function OrderRow({ order, tab, client, counts, canAccept, onOpen }: {
+  order: ClientOrderRow; tab: OrderTab; client?: NetworkClientRow; counts?: OrderCounts; canAccept: boolean; onOpen: () => void
+}) {
+  const accept = useAcceptOrder()
+  const optionLabels = useOptionLabels()
+  const [error, setError] = useState<string | null>(null)
+  const p = order.payload
+  const teeth = teethLabel(p?.teeth ?? '')
+  const files = counts?.files.get(order.id) ?? 0
+  const messages = counts?.messages.get(order.id) ?? 0
+  const title = [order.work_type, ...optionLabels(p?.options)].join(' · ')
+  const who = client ? `${clientName(client)} (${roleLabel(client.role)})` : clientName(client)
+
   return (
-    <button type="button" onClick={onOpen}
-      className={`card flex w-full items-center gap-4 p-4 text-left hover:ring-2 hover:ring-accent/30 ${order.status === 'received' ? 'border-l-4 border-sky-500' : ''}`}>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-lg font-semibold text-ink">{order.work_type}{order.payload?.teeth ? ` · ${order.payload.teeth}` : ''}</p>
-        <p className="truncate text-base text-ink-muted">{clientName(client)} · {t('orders.ref')}: {order.patient_ref}</p>
+    <div className={`flex gap-4 border-b border-ink-faint/15 p-4 last:border-b-0 ${tab === 'new' ? 'bg-accent/5' : ''}`}>
+      <OrderArt workType={order.work_type} size={56} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex flex-wrap justify-between gap-2">
+          <button type="button" onClick={onOpen} className="min-w-0 truncate text-left text-lg font-bold text-ink hover:underline">{title}</button>
+          <span className="text-sm text-ink-muted">{ago(order.created_at)}</span>
+        </div>
+        <p className="truncate text-base text-ink-soft">{who} · {t('orders.refShort')} {order.patient_ref}</p>
+        <div className="flex flex-wrap gap-2">
+          {teeth && <Chip>{parseTeeth(p?.teeth ?? '').length === 1 ? t('orders.toothChip', { teeth }) : t('orders.teethChip', { teeth })}</Chip>}
+          {p?.shade && <Chip>{t('orders.shadeChip', { shade: p.shade })}</Chip>}
+          {order.due && <Chip>{t('orders.dueChip', { date: format(new Date(order.due), 'dd.MM', { locale: dateLocale }) })}</Chip>}
+          {files > 0 && <Chip>{files === 1 ? t('orders.oneFile') : t('orders.nFiles', { n: files })}</Chip>}
+          {messages > 0 && <Chip tone="blue">{messages === 1 ? t('orders.oneMessage') : t('orders.nMessages', { n: messages })}</Chip>}
+        </div>
+        {tab === 'rejected' && order.reject_reason && <p className="text-sm text-rose-700">{t('orders.rejectedBecause', { reason: order.reject_reason })}</p>}
+        {error && <p className="text-sm text-rose-600">{error}</p>}
       </div>
-      <div className="text-right">
-        <p className="text-sm font-semibold">{statusText(order)}</p>
-        <p className="text-sm text-ink-muted">{order.due ? t('orders.dueOn', { date: format(new Date(order.due), 'd MMM', { locale: dateLocale }) }) : when(order.created_at)}</p>
+      <div className="flex shrink-0 flex-col gap-2">
+        {tab === 'new' && canAccept && (
+          <button type="button" disabled={accept.isPending} className="btn-primary h-10 justify-center px-4 text-sm"
+            onClick={async () => { setError(null); try { await accept.mutateAsync({ p_order: order.id, p_template: null }) } catch (e) { setError(describeError(e)) } }}>
+            {t('orders.acceptShort')}
+          </button>
+        )}
+        <button type="button" onClick={onOpen} className="btn-ghost h-10 justify-center border border-ink-faint/30 px-4 text-sm">{t('orders.open')}</button>
       </div>
-    </button>
+    </div>
   )
 }
 
@@ -335,7 +463,7 @@ function OrderDialog({ order, client, canDecide, onClose }: { order: ClientOrder
   const [error, setError] = useState<string | null>(null)
   const run = async (fn: () => Promise<unknown>) => { setError(null); try { await fn() } catch (e) { setError(describeError(e)) } }
   const p = order.payload
-  const options = Object.entries(p?.options ?? {}).filter(([, ids]) => ids.length > 0)
+  const optionNames = useOptionLabels()(p?.options)
 
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="order-h" className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -350,10 +478,10 @@ function OrderDialog({ order, client, canDecide, onClose }: { order: ClientOrder
 
         <dl className="grid grid-cols-1 gap-3 text-base sm:grid-cols-2">
           <Field label={t('orders.ref')} value={order.patient_ref} info={t('orders.refInfo')} />
-          <Field label={t('orders.teeth')} value={p?.teeth || '—'} />
+          <Field label={t('orders.teeth')} value={teethLabel(p?.teeth ?? '') || '—'} />
           <Field label={t('orders.shade')} value={p?.shade || '—'} />
           <Field label={t('orders.due')} value={order.due ? format(new Date(order.due), 'd MMM yyyy', { locale: dateLocale }) : '—'} />
-          {options.length > 0 && <Field label={t('orders.options')} value={options.map(([g, ids]) => `${g}: ${ids.join(', ')}`).join(' · ')} />}
+          {optionNames.length > 0 && <Field label={t('orders.options')} value={optionNames.join(' · ')} />}
           {p?.notes && <div className="sm:col-span-2"><Field label={t('orders.notes')} value={p.notes} /></div>}
         </dl>
 
