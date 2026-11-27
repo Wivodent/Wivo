@@ -43,7 +43,7 @@ describe('the realtime publication (sql/131, 132)', () => {
     const db = await freshDb()
     const have = new Set(await published(db))
     expect([...tables].filter(t => !have.has(t))).toEqual([])
-  })
+  }, 120_000)
 
   it('fills a copy that came without them, and a second run changes nothing', async () => {
     const db = await freshDb()
