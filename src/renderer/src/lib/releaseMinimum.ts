@@ -22,7 +22,7 @@ import type { ReleaseMinimum } from '../../../types/update'
  */
 export const READ_FUNCTIONS: ReadonlySet<string> = new Set([
   'app_min_version_for_me', 'audit_people', 'audit_search', 'can_move_stage', 'clinic_settings_private',
-  'customers_full', 'deleted_jobs', 'has_mfa', 'job_files', 'job_thread', 'may_edit_job_stages',
+  'customers_full', 'deleted_jobs', 'has_mfa', 'job_activity', 'job_files', 'job_thread', 'may_edit_job_stages',
   'open_questions', 'partner_orgs', 'partner_stock', 'pay_settings', 'team_accounts', 'update_status',
 ])
 
@@ -33,6 +33,7 @@ export const READ_FUNCTIONS: ReadonlySet<string> = new Set([
  */
 export const READ_TRACES: ReadonlySet<string> = new Set([
   'log_job_view', //               the audit entry for opening a job (078)
+  'mark_job_seen', //              opening a job: no longer "new" for me (136)
   'open_partner_job', //           opening a partner's job, audited (071)
   'request_file_download', //      the grant and audit entry before a file downloads (072)
   'request_job_previews', //       a job's file previews (073)

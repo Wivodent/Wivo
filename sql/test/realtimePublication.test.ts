@@ -47,9 +47,12 @@ describe('the realtime publication (sql/131, 132)', () => {
 
   it('fills a copy that came without them, and a second run changes nothing', async () => {
     const db = await freshDb()
-    const expected = await published(db)
+    // job_seen comes with sql/136, which publishes it itself (its own test, jobSeen).
+    const all = await published(db)
+    expect(all).toContain('job_seen')
+    const expected = all.filter(t => t !== 'job_seen')
     // A project copied without its publication's tables, as the test copy was.
-    for (const t of expected) await db.exec(`alter publication supabase_realtime drop table public.${t}`)
+    for (const t of all) await db.exec(`alter publication supabase_realtime drop table public.${t}`)
     expect(await published(db)).toEqual([])
     await runBoth(db)
     expect(await published(db)).toEqual(expected)
@@ -74,7 +77,7 @@ describe('the realtime publication (sql/131, 132)', () => {
     await db.exec(`alter publication supabase_realtime drop table public.job_file, public.job_stage_person`)
     await db.exec(MIGRATIONS[1])
     expect(await published(db)).toEqual(expect.arrayContaining(['job_file', 'job_stage_person']))
-    expect((await published(db)).length).toBe(18)
+    expect((await published(db)).length).toBe(19)
   }, 120_000)
 
   it('leaves replica identity as it is (the primary key): nothing needs the whole old row', async () => {

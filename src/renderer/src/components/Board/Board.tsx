@@ -7,6 +7,7 @@ import { revisionPeriodDate } from '../../lib/periodMetrics'
 import { usePipeline } from '../../context/PipelineContext'
 import { BoardColumn } from './BoardColumn'
 import { t, dateLocale } from '@/lib/i18n'
+import { useJobActivityLive } from '../../hooks/useJobActivity'
 
 // ── Discriminated union for board entries ─────────────────────────────────────
 export type BoardEntry =
@@ -26,6 +27,8 @@ interface BoardProps {
 export function Board({
   jobs, loading, onJobClick, onStageChange, onRevisionStageChange, onRevisionClick,
 }: BoardProps) {
+  // The cards' "new activity" marks, refreshed from every computer (sql/136).
+  useJobActivityLive()
   const [weekOffset, setWeekOffset] = useState(0)
   const { stages, doneStageKey } = usePipeline()
 

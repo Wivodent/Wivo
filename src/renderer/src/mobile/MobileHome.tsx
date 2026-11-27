@@ -13,6 +13,9 @@ import { useJobSearch, searchJobs } from '../hooks/useJobSearch'
 import { normCode } from '../lib/jobSearch'
 import type { Job } from '../types/job'
 import { t, dateLocale } from '@/lib/i18n'
+import { useJobActivity, useJobActivityLive } from '../hooks/useJobActivity'
+import { JobActivityBadge } from '../components/ui/JobActivityBadge'
+import type { JobActivity } from '../lib/jobActivity'
 
 type Tab = 'mine' | 'active' | 'shared'
 
@@ -22,6 +25,9 @@ export function MobileHome({ onOpen, onNew }: { onOpen: (jobId: string) => void;
   const canCreate = usePermissions().can('jobs.write')
   const { doneStageKey } = usePipeline()
   const { data: jobs = [], isLoading } = useJobs()
+  // "New activity" marks, refreshed from every device (sql/136).
+  useJobActivityLive()
+  const activity = useJobActivity()
   const { data: shared = [] } = usePartnerJobs('')
   const [query, setQuery] = useState('')
   const [notFound, setNotFound] = useState(false)
@@ -87,14 +93,14 @@ export function MobileHome({ onOpen, onNew }: { onOpen: (jobId: string) => void;
         <p className="py-10 text-center text-sm text-ink-muted">{query ? t('mobile.nothingFound') : t('mobile.noJobs')}</p>
       ) : (
         <ul className="space-y-2">
-          {items.map(i => <JobRow key={`${i.kind}:${i.id}`} item={i} onOpen={() => onOpen(i.id)} />)}
+          {items.map(i => <JobRow key={`${i.kind}:${i.id}`} item={i} activity={i.kind === 'own' ? activity.get(i.id) : undefined} onOpen={() => onOpen(i.id)} />)}
         </ul>
       )}
     </main>
   )
 }
 
-function JobRow({ item, onOpen }: { item: PhoneJobItem; onOpen: () => void }) {
+function JobRow({ item, activity, onOpen }: { item: PhoneJobItem; activity?: JobActivity; onOpen: () => void }) {
   const { stageMap } = usePipeline()
   const due = item.due ? new Date(item.due) : null
   return (
@@ -102,6 +108,7 @@ function JobRow({ item, onOpen }: { item: PhoneJobItem; onOpen: () => void }) {
       <button type="button" onClick={onOpen} className="w-full rounded-xl border border-ink-faint/20 bg-bg-card px-3 py-2.5 text-left active:bg-bg-sidebar">
         <div className="flex items-center gap-2">
           <span className="font-mono text-xs text-ink-muted">{item.code ?? '—'}</span>
+          <JobActivityBadge activity={activity} size="lg" />
           <span className="ml-auto">
             {/* A shared job can sit in a stage only its owner has. */}
             {stageMap[item.stage] ? <StatusPill status={item.stage} /> : <span className="text-xs text-ink-soft">{item.stage}</span>}

@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { format } from 'date-fns'
 import { Camera, Loader2, Zap } from 'lucide-react'
 import { useFreshJobOnOpen, useJobs } from '../hooks/useJobs'
+import { useMarkJobSeen } from '../hooks/useJobActivity'
 import { useJobById } from '../hooks/useJobSearch'
 import { usePartnerJobs, type PartnerJob } from '../hooks/usePartners'
 import { usePipeline } from '../context/PipelineContext'
@@ -30,6 +31,8 @@ export function MobileJob({ id, onClose }: { id: string; onClose: () => void }) 
   const { data: jobs, isLoading } = useJobs()
   // Read fresh on opening: another device's change is on screen at once.
   useFreshJobOnOpen(id)
+  // Opened: no longer "new" for me, here and on my other devices (sql/136).
+  useMarkJobSeen(id)
   const { data: shared, isLoading: sharedLoading } = usePartnerJobs('')
   const loaded = jobs?.find(j => j.id === id)
   const partner = shared?.find(s => s.job_id === id)

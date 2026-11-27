@@ -13,6 +13,8 @@ import { ShadeChip } from '../ui/ShadeChip'
 import { ToothBadges } from '../ui/ToothBadges'
 import { OptionDoers } from '../JobDetail/OptionDoers'
 import { useOpenQuestions } from '../../hooks/usePartners'
+import { useJobActivity } from '../../hooks/useJobActivity'
+import { JobActivityBadge } from '../ui/JobActivityBadge'
 import { t } from '@/lib/i18n'
 
 interface JobCardProps {
@@ -27,6 +29,8 @@ export function JobCard({ job, onClick, onStageChange, isDragging }: JobCardProp
   const money = usePermissions().can('payments.read')
   const { data: questions } = useOpenQuestions()
   const openQuestions = questions?.get(job.id) ?? 0
+  // Something someone else did since I last opened it (sql/136).
+  const activity = useJobActivity().get(job.id)
   const { stages } = usePipeline()
   const wt = useWorkTypes()
   const { data: allPayments = [] } = usePayments()
@@ -81,6 +85,7 @@ export function JobCard({ job, onClick, onStageChange, isDragging }: JobCardProp
           {job.job_code && <p className="font-mono text-[10px] text-ink-muted mt-0.5">{job.job_code}</p>}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          <JobActivityBadge activity={activity} />
           {/* Spec: a question is a FLAG on the card, not a column — the job
               stays where it is in the flow while someone waits for an answer. */}
           {openQuestions > 0 && (

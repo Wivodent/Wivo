@@ -49,6 +49,7 @@ import { useFreshJobOnOpen, useUpdateJob } from '../../hooks/useJobs'
 import { changedFields, isConflict, type FieldConflict } from '@shared/concurrency/guardedSave'
 import { ConflictBanner } from '../ui/ConflictBanner'
 import { jobFieldLabel } from '../../lib/conflictLabels'
+import { useMarkJobSeen } from '../../hooks/useJobActivity'
 
 interface JobDetailPanelProps {
   job: Job | null       // null = create mode
@@ -541,6 +542,8 @@ export function JobDetailPanel({ job, onClose, onSave, onCreateCopy, onDelete, s
   // Opening a job reads it from the database: another computer's note or
   // price is on screen now, not after a restart (2.2.3).
   useFreshJobOnOpen(job?.id)
+  // Opened: no longer "new" for me, here and on my other devices (sql/136).
+  useMarkJobSeen(job?.id)
   const isBottom = position === 'bottom'
   const isFullscreen = position === 'fullscreen'
   // Both bottom and fullscreen are sheets: they rise from the bottom edge and
