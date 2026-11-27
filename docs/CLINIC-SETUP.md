@@ -365,9 +365,25 @@ supabase functions deploy file-link --project-ref <REF> --use-api
 ```
 
 Igaüks lõpeb `Deployed Functions on project <REF>`. (`file-link` jääb
-gateway JWT-kontrolliga, nagu testkoopias.) `send-invoices`, `public-booking`
-ja `wivo-update` Riiale ei lähe: arveid ja veebibroneeringut Riia ei kasuta,
-uuendused tulevad installeriga.
+gateway JWT-kontrolliga, nagu testkoopias.) `public-booking` ja `wivo-update`
+Riiale ei lähe: veebibroneeringut Riia ei kasuta, uuendused tulevad
+installeriga.
+
+**Kui kliinik saadab arveid e-postiga** (Send by e-mail, automaatne
+arveldus sql/151; Dentiks alates 2.2.x): `send-invoice` (käsitsi) ja
+`send-invoices` (taimer) on vaja, mõlemad `--no-verify-jwt`:
+
+```sh
+supabase functions deploy send-invoice --project-ref <REF> --no-verify-jwt --use-api
+supabase functions deploy send-invoices --project-ref <REF> --no-verify-jwt --use-api
+```
+
+Saladused (8.4 juurde): `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS` (kliiniku
+postkast). Baseline võttis sql/052 arvete croni maha (selles oli tootmise
+aadress), seega **ajasta taimer** SQL Editoris failiga
+`sql/maintenance/schedule-send-invoices.sql` (PART 1, siis PART 2: kõik
+read `ok`). See kasutab sama Vaulti aadressi ja võtit kui teavituste cron
+(samm 3), mitte kirjutatud aadressi.
 
 Kui CLI ütleb, et `--use-api` on tundmatu: `brew upgrade supabase` ja uuesti.
 
