@@ -8,6 +8,8 @@ declare const __APP_VERSION__: string
 // Optional: another instance's stand-in login domain (see lib/supabase.ts).
 interface ImportMetaEnv {
   readonly VITE_STANDIN_DOMAIN?: string
+  /** The short commit of the build (scripts/build-commit.mjs), for the version line only (lib/buildInfo). */
+  readonly VITE_APP_COMMIT?: string
   /** Optional. Without it Sentry is not loaded at all. */
   readonly VITE_SENTRY_DSN?: string
   /** Phone app only (lib/push.ts). Without it "Notifications on this phone" says push is not set up. */

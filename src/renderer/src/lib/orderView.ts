@@ -212,6 +212,26 @@ export function wireOrder(form: WivoOrderV1, extra: { implants: readonly number[
   return { ...form, version: 2, implants: formatTeeth(implants), abutment }
 }
 
+/** An amount as the order shows it: two decimals only when it has cents. */
+export const priceAmount = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(2))
+
+export interface CataloguePriceWords { perTooth: string; from: (price: string) => string; onRequest: string }
+
+/**
+ * A work type's price as the catalogue shows it to this client (sql/153):
+ * "450 € / tooth", "from 450 € / tooth", "Price on request", or nothing when
+ * the clinic shows this client no prices. Whether it may see them is the
+ * clinic's answer in the catalogue itself (client_catalog reads the
+ * connection's "Prices" right on every call), never a copy kept with the
+ * session, which can be hours old.
+ */
+export function cataloguePriceText(c: Pick<CatalogueItem, 'price' | 'unit' | 'price_form'>, words: CataloguePriceWords): string {
+  if (c.price_form === 'request') return words.onRequest
+  if (c.price == null) return ''
+  const text = `${priceAmount(c.price)} €${c.unit === 'hammas' ? ` / ${words.perTooth}` : ''}`
+  return c.price_form === 'from' ? words.from(text) : text
+}
+
 /**
  * What an order comes to at the catalogue's prices (sql/153), as the clinic's
  * client_order_estimate counts it: the type's price (its "from" price when it

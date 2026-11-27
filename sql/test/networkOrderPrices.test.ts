@@ -8,12 +8,18 @@
  * estimate agree with the app's price engine (shared/pricing/clientPrices).
  */
 import { describe, expect, it, beforeAll } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { PGlite } from '@electric-sql/pglite'
 import { freshDb, createTenant, rowsAs, errorAs, type Tenant } from './harness'
 import { quoteJob } from '@shared/pricing/quote'
 import { clientPriceBook } from '@shared/pricing/clientPrices'
 import type { PriceBook } from '@shared/pricing/priceBook'
 import type { WorkType } from '@shared/pricing/workTypes'
+import type { CatalogueItem } from '@shared/network/order'
+import { handleNetworkClient } from '../../supabase/functions/_shared/networkClient'
+import { cataloguePriceText, catalogueEstimate } from '../../src/renderer/src/lib/orderView'
+import { en } from '@shared/i18n/en'
 
 let db: PGlite
 let A: Tenant
@@ -100,6 +106,50 @@ describe('what a client may order, and how its price shows', () => {
       format: 'wivo-order', version: 1, work_type: 'Secret work', teeth: '', options: {}, shade: null, due: null, patient_ref: 'X-1', notes: null })])).toMatch(/not in the clinic's catalogue/)
     const items = await catalog(session)
     expect(items.every(i => i.price === undefined && i.price_form === undefined)).toBe(true)
+  })
+})
+
+describe('the whole way: the connection’s "Prices" right to the text on the card', () => {
+  /** The network-client Edge Function's logic, its database calls made here with the service role. */
+  const viaFunction = (body: Record<string, unknown>) => handleNetworkClient(body, {
+    rpc: async (fn, args) => {
+      const names = Object.keys(args)
+      try {
+        const r = await service(`select public.${fn}(${names.map((k, i) => `${k} => $${i + 1}`).join(', ')}) as r`, names.map(k => args[k]))
+        return { data: r, error: null }
+      } catch (e) { return { data: null, error: { message: (e as Error).message } } }
+    },
+    nowSeconds: () => Math.floor(Date.now() / 1000), signDownload: async () => null, signUpload: async () => null,
+  })
+  const words = { perTooth: en['network.perTooth'] as string, from: (price: string) => (en['network.priceFrom'] as string).replace('{price}', price), onRequest: en['network.priceOnRequest'] as string }
+
+  it('a session made before the owner let the client see prices: its catalogue has them at once, "from 450 € / tooth" on the card, the total in Review', async () => {
+    // Kroon: 500 €/tooth, shown "from"; the client 10 % off; with an option.
+    await db.query(`update public.clinic_settings set work_types = work_types || $2::jsonb where clinic_id = $1`, [A.clinicId, JSON.stringify([
+      { nimi: 'Kroon', hex: '#000', hind: 500, hinnaTyyp: 'hammas', kliendiHind: 'from',
+        valikuGrupid: [{ key: 'extra', nimi: 'Extra', mitu: true, valikud: ['metal-bar'] }] }])])
+    const c = await client({ discount: 10, prices_on: false })
+    const before = await viaFunction({ action: 'catalog', session: c.session })
+    const kroon0 = (before.body.data as CatalogueItem[]).find(i => i.name === 'Kroon')!
+    expect(cataloguePriceText(kroon0, words)).toBe('')
+    // The owner turns "Prices" on; the client keeps the session it has (the phone keeps it for hours).
+    await rowsAs(db, { id: A.ownerId }, `select public.network_set_client_visibility($1, $2::jsonb)`, [c.clientId, JSON.stringify({ status: true, messages: true, files: true, prices: true })])
+    const after = await viaFunction({ action: 'catalog', session: c.session })
+    expect(after.status).toBe(200)
+    const kroon = (after.body.data as CatalogueItem[]).find(i => i.name === 'Kroon')!
+    expect(kroon).toMatchObject({ price: 450, price_form: 'from', unit: 'hammas' })
+    expect(cataloguePriceText(kroon, words)).toBe('from 450 € / tooth')
+    expect(kroon.groups[0].options[0]).toMatchObject({ id: 'metal-bar', price: 270 })
+    // Review: two teeth and the option, "from" (the type shows its lowest price).
+    const estimate = catalogueEstimate(kroon, '11,21', { extra: ['metal-bar'] })
+    expect(estimate).toEqual({ amount: 1170, from: true })
+    expect((en['network.estimateFrom'] as string).replace('{price}', String(estimate!.amount))).toBe('Estimated price: from 1170 €')
+  })
+
+  it('the order form does not ask the session whether prices may show: the catalogue says', () => {
+    const app = readFileSync(join(__dirname, '..', '..', 'src', 'renderer', 'src', 'mobile', 'network', 'NetworkApp.tsx'), 'utf8')
+    expect(app).not.toMatch(/can_see\.prices/)
+    expect(app).not.toMatch(/prices && /)
   })
 })
 

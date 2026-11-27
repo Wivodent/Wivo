@@ -22,6 +22,10 @@
 import { readFileSync, readdirSync } from 'fs'
 import { resolve, join } from 'path'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { buildCommit } from './scripts/build-commit.mjs'
+
+// The short commit, as a VITE_ variable (lib/buildInfo): for the version line only.
+process.env.VITE_APP_COMMIT = buildCommit()
 import react from '@vitejs/plugin-react'
 import { mobileCsp } from './config/csp'
 

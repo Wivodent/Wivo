@@ -31,6 +31,7 @@ import {
   requestConnection, endConnection, connect, clinicApi, NetworkError,
   type Account, type Connection, type DirectoryClinic, type ClinicSession, type ClientOrderSummary, type ClientOrderDetail, type ClientNotice, type OrderFeedback,
 } from '../../lib/network'
+import { versionLine } from '../../lib/buildInfo'
 import { emptyOrder, orderProblems, orderImplants, type CatalogueItem, type ClientOrderStatus, type WivoOrderV1 } from '@shared/network/order'
 import { InfoButton } from '../../components/ui/InfoButton'
 import { WorkTypeArt } from '../../components/ui/WorkTypeArt'
@@ -45,7 +46,7 @@ import { useThreadFold, ThreadHeader } from '../../components/Network/ThreadFold
 import { teethCountLabel } from '../../components/NewJobWizard/teeth/WorkTypeTabs'
 import {
   teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
-  catalogueRules, expectedImplants, withAutoImplants, implantSummary, wireOrder, catalogueEstimate,
+  catalogueRules, expectedImplants, withAutoImplants, implantSummary, wireOrder, catalogueEstimate, cataloguePriceText, priceAmount,
   threadItems, reviewAnswer, isImageFile, type ThreadMessage, type ThreadFile,
   UPPER_TEETH, LOWER_TEETH, type FormStep,
 } from '../../lib/orderView'
@@ -95,6 +96,8 @@ function Shell({ children, onBack, title, right }: { children: React.ReactNode; 
         {right && <span className="ml-auto">{right}</span>}
       </header>
       <main className="mx-auto max-w-2xl space-y-4 p-4">{children}</main>
+      {/* Which build this is: shown only (lib/buildInfo). */}
+      <footer className="pb-4 text-center text-[11px] text-ink-faint">{versionLine('Wivo Network', __APP_VERSION__)}</footer>
     </div>
   )
 }
@@ -271,6 +274,7 @@ function ProfileForm({ account, onSaved }: { account: Account | null; onSaved: (
       )}
       {error && <p className="text-base text-rose-600">{error}</p>}
       <button type="submit" disabled={!name.trim() || !billingOk} className={`btn-primary justify-center ${big}`}>{t('network.saveProfile')}</button>
+      <p className="text-center text-xs text-ink-faint">{versionLine('Wivo Network', __APP_VERSION__)}</p>
     </form>
   )
 }
@@ -644,7 +648,7 @@ function ClinicScreen({ conn, startNew, fromPick, startOrder, onBack, onBackToPi
 
   if (mode === 'new' && api && state?.session) {
     return (
-      <NewOrder api={api} clinicId={conn.clinic_id} clinicName={conn.clinic.name} prices={!!state.session.can_see.prices}
+      <NewOrder api={api} clinicId={conn.clinic_id} clinicName={conn.clinic.name}
         withClinicStep={!!fromPick}
         onLeave={() => (fromPick && onBackToPick ? onBackToPick() : setMode('home'))}
         onSent={id => { setMode('home'); setOpenOrder(id) }} />
@@ -768,8 +772,8 @@ const WORK_PROBLEMS = new Set(['work_type', 'teeth', 'options', 'not_in_catalogu
  * leaves the form: straight away when nothing is filled in, else only after
  * "Discard this order?".
  */
-function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, onSent }: {
-  api: Api; clinicId: string; clinicName: string; prices: boolean; withClinicStep: boolean; onLeave: () => void; onSent: (id: string) => void
+function NewOrder({ api, clinicId, clinicName, withClinicStep, onLeave, onSent }: {
+  api: Api; clinicId: string; clinicName: string; withClinicStep: boolean; onLeave: () => void; onSent: (id: string) => void
 }) {
   const catalog = useQuery<CatalogueItem[]>({ queryKey: ['network', 'catalog', clinicId], queryFn: api.catalog })
   const [step, setStep] = useState<FormStep>('work')
@@ -798,7 +802,9 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
     ? order.work_type.trim().length > 0 && order.work_type.trim().length <= 80 && !problems.includes('teeth')
     : !!item && !problems.some(p => WORK_PROBLEMS.has(p)) && (!needsTeeth || order.teeth !== '')
   // What it comes to at the prices shown (sql/153), or that the clinic will send a price to approve.
-  const estimate = prices && !custom ? catalogueEstimate(item, order.teeth, order.options) : null
+  // Prices are shown where the catalogue has them: the clinic decides there, on every call, whether this
+  // client sees prices. The session's own copy of its rights can be hours old (the "Prices" fix, 2026-11-28).
+  const estimate = !custom ? catalogueEstimate(item, order.teeth, order.options) : null
   const quoted = custom || item?.price_form === 'request'
   const detailsOk = problems.length === 0
   const set = (patch: Partial<WivoOrderV1>) => setOrder(o => ({ ...o, ...patch }))
@@ -867,7 +873,7 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
                   className={`flex flex-col items-center gap-1.5 rounded-2xl bg-bg-card px-1.5 py-2.5 ${on ? 'border-2 border-accent' : 'border border-ink-faint/30'}`}>
                   <TypeArt name={c.name} size={44} />
                   <span className={`text-center text-xs leading-tight ${on ? 'font-bold' : ''}`}>{c.name}</span>
-                  {prices && <span className="text-xs text-ink-muted">{catalogPriceText(c)}</span>}
+                  {catalogPriceText(c) && <span className="text-xs text-ink-muted">{catalogPriceText(c)}</span>}
                 </button>
               )
             })}
@@ -906,7 +912,7 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
                       className={`min-h-10 rounded-xl px-3 text-sm ${chosen ? 'border-2 border-accent bg-accent/10 font-semibold' : 'border border-ink-faint/40'}`}>
                       {op.name}
                       {/* sql/153: its price for this client, as the type's own price shows. */}
-                      {prices && op.price ? <span className="ml-1 text-xs text-ink-muted">+{op.price} €{op.unit === 'hammas' ? ` / ${t('network.perTooth')}` : ''}</span> : null}
+                      {op.price ? <span className="ml-1 text-xs text-ink-muted">+{priceAmount(op.price)} €{op.unit === 'hammas' ? ` / ${t('network.perTooth')}` : ''}</span> : null}
                     </button>
                   )
                 })}
@@ -1562,16 +1568,12 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
 
 // ── Prices (sql/153) ────────────────────────────────────────────────────────
 
-/** An amount as the order shows it: two decimals only when it has cents. */
-const money = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(2))
+const money = priceAmount
 
-/** A work type's price as the catalogue shows it to this client: the price, "from" it, or on request. */
-function catalogPriceText(c: CatalogueItem): string {
-  if (c.price_form === 'request') return t('network.priceOnRequest')
-  if (c.price == null) return ''
-  const unit = c.unit === 'hammas' ? ` / ${t('network.perTooth')}` : ''
-  return c.price_form === 'from' ? t('network.priceFrom', { price: `${money(c.price)} €${unit}` }) : `${money(c.price)} €${unit}`
-}
+/** A work type's price as the catalogue shows it to this client, in the client's language (lib/orderView cataloguePriceText). */
+const catalogPriceText = (c: CatalogueItem): string => cataloguePriceText(c, {
+  perTooth: t('network.perTooth'), from: price => t('network.priceFrom', { price }), onRequest: t('network.priceOnRequest'),
+})
 
 /** The order's price and its state; the clinic's price to approve or decline. */
 function OrderPrice({ api, orderId, detail, onDone, onError }: {

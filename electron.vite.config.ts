@@ -1,6 +1,12 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { buildCommit } from './scripts/build-commit.mjs'
+
+// The short commit, as a VITE_ variable the renderer reads like any other (lib/buildInfo): for the
+// version line only. Not a define: the dev and release builds define nothing under import.meta.env
+// (config/testCopyEnv.test.ts).
+process.env.VITE_APP_COMMIT = buildCommit()
 import { loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { testCopyDefine } from './config/testCopyEnv'

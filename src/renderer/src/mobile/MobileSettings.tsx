@@ -3,6 +3,7 @@
  * (authenticators, phones, signing out everywhere else for a lost phone),
  * signing out here. Nothing about the organisation — that is the desktop's job.
  */
+import { versionLine } from '../lib/buildInfo'
 import { useEffect, useState } from 'react'
 import { Bell, LogOut, Languages, Sparkles } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -66,11 +67,13 @@ export function MobileSettings({ onWhatsNew }: { onWhatsNew: (() => void) | null
         <button type="button" onClick={onWhatsNew}
           className="flex w-full items-center gap-2 rounded-xl border border-ink-faint/30 bg-bg-card px-3 py-3 text-sm font-semibold text-ink">
           <Sparkles size={16} className="text-accent" aria-hidden="true" /> {t('whatsNew.menu')}
-          <span className="ml-auto text-xs font-normal text-ink-muted">v{__APP_VERSION__}</span>
+          <span className="ml-auto text-xs font-normal text-ink-muted">v{versionLine(null, __APP_VERSION__)}</span>
         </button>
       )}
 
       <SecuritySection />
+      {/* Which build this is: shown only (lib/buildInfo). */}
+      <p className="text-center text-[11px] text-ink-faint">{versionLine('Wivo', __APP_VERSION__)}</p>
 
       <button type="button" onClick={() => void signOut()}
         className="flex w-full items-center justify-center gap-2 rounded-xl border border-ink-faint/30 py-3 text-sm font-semibold text-rose-500">

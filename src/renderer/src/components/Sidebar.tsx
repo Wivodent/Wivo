@@ -15,6 +15,7 @@ import { useStockAlerts } from '../hooks/useStockAlerts'
 import { useNewOrderCount, usePortalLive } from '../hooks/useNetworkPortal'
 import { BugReportButton } from './BugReportButton'
 import { useWhatsNew } from './WhatsNew'
+import { versionLine } from '../lib/buildInfo'
 import { t } from '@/lib/i18n'
 
 interface SidebarProps {
@@ -217,7 +218,7 @@ export function Sidebar({ view, onViewChange }: SidebarProps) {
           <BugReportButton screen={view} version={running} compact={!wide} />
           {/* The LIVE version, not the build-time constant — the constant goes
               stale in dev and reported a version the app was not running. */}
-          <span className="text-[9px] text-nav-muted/70 font-mono">v{running}</span>
+          <span className="text-[9px] text-nav-muted/70 font-mono" title={versionLine('Wivo', running)}>v{versionLine(null, running)}</span>
         </div>
       </div>
       {whatsNew.dialog}

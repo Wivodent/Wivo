@@ -93,7 +93,7 @@ describe('the client’s side', () => {
     const app = read('src/renderer/src/mobile/network/NetworkApp.tsx')
     expect(app).toContain("t('network.customRequest')")
     expect(app).toContain('wireOrder(order, { implants, abutmentAll, abutmentTeeth, custom }, v2)')
-    expect(app).toContain("{prices && <span className=\"text-xs text-ink-muted\">{catalogPriceText(c)}</span>}")
+    expect(app).toContain('{catalogPriceText(c) && <span className="text-xs text-ink-muted">{catalogPriceText(c)}</span>}')
     expect(app).toContain('<OrderPrice api={api} orderId={orderId} detail={d}')
     expect(app).toContain('api.priceDecision(orderId, approve)')
     expect(read('supabase/functions/_shared/networkClient.ts')).toContain("call('client_price_decision', { p_order: orderId, p_approve: b.approve })")
