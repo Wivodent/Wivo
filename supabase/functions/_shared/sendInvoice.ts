@@ -60,6 +60,8 @@ export interface Outgoing {
 }
 
 export interface SendInvoiceDeps {
+  /** invoice_issue as the caller (sql/149): a draft gets its number before it is e-mailed. */
+  issue?: (invoiceId: string) => Promise<{ error: { code?: string; message?: string } | null }>
   /** invoice_send_prepare as the caller. */
   prepare: (invoiceId: string) => Promise<{ data: unknown; error: { code?: string; message?: string } | null }>
   /** invoice_send_record with the service key. */
@@ -88,7 +90,14 @@ export async function handleSendInvoice(authorization: string | null, body: unkn
   if (!invoiceId || !to || (Array.isArray(b.to) && to.length !== b.to.length)) return bad
 
   const note = (what: string) => deps.log(`invoice ${invoiceId}: ${what}`)
-  const prepared = await deps.prepare(invoiceId)
+  let prepared = await deps.prepare(invoiceId)
+  // A draft has no number yet (sql/149): it is issued first, so the e-mail and its PDF carry one.
+  const draftNumber = (prepared.data as Prepared | null)?.invoice?.number
+  if (!prepared.error && deps.issue && (!draftNumber || String(draftNumber).startsWith('draft:'))) {
+    const issued = await deps.issue(invoiceId)
+    if (issued.error) { note(`issue failed ${issued.error.code ?? ''}`.trim()); return { status: 500, body: { error: 'failed' } } }
+    prepared = await deps.prepare(invoiceId)
+  }
   if (prepared.error) {
     if (prepared.error.code === '42501') { note('not allowed'); return { status: 403, body: { error: 'not_allowed' } } }
     if (/JWT|token/i.test(prepared.error.message ?? '')) return { status: 401, body: { error: 'signed_out' } }

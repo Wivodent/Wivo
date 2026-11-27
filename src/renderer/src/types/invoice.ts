@@ -141,6 +141,11 @@ export interface Invoice {
   buyer_reg_code?: string | null
   buyer_vat_number?: string | null
   buyer_address?: string | null
+  /** sql/149: why it was cancelled, when, by whom; the invoice a credit note credits. */
+  cancel_reason?: string | null
+  cancelled_at?: string | null
+  cancelled_by?: string | null
+  credit_of?: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -172,3 +177,11 @@ export function isOverdue(inv: InvoiceFull, now = new Date()): boolean {
   if (outstanding(inv) <= 0) return false
   return new Date(inv.due_date) < new Date(now.toDateString())
 }
+
+/**
+ * A draft has no number until it is issued (sql/149): it holds 'draft:<id>'.
+ * What a screen shows for it: "Draft", never the placeholder.
+ */
+export { isDraftNumber } from '@shared/billing/invoiceDoc'
+export const invoiceNumberText = (n: string | null | undefined, draftWord: string): string =>
+  !n || n.startsWith('draft:') ? draftWord : n

@@ -9,10 +9,9 @@ import type { Job } from '../../types/job'
 import {
   INVOICE_STATUS_LABEL, INVOICE_STATUS_HEX, PAYMENT_METHOD_LABEL,
   outstanding, paidAmount, isOverdue, lineTotal,
-  type InvoiceFull, type InvoiceStatus, type PaymentMethod
-} from '../../types/invoice'
+  type InvoiceFull, type InvoiceStatus, type PaymentMethod, invoiceNumberText, isDraftNumber } from '../../types/invoice'
 import {
-  useInvoices, useUpdateInvoice, useDeleteInvoice, useAddPayment, useDeletePayment
+  useInvoices, useUpdateInvoice, useAddPayment, useDeletePayment
 } from '../../hooks/useInvoices'
 import { usePermissions } from '../../hooks/usePermissions'
 import { useSettings } from '../../stores/useSettings'
@@ -22,6 +21,7 @@ import { stageChipStyle } from '../../config/pipeline'
 import { describeError } from '../Patients/errors'
 import { InvoiceForm } from './InvoiceForm'
 import { SendInvoiceDialog, InvoiceSendHistory, sendErrorText } from './SendInvoiceDialog'
+import { InvoiceLifecycle } from './InvoiceLifecycle'
 import { classifySmtpError } from '@shared/billing/smtpError'
 import { useClinicProfiles } from '../../hooks/useClinicProfiles'
 import { PaymentPlansPanel } from './PaymentPlansPanel'
@@ -48,7 +48,6 @@ export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
   const { can } = usePermissions()
   const auth = useAuth()
   const updateInvoice = useUpdateInvoice()
-  const deleteInvoice = useDeleteInvoice()
 
   const [filter, setFilter] = useState<InvoiceStatus | 'koik' | 'tasumata'>('koik')
   const [search, setSearch] = useState('')
@@ -70,7 +69,7 @@ export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
       } else if (filter !== 'koik' && inv.status !== filter) {
         return false
       }
-      if (q && !inv.number.toLowerCase().includes(q) && !inv.patsient.toLowerCase().includes(q)) {
+      if (q && !invoiceNumberText(inv.number, t('invoices.draftLabel')).toLowerCase().includes(q) && !inv.patsient.toLowerCase().includes(q)) {
         return false
       }
       return true
@@ -99,13 +98,7 @@ export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
     catch (err) { setActionError(describeError(err)) }
   }
 
-  async function handleDelete(inv: InvoiceFull) {
-    setActionError(null)
-    try {
-      await deleteInvoice.mutateAsync(inv.id)
-      setSelectedId(null)
-    } catch (err) { setActionError(describeError(err)) }
-  }
+
 
   if (isError) {
     return (
@@ -240,7 +233,7 @@ export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
                         selectedId === inv.id ? 'bg-accent/10' : ''
                       }`}
                     >
-                      <td className="px-3 py-2 font-semibold text-ink tabular-nums">{inv.number}</td>
+                      <td className="px-3 py-2 font-semibold text-ink tabular-nums">{invoiceNumberText(inv.number, t('invoices.draftLabel'))}</td>
                       {/* Which KIND of addressee, not just the name: a list
                           sorted by name puts practices and patients side by
                           side and they read identically without this. */}
@@ -286,7 +279,9 @@ export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
           canWrite={canWrite}
           onClose={() => setSelectedId(null)}
           onStatus={setStatus}
-          onDelete={handleDelete}
+          all={invoices}
+          onDeleted={() => setSelectedId(null)}
+          onOpen={id => setSelectedId(id)}
           onPrint={() => setPrinting(selected)}
         />
       )}
@@ -314,12 +309,15 @@ export function InvoicesView({ jobs, onOpenSettings }: InvoicesViewProps) {
 
 // ─── Detail panel ─────────────────────────────────────────────────────────────
 
-function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint }: {
+function InvoiceDetail({ invoice, canWrite, onClose, onStatus, all, onDeleted, onOpen, onPrint }: {
   invoice: InvoiceFull
   canWrite: boolean
   onClose: () => void
   onStatus: (inv: InvoiceFull, s: InvoiceStatus) => void
-  onDelete: (inv: InvoiceFull) => void
+  /** Every invoice (a credit note and the invoice it credits name each other). */
+  all: readonly InvoiceFull[]
+  onDeleted: () => void
+  onOpen: (id: string) => void
   onPrint: () => void
 }) {
   const addPayment = useAddPayment()
@@ -329,7 +327,6 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint
   const [paidAt, setPaidAt] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [reference, setReference] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const { settings } = useSettings()
   // What the hourly sender would do with this one (shared/billing/sendGuard.ts).
   const autoEmail = settings.epost.saatmineLubatud && settings.epost.lubaArved
@@ -377,7 +374,9 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint
         <div className="flex items-start justify-between">
           <div>
             <p className="text-[11px] text-ink-muted">{t('invoices.invoice2')}</p>
-            <h2 className="text-lg font-bold text-ink tabular-nums">{invoice.number}</h2>
+            <h2 className="text-lg font-bold text-ink tabular-nums">{invoiceNumberText(invoice.number, t('invoices.draftLabel'))}</h2>
+            {/* sql/149: a draft has no number until it is issued (marked Sent, or e-mailed). */}
+            {isDraftNumber(invoice.number) && <p className="text-[11px] text-ink-muted">{t('invoices.draftNumberHint')}</p>}
             <p className="text-sm text-ink-muted flex items-center gap-1.5">
               {invoice.bill_to_kind === 'customer'
                 ? <Building2 size={12} className="text-ink-faint" />
@@ -436,11 +435,11 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint
         {sending && <SendInvoiceDialog invoice={invoice} onClose={() => setSending(false)} />}
 
         {/* Status */}
-        {canWrite && (
+        {canWrite && invoice.status !== 'tuhistatud' && (
           <section className="space-y-2">
             <h3 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">{t('invoices.status')}</h3>
             <div className="flex flex-wrap gap-1">
-              {(Object.keys(INVOICE_STATUS_LABEL) as InvoiceStatus[]).map(s => (
+              {(Object.keys(INVOICE_STATUS_LABEL) as InvoiceStatus[]).filter(s => s !== 'tuhistatud').map(s => (
                 <button
                   key={s}
                   onClick={() => onStatus(invoice, s)}
@@ -528,29 +527,8 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, onDelete, onPrint
           )}
         </section>
 
-        {/* Delete */}
-        {canWrite && (
-          <section className="pt-1 border-t border-ink-faint/15">
-            {confirmDelete ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => onDelete(invoice)}
-                  className="flex-1 text-xs font-semibold text-white bg-red-500 rounded-lg py-1.5"
-                >
-                  {t('invoices.deletePermanently')}
-                </button>
-                <button onClick={() => setConfirmDelete(false)} className="btn-ghost text-xs">{t('invoices.cancel')}</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="flex items-center gap-1.5 text-xs text-ink-faint hover:text-red-500 transition-colors"
-              >
-                <Trash2 size={11} /> {t('invoices.deleteInvoice')}
-              </button>
-            )}
-          </section>
-        )}
+        {/* Delete a draft; cancel or credit an issued invoice (sql/149). */}
+        <InvoiceLifecycle invoice={invoice} all={all} canWrite={canWrite} onDeleted={onDeleted} onOpen={onOpen} />
       </div>
     </aside>
   )

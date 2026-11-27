@@ -46,12 +46,17 @@ export function useCustomers() {
  * A database without sql/128 has no `kind`: the save is repeated without it,
  * so a client can still be added and changed there (as a clinic).
  */
-const lacksKind = (error: { code?: string; message?: string } | null): boolean =>
-  !!error && (error.code === 'PGRST204' || error.code === '42703') && (error.message ?? '').includes('kind')
+/** Columns a database may not have yet: kind (sql/128), invoice_language and country (sql/149). */
+const LATER_COLUMNS = ['kind', 'invoice_language', 'country'] as const
 
-function withoutKind<T extends object>(row: T): T {
-  const { kind: _kind, ...rest } = row as T & { kind?: unknown }
-  return rest as T
+const lacksKind = (error: { code?: string; message?: string } | null): boolean =>
+  !!error && (error.code === 'PGRST204' || error.code === '42703') && LATER_COLUMNS.some(c => (error.message ?? '').includes(c))
+
+/** The row without the columns the database refused (each named in its message), or all of them. */
+function withoutKind<T extends object>(row: T, error?: { message?: string } | null): T {
+  const named = LATER_COLUMNS.filter(c => (error?.message ?? '').includes(c))
+  const drop = new Set<string>(named.length ? named : LATER_COLUMNS)
+  return Object.fromEntries(Object.entries(row).filter(([k]) => !drop.has(k))) as T
 }
 
 export function useCreateCustomer() {
@@ -61,6 +66,7 @@ export function useCreateCustomer() {
     mutationFn: async (input: CustomerInput) => {
       const row = { ...input, clinic_id: getActiveClinicId() }
       let { error } = await supabase.from('customers').insert(row)
+      if (lacksKind(error)) ({ error } = await supabase.from('customers').insert(withoutKind(row, error)))
       if (lacksKind(error)) ({ error } = await supabase.from('customers').insert(withoutKind(row)))
       if (error) throw error
     },
@@ -74,6 +80,7 @@ export function useUpdateCustomer() {
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<CustomerInput> }) => {
       const row = { ...patch, updated_at: new Date().toISOString() }
       let { error } = await supabase.from('customers').update(row).eq('id', id)
+      if (lacksKind(error)) ({ error } = await supabase.from('customers').update(withoutKind(row, error)).eq('id', id))
       if (lacksKind(error)) ({ error } = await supabase.from('customers').update(withoutKind(row)).eq('id', id))
       if (error) throw error
     },

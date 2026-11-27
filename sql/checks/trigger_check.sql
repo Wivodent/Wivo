@@ -18,7 +18,7 @@
 -- No rows: this database matches the migrations in all of it.
 --
 -- Covered: trigger.
--- Expected rows: 65.
+-- Expected rows: 68.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -36,6 +36,8 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.clinics.guard_code_prefix', 'CREATE TRIGGER guard_code_prefix BEFORE UPDATE OF code_prefix ON public.clinics FOR EACH ROW EXECUTE FUNCTION guard_code_prefix()'),
     ('trigger', 'public.clinics.set_code_prefix', 'CREATE TRIGGER set_code_prefix BEFORE INSERT ON public.clinics FOR EACH ROW EXECUTE FUNCTION set_code_prefix()'),
     ('trigger', 'public.invoice_lines.invoice_lines_recalc', 'CREATE TRIGGER invoice_lines_recalc AFTER INSERT OR DELETE OR UPDATE ON public.invoice_lines FOR EACH ROW EXECUTE FUNCTION invoice_lines_touch()'),
+    ('trigger', 'public.invoices.invoices_delete_guard', 'CREATE TRIGGER invoices_delete_guard BEFORE DELETE ON public.invoices FOR EACH ROW EXECUTE FUNCTION invoices_delete_guard()'),
+    ('trigger', 'public.invoices.invoices_lifecycle', 'CREATE TRIGGER invoices_lifecycle BEFORE INSERT OR UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION invoices_lifecycle()'),
     ('trigger', 'public.invoices.invoices_recalc_on_rate', 'CREATE TRIGGER invoices_recalc_on_rate AFTER UPDATE ON public.invoices FOR EACH ROW EXECUTE FUNCTION invoices_rate_touch()'),
     ('trigger', 'public.job_file.file_added_notify', 'CREATE TRIGGER file_added_notify AFTER UPDATE OF completed_at ON public.job_file FOR EACH ROW EXECUTE FUNCTION on_file_added_notify()'),
     ('trigger', 'public.job_file.refuse_file_on_deleted_job', 'CREATE TRIGGER refuse_file_on_deleted_job BEFORE INSERT ON public.job_file FOR EACH ROW EXECUTE FUNCTION refuse_file_on_deleted_job()'),
@@ -64,6 +66,7 @@ with expected(kind, key, def) as (values
     ('trigger', 'public.messages.guard_partner_visible_message', 'CREATE TRIGGER guard_partner_visible_message BEFORE INSERT OR UPDATE OF body ON public.messages FOR EACH ROW EXECUTE FUNCTION guard_partner_visible_message()'),
     ('trigger', 'public.messages.question_notify', 'CREATE TRIGGER question_notify AFTER INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION on_question_notify()'),
     ('trigger', 'public.messages.stamp_message_org', 'CREATE TRIGGER stamp_message_org BEFORE INSERT ON public.messages FOR EACH ROW EXECUTE FUNCTION stamp_message_org()'),
+    ('trigger', 'public.network_client.network_client_customer_country', 'CREATE TRIGGER network_client_customer_country AFTER INSERT OR UPDATE OF customer_id, country ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_customer_country()'),
     ('trigger', 'public.network_client.network_client_relink_jobs', 'CREATE TRIGGER network_client_relink_jobs AFTER UPDATE OF customer_id ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_relink_jobs()'),
     ('trigger', 'public.network_client.network_client_state_notices', 'CREATE TRIGGER network_client_state_notices AFTER UPDATE OF state ON public.network_client FOR EACH ROW EXECUTE FUNCTION network_client_state_notices()'),
     ('trigger', 'public.patient_teeth.audit_patient_tooth', 'CREATE TRIGGER audit_patient_tooth AFTER INSERT OR DELETE OR UPDATE ON public.patient_teeth FOR EACH ROW EXECUTE FUNCTION audit_patient_tooth()'),

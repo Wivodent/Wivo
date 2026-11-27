@@ -28,6 +28,8 @@ import type { DocLanguage } from './countryInvoice.ts'
 // ── The words, in the document's language ───────────────────────────────────
 export interface InvoiceLabels {
   invoice: string
+  /** A draft's number until it is issued (sql/149: a draft has none yet). */
+  draft: string
   number: string
   date: string
   dueDate: string
@@ -61,7 +63,7 @@ export interface InvoiceLabels {
 }
 
 const ET: InvoiceLabels = {
-  invoice: 'ARVE', number: 'Number', date: 'Kuupäev', dueDate: 'Maksetähtaeg', serviceDate: 'Teenuse osutamise kuupäev',
+  invoice: 'ARVE', draft: 'MUSTAND', number: 'Number', date: 'Kuupäev', dueDate: 'Maksetähtaeg', serviceDate: 'Teenuse osutamise kuupäev',
   payer: 'Maksja', description: 'Kirjeldus', quantity: 'Kogus', quantityShort: 'Kogus', unitPrice: 'Ühiku hind', unitPriceShort: 'Hind', amount: 'Summa',
   net: () => 'Summa',
   vat: rate => `Käibemaks ${rate}%`, vatExempt: 'Käibemaksuta',
@@ -73,7 +75,7 @@ const ET: InvoiceLabels = {
 }
 
 const EN: InvoiceLabels = {
-  invoice: 'INVOICE', number: 'Number', date: 'Date', dueDate: 'Due date', serviceDate: 'Date of service',
+  invoice: 'INVOICE', draft: 'DRAFT', number: 'Number', date: 'Date', dueDate: 'Due date', serviceDate: 'Date of service',
   payer: 'Payer', description: 'Description', quantity: 'Quantity', quantityShort: 'Qty', unitPrice: 'Unit price', unitPriceShort: 'Price', amount: 'Amount',
   net: (rate, exempt) => (exempt ? 'Amount (VAT exempt)' : `Taxable amount at ${rate}%`),
   vat: rate => `VAT ${rate}%`, vatExempt: 'VAT exempt',
@@ -85,7 +87,7 @@ const EN: InvoiceLabels = {
 }
 
 const LV: InvoiceLabels = {
-  invoice: 'RĒĶINS', number: 'Numurs', date: 'Datums', dueDate: 'Apmaksas termiņš', serviceDate: 'Pakalpojuma sniegšanas datums',
+  invoice: 'RĒĶINS', draft: 'MELNRAKSTS', number: 'Numurs', date: 'Datums', dueDate: 'Apmaksas termiņš', serviceDate: 'Pakalpojuma sniegšanas datums',
   payer: 'Maksātājs', description: 'Apraksts', quantity: 'Daudzums', quantityShort: 'Daudz.', unitPrice: 'Vienības cena', unitPriceShort: 'Cena', amount: 'Summa',
   net: (rate, exempt) => (exempt ? 'Summa (atbrīvots no PVN)' : `Ar PVN ${rate}% apliekamā summa`),
   vat: rate => `PVN ${rate}%`, vatExempt: 'Atbrīvots no PVN',
@@ -163,6 +165,8 @@ export interface InvoiceDoc {
   issueDate: string
   dueDate: string
   hasDueDate: boolean
+  /** Not issued yet (sql/149): its number is the word "draft", not one of the sequence. */
+  draft: boolean
   /** The date of the service, only when it differs from the issue date (else null). */
   serviceDate: string | null
   cancelled: boolean
@@ -211,6 +215,9 @@ const num = (v: number | string | null | undefined): number => {
 }
 
 const round2 = (n: number): number => Math.round(n * 100) / 100
+
+/** A draft's placeholder until it is issued (sql/149: 'draft:<id>'): never a number of the sequence. */
+export const isDraftNumber = (n: string | null | undefined): boolean => !n || n.startsWith('draft:')
 
 /** `1234.5` → `'1234.50 €'`. The one place a sum becomes text. */
 export const money = (v: number | string | null | undefined): string =>
@@ -294,10 +301,12 @@ export function invoiceDoc(invoice: DocInvoice, clinic: DocClinic | null, langua
   const bankName = trimmed(c.bank_name)
   const iban = trimmed(c.bank_account)
 
+  const draftNumber = isDraftNumber(invoice.number)
   return {
     language: lang,
     labels: L,
-    number: invoice.number,
+    number: draftNumber ? L.draft : invoice.number,
+    draft: draftNumber || invoice.status === 'mustand',
     issueDate: docDate(invoice.issue_date),
     dueDate: docDate(invoice.due_date),
     hasDueDate: docDate(invoice.due_date) !== '—',
@@ -318,7 +327,7 @@ export function invoiceDoc(invoice: DocInvoice, clinic: DocClinic | null, langua
       showPaid: paid > 0,
     },
     payment: (bankName || iban)
-      ? { bankName, iban, reference: L.referenceOf(invoice.number) }
+      ? { bankName, iban, reference: draftNumber ? L.draft : L.referenceOf(invoice.number) }
       : null,
     note: trimmed(invoice.note),
     missing,

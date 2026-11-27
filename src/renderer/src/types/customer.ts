@@ -42,6 +42,9 @@ export interface Customer {
   note: string | null
   /** A clinic, or a dentist / technician on their own (sql/128). Absent before it: a clinic. */
   kind?: 'clinic' | 'person'
+  /** sql/149: the language of this client's invoices (null: the clinic's default) and its country (ISO, two letters). */
+  invoice_language?: 'et' | 'lv' | 'en' | null
+  country?: string | null
   created_at: string
   updated_at: string
 }
@@ -64,6 +67,8 @@ export const EMPTY_CUSTOMER: CustomerInput = {
   price_overrides: {},
   archived_at: null,
   note: null,
+  invoice_language: null,
+  country: null,
 }
 
 /** Who an invoice is addressed to. See `sql/035` for why `patsient` is shared. */

@@ -33,7 +33,7 @@ const NO_NAMES: Names = new Map()
 export const AUDIT_ACTIONS = [
   'create', 'edit', 'view', 'download', 'upload', 'file_deleted', 'share', 'unshare', 'stage_move', 'partnership',
   'export', 'question', 'delete', 'restore', 'permission', 'stock_override', 'mfa_added', 'mfa_removed', 'mfa_reset',
-  'account_deleted', 'update', 'stage_start', 'stage_edit', 'password_set', 'purge',
+  'account_deleted', 'update', 'stage_start', 'stage_edit', 'password_set', 'purge', 'cancel', 'credit',
 ] as const
 
 export function actionLabel(a: string): string {
@@ -46,6 +46,8 @@ export function actionLabel(a: string): string {
     account_deleted: t('audit.accountDeleted'),
     password_set: t('audit.passwordSet'),
     purge: t('audit.purge'),
+    cancel: t('audit.cancel'),
+    credit: t('audit.credit'),
     create: t('audit.create'), edit: t('audit.edit'), permission: t('audit.permission'), file_deleted: t('audit.fileDeleted'),
     update: t('audit.update'), stage_start: t('audit.stageStart'), stage_edit: t('audit.stageEdit'),
   } as Record<string, string>)[a] ?? a

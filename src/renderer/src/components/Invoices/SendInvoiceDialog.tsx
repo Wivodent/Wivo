@@ -106,7 +106,7 @@ function SendForm({ invoice, start, myEmail, onSent, onClose }: {
     <div role="dialog" aria-modal="true" aria-labelledby="send-invoice-h" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="card w-full max-w-lg space-y-3 p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-start gap-3">
-          <h2 id="send-invoice-h" className="flex-1 text-lg font-bold text-ink">{t('sendInvoice.title', { number: invoice.number })}</h2>
+          <h2 id="send-invoice-h" className="flex-1 text-lg font-bold text-ink">{t('sendInvoice.title', { number: invoice.number.startsWith('draft:') ? t('invoices.draftLabel') : invoice.number })}</h2>
           <button type="button" onClick={onClose} aria-label={t('invoices.close')} className="h-9 w-9 rounded-lg text-ink-muted hover:bg-bg-sidebar"><X size={18} className="mx-auto" /></button>
         </div>
         <label className="block"><span className="label">{t('sendInvoice.to')}</span>

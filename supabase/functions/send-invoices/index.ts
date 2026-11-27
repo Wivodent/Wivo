@@ -25,6 +25,8 @@
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0'
 import { invoiceDoc } from '@shared/billing/invoiceDoc.ts'
+import { docLanguageFor } from '@shared/billing/countryInvoice.ts'
+import { mailTemplateForInvoice } from '@shared/billing/mailTemplate.ts'
 import { maySendInvoice, remainingToday, SAFE_MAIL_POLICY } from '@shared/billing/sendGuard.ts'
 import type { MailPolicy } from '@shared/billing/sendGuard.ts'
 import { invoiceHtml, invoiceText, invoiceSubject } from '../_shared/invoiceHtml.ts'
@@ -81,7 +83,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
   // drop a permission and have it read as false by accident.
   const { data: rows, error } = await db
     .from('clinic_settings')
-    .select('clinic_id, email')
+    .select('clinic_id, email, pricing')
   if (error) return json(500, { ok: false, error: error.message })
 
   for (const row of rows ?? []) {
@@ -194,12 +196,15 @@ Deno.serve(async (req: Request): Promise<Response> => {
         continue
       }
 
-      const doc = invoiceDoc(inv, clinic)
+      // The invoice's own language (sql/148–149), else the clinic's default.
+      const clinicLanguage = docLanguageFor(String(clinic?.country ?? 'EE'), (row.pricing as { arveKeel?: string } | null)?.arveKeel)
+      const doc = invoiceDoc(inv, clinic, clinicLanguage)
       try {
         if (!smtp) smtp = openSmtp(policy.saatjaAadress, (row.email?.saatjaNimi as string) ?? '')
         // The clinic's own wording, from the same settings row. Blank fields
         // fall back to the shipped letter rather than to nothing.
-        const tpl = (row.email ?? {}) as { pealkiri?: string; sissejuhatus?: string; lopp?: string }
+        // The clinic's own letter for an invoice in its own language; the plain one in the invoice's language otherwise.
+        const tpl = mailTemplateForInvoice((row.email ?? {}) as { pealkiri?: string; sissejuhatus?: string; lopp?: string }, doc.language, clinicLanguage)
         // The body is what they read; the attachment is what they save, print
         // or forward to their accountant. Both off the same InvoiceDoc, so the
         // file cannot say something the email does not.

@@ -6,7 +6,8 @@
  * moment. It is not a live join: once this document is issued, editing the job's
  * price must not restate what the customer was told to pay.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { startingInvoiceLanguage } from '../../lib/invoiceLanguage'
 import { motion } from 'framer-motion'
 import { X, Plus, Trash2, Loader2, FileText } from 'lucide-react'
 import { format, addDays, parseISO } from 'date-fns'
@@ -14,7 +15,7 @@ import type { Job } from '../../types/job'
 import { useSettings, priceBookOf } from '../../stores/useSettings'
 import { billedKeys, unbilledCandidates, candidateMonths, monthOf, type Candidate } from '../../lib/invoiceCandidates'
 import { buyerDetailsMissing } from '../../lib/invoiceBuyer'
-import { docLanguageFor } from '@shared/billing/countryInvoice'
+import { docLanguageFor, DOC_LANGUAGES, type DocLanguage } from '@shared/billing/countryInvoice'
 import { invoiceLabels } from '@shared/billing/invoiceDoc'
 import { clinicCountry } from '../../lib/country'
 import { useAuth } from '../../context/AuthContext'
@@ -93,7 +94,15 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
   // the mistake this screen most needs to prevent (lib/invoiceCandidates).
   const billed = useMemo(() => billedKeys(invoices), [invoices])
   // The lines' own words ("teeth", "remake") in the invoice's language (sql/148).
-  const words = invoiceLabels(docLanguageFor(clinicCountry(clinic), settings.arveKeel)).line
+  // The invoice's language (sql/149): the client's, English for a client abroad (suggested), else the
+  // clinic's default; changed here for this invoice only, and kept on it.
+  const clinicLanguage = docLanguageFor(clinicCountry(clinic), settings.arveKeel)
+  const client = billTo === 'customer' ? customers.find(c => c.id === customerId) ?? null : null
+  const starting = startingInvoiceLanguage(client, { country: clinicCountry(clinic), defaultLanguage: clinicLanguage })
+  const [chosenLanguage, setChosenLanguage] = useState<DocLanguage | null>(null)
+  const language: DocLanguage = chosenLanguage ?? starting.language
+  // The lines' own words ("teeth", "remake") in that language.
+  const words = invoiceLabels(language).line
   const patientKey = patsient.trim().toLowerCase()
   const addresseeChosen = billTo === 'customer' ? !!customerId : !!patientKey
   // WHOSE work depends on the addressee: a client invoice covers everything that
@@ -103,6 +112,19 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
     [jobs, billTo, customerId, patientId, patsient, billed, settings, words],
   )
   const months = useMemo(() => candidateMonths(candidates), [candidates])
+  // The language changed: the lines already ticked say the same in the new one (typed lines are left as they are).
+  const shownLanguage = useRef(language)
+  useEffect(() => {
+    if (shownLanguage.current === language) return
+    shownLanguage.current = language
+    setLines(prev => prev.map(l => {
+      const m = /^(.*)#(\d+)$/.exec(l.key)
+      const now = m ? candidates.find(c => c.key === m[1])?.lines[Number(m[2])] : undefined
+      return now ? { ...l, description: now.description } : l
+    }))
+  }, [language, candidates])
+  // Another addressee: the language starts from theirs again.
+  useEffect(() => { setChosenLanguage(null) }, [customerId, billTo])
   const [month, setMonth] = useState<string>('')
   const shownCandidates = month ? candidates.filter(c => monthOf(c.date) === month) : candidates
   const picked = (c: Candidate) => lines.some(l => l.key.startsWith(`${c.key}#`))
@@ -180,7 +202,7 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
       vat_rate: exempt ? 0 : vatRate,
       note: note.trim() || null,
       // Kept on the invoice (sql/148): its language, the service date, why no VAT, the client's details.
-      language: docLanguageFor(clinicCountry(clinic), settings.arveKeel),
+      language,
       service_date: serviceDate && serviceDate !== issueDate ? serviceDate : null,
       vat_exempt_note: exempt ? exemptNote.trim().slice(0, 500) || null : null,
       buyer_reg_code: billTo === 'customer' ? chosenCustomer?.reg_code?.trim() || null : null,
@@ -328,6 +350,13 @@ export function InvoiceForm({ jobs, initialPatient, initialCustomerId, onClose, 
               <div>
                 <label className="label">{t('invoices.paymentDue')}</label>
                 <input type="date" value={dueDate} readOnly className="input opacity-70" />
+              </div>
+              <div className="col-span-2">
+                <label className="label">{t('invoices.language')}</label>
+                <select value={language} onChange={e => setChosenLanguage(e.target.value as DocLanguage)} className="input">
+                  {DOC_LANGUAGES.map(l => <option key={l} value={l}>{l === 'et' ? t('invoiceSettings.langEt') : l === 'lv' ? t('invoiceSettings.langLv') : t('invoiceSettings.langEn')}</option>)}
+                </select>
+                {!chosenLanguage && starting.abroad && <p className="text-[11px] text-ink-faint mt-0.5">{t('invoices.languageAbroadHint')}</p>}
               </div>
               <div className="col-span-2">
                 <label className="label">{t('invoices.serviceDate')}</label>

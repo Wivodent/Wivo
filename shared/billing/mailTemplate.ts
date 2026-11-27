@@ -88,12 +88,15 @@ export function defaultMailTemplateFor(language: string | null | undefined): Mai
 }
 
 /**
- * The letter for one invoice: the clinic's own (Settings → Email) when it
- * wrote one, else the plain letter in the invoice's language (sql/148). A
+ * The letter for one invoice: the clinic's own (Settings → Invoices) when it
+ * wrote one and the invoice is in the clinic's own invoice language, else the
+ * plain letter in the invoice's language (sql/148–149: an English invoice to
+ * a client abroad gets the English letter, not the clinic's Latvian one). A
  * blank field falls back to that same default, never to nothing.
  */
-export function mailTemplateForInvoice(clinic: Partial<MailTemplate> | null | undefined, invoiceLanguage: string): MailTemplate {
+export function mailTemplateForInvoice(clinic: Partial<MailTemplate> | null | undefined, invoiceLanguage: string, clinicLanguage?: string): MailTemplate {
   const def = defaultMailTemplateFor(invoiceLanguage)
+  if (clinicLanguage && clinicLanguage !== invoiceLanguage) return def
   const own: MailTemplate = { pealkiri: clinic?.pealkiri ?? '', sissejuhatus: clinic?.sissejuhatus ?? '', lopp: clinic?.lopp ?? '' }
   if (isUntouchedDefaultTemplate(own) || (!own.pealkiri.trim() && !own.sissejuhatus.trim() && !own.lopp.trim())) return def
   return {

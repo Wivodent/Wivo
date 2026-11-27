@@ -20,8 +20,9 @@ export interface Letter { to: string[]; subject: string; message: string }
 
 export function prefillLetter(invoice: DocInvoice, clinic: DocClinic | null, language: DocLanguage,
   clinicTemplate: Partial<MailTemplate> | null | undefined, addressee: { email?: string | null; cc_emails?: string[] | null } | null): Letter {
+  // The invoice's own language (sql/149) wins; `language` is the clinic's default, for an invoice without one.
   const doc = invoiceDoc(invoice, clinic, language)
-  const tpl = mailTemplateForInvoice(clinicTemplate, doc.language)
+  const tpl = mailTemplateForInvoice(clinicTemplate, doc.language, language)
   const vars = templateVars(doc)
   const to = [addressee?.email, ...(addressee?.cc_emails ?? [])].map(a => (a ?? '').trim()).filter(Boolean)
   return {

@@ -90,6 +90,17 @@ describe('sending one invoice by hand', () => {
     expect(allowed.sent[0]).toMatchObject({ to: ['kevin@wivodent.com'], bcc: [] })
   })
 
+  it('a draft is issued first (sql/149): the e-mail and its PDF carry its number', async () => {
+    let issued = false
+    const { deps, rendered } = setup()
+    const draftPrep = prepared({ invoice: { ...prepared().invoice, number: 'draft:abc' } })
+    deps.prepare = async () => ({ data: issued ? prepared() : draftPrep, error: null })
+    deps.issue = async () => { issued = true; return { error: null } }
+    expect((await handleSendInvoice('Bearer x', body(), deps)).status).toBe(200)
+    expect(issued).toBe(true)
+    expect(rendered).toHaveLength(1)
+  })
+
   it('a test address that is not an address says so', async () => {
     const bad = setup({ prep: prepared({ email: { saatjaAadress: 'arved@dentiks.lv', paevaLimiit: 20, testAadress: 'not an address' } }) })
     expect((await handleSendInvoice('Bearer x', body(), bad.deps)).body).toEqual({ error: 'refused', code: 'testaadress-vigane' })

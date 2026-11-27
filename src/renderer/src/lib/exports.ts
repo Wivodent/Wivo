@@ -101,7 +101,8 @@ export function jobColumns(
 // ─── Invoices ─────────────────────────────────────────────────────────────────
 
 export const INVOICE_COLUMNS: CsvColumn<InvoiceFull>[] = [
-  { header: t('exports.number'),      value: i => i.number },
+  // A draft has no number yet (sql/149): the column says so instead of its placeholder.
+  { header: t('exports.number'),      value: i => (i.number?.startsWith('draft:') ? t('invoices.draftLabel') : i.number) },
   { header: t('exports.date'),     value: i => i.issue_date },
   { header: t('exports.deadline'),     value: i => i.due_date },
   { header: t('exports.recipient'),       value: i => i.patsient },

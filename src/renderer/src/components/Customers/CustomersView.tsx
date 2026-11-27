@@ -311,6 +311,24 @@ function CustomerForm({ customer, history, onClose }: {
             <input value={form.address ?? ''} onChange={e => set('address', e.target.value || null)} className="input" />
           </div>
 
+          {/* sql/149: the language of this client's invoices, and its country (a client abroad is offered English). */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">{t('customers.invoiceLanguage')}</label>
+              <select value={form.invoice_language ?? ''} onChange={e => set('invoice_language', (e.target.value || null) as CustomerInput['invoice_language'])} className="input">
+                <option value="">{t('customers.invoiceLanguageDefault')}</option>
+                <option value="et">{t('invoiceSettings.langEt')}</option>
+                <option value="lv">{t('invoiceSettings.langLv')}</option>
+                <option value="en">{t('invoiceSettings.langEn')}</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">{t('customers.country')}</label>
+              <input value={form.country ?? ''} maxLength={2}
+                onChange={e => set('country', e.target.value.replace(/[^a-z]/gi, '').toUpperCase().slice(0, 2) || null)} className="input uppercase" />
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">{t('customers.contactPerson')}</label>

@@ -6,8 +6,11 @@ import type {
   InvoiceStatus, PaymentMethod
 } from '../types/invoice'
 import { t } from '@/lib/i18n'
+import { isLostAnswer } from '../lib/lostAnswer'
 
 const QUERY_KEY = ['invoices']
+/** How long realtime waits for the rest of a burst before reloading the list. */
+export const REALTIME_SETTLE_MS = 400
 
 /**
  * Invoices with their lines and payments, in one query.
@@ -24,19 +27,21 @@ export function useInvoices() {
   const channelId = useId()
 
   useEffect(() => {
+    // One reload per burst: deleting an invoice with ten lines is a dozen
+    // events, and each used to reload every invoice with its lines and
+    // payments, on every screen that lists them (the slow delete, 2026-11-27).
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const soon = () => {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => { timer = null; void qc.invalidateQueries({ queryKey: QUERY_KEY }) }, REALTIME_SETTLE_MS)
+    }
     const channel = supabase
       .channel(`invoices-realtime-${channelId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
-        qc.invalidateQueries({ queryKey: QUERY_KEY })
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_lines' }, () => {
-        qc.invalidateQueries({ queryKey: QUERY_KEY })
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, () => {
-        qc.invalidateQueries({ queryKey: QUERY_KEY })
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, soon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_lines' }, soon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, soon)
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => { if (timer) clearTimeout(timer); supabase.removeChannel(channel) }
   }, [qc, channelId])
 
   return useQuery<InvoiceFull[]>({
@@ -105,17 +110,19 @@ export function useCreateInvoice() {
       const clinicId = getActiveClinicId()
       if (!clinicId) throw new Error(t('useInvoices.noClinicTheInvoiceCannotBe'))
 
-      // The number comes from the database, not from counting rows here: two
-      // workstations issuing at the same moment would both pick the same one.
-      const { data: numberData, error: numberError } =
-        await supabase.rpc('next_invoice_number', { p_clinic: clinicId })
-      if (numberError) throw numberError
-
       const { data: userData } = await supabase.auth.getUser()
 
-      const invoice = await insertInvoiceRow({
+      // A new invoice is a draft and gets its number only when it is issued
+      // (sql/149): a deleted draft leaves no hole in the numbers. A database
+      // before 149 wants a number now; the number comes from the database,
+      // never from counting rows here (two workstations would pick the same).
+      const numberNow = async (): Promise<string> => {
+        const { data, error } = await supabase.rpc('next_invoice_number', { p_clinic: clinicId })
+        if (error) throw error
+        return data as string
+      }
+      const row = {
         clinic_id: clinicId,
-        number: numberData as string,
         patient_id: input.patient_id,
         patsient: input.patsient,
         customer_id: input.customer_id ?? null,
@@ -133,7 +140,14 @@ export function useCreateInvoice() {
         buyer_vat_number: input.buyer_vat_number ?? null,
         buyer_address: input.buyer_address ?? null,
         created_by: userData?.user?.id ?? null,
-      })
+      }
+      let invoice: Invoice
+      try {
+        invoice = await insertInvoiceRow(row)
+      } catch (e) {
+        if ((e as { code?: string }).code !== '23502') throw e
+        invoice = await insertInvoiceRow({ ...row, number: await numberNow() })
+      }
 
       if (input.lines.length > 0) {
         const { error: lineError } = await supabase.from('invoice_lines').insert(
@@ -166,12 +180,52 @@ export function useUpdateInvoice() {
   })
 }
 
+/**
+ * Delete a draft (sql/149: only a draft without payments; the database says
+ * so). A lost answer ("Failed to fetch": the request may well have reached the
+ * database) is checked before it is reported: gone means deleted.
+ */
 export function useDeleteInvoice() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('invoices').delete().eq('id', id)
+      try {
+        const { error } = await supabase.rpc('delete_invoice', { p_invoice: id })
+        if (!error) return
+        if (error.code !== 'PGRST202' && error.code !== '42883') throw error
+        const plain = await supabase.from('invoices').delete().eq('id', id)
+        if (plain.error) throw plain.error
+      } catch (e) {
+        if (!isLostAnswer(e)) throw e
+        const still = await supabase.from('invoices').select('id').eq('id', id).maybeSingle()
+        if (!still.error && !still.data) return
+        throw new Error(t('invoices.deleteUnreachable'))
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY })
+  })
+}
+
+/** Cancel an issued invoice, with its reason (sql/149). */
+export function useCancelInvoice() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { error } = await supabase.rpc('cancel_invoice', { p_invoice: id, p_reason: reason })
       if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY })
+  })
+}
+
+/** A credit note for an issued invoice (sql/149): returns the new invoice. */
+export function useCreateCreditNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { data, error } = await supabase.rpc('create_credit_note', { p_invoice: id, p_reason: reason })
+      if (error) throw error
+      return data as string
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY })
   })

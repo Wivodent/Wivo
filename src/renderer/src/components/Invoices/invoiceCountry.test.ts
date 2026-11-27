@@ -17,7 +17,9 @@ describe('Latvian invoices on the screens', () => {
   })
   it('the form keeps the language, the service date, the exemption and the client’s details on the invoice', () => {
     const form = read('src/renderer/src/components/Invoices/InvoiceForm.tsx')
-    for (const f of ['language: docLanguageFor(', 'service_date:', 'vat_exempt_note: exempt ?', 'buyer_reg_code:', 'buyer_vat_number:', 'buyer_address:'])
+    // The language is the invoice's own since sql/149 (the client's, else the clinic's default: invoiceLanguageLifecycle.test.ts).
+    expect(form).toContain('const clinicLanguage = docLanguageFor(')
+    for (const f of ['service_date:', 'vat_exempt_note: exempt ?', 'buyer_reg_code:', 'buyer_vat_number:', 'buyer_address:'])
       expect(form).toContain(f)
     expect(form).toContain('buyerDetailsMissing(chosenCustomer)')
   })

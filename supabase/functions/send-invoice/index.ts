@@ -48,6 +48,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     global: { headers: { Authorization: authorization ?? '', ...callerVersionHeaders(req) } }, auth: noSession,
   })
   const answer = await handleSendInvoice(authorization, body, {
+    issue: async id => await asUser.rpc('invoice_issue', { p_invoice: id }),
     prepare: async id => await asUser.rpc('invoice_send_prepare', { p_invoice: id }),
     record: async args => await service.rpc('invoice_send_record', args),
     smtpReady: () => smtpProblems().length === 0,

@@ -55,7 +55,7 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
     <div className="fixed inset-0 z-[60] bg-black/50 overflow-y-auto print:bg-white print:static print:overflow-visible">
       {/* Toolbar — screen only */}
       <div className="sticky top-0 flex items-center gap-2 px-5 py-3 bg-bg-card border-b border-ink-faint/15 print:hidden">
-        <p className="text-sm font-bold text-ink">{t('invoices.invoice', { number: invoice.number })}</p>
+        <p className="text-sm font-bold text-ink">{t('invoices.invoice', { number: doc.number })}</p>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => window.print()} className="btn-primary">
             <Printer size={14} /> {t('invoices.printSavePDF')}
@@ -103,6 +103,12 @@ export function InvoicePrintView({ invoice, clinic, onClose }: InvoicePrintViewP
               <p className="text-sm">
                 <span className="text-[#666]">{L.serviceDate} </span>
                 <span className="tabular-nums">{doc.serviceDate}</span>
+              </p>
+            )}
+            {/* Not issued yet: no number of the sequence (sql/149). */}
+            {doc.draft && !doc.cancelled && (
+              <p className="mt-1 inline-block text-xs font-bold uppercase tracking-wider text-amber-700 border border-amber-400 rounded px-1.5 py-0.5">
+                {L.draft}
               </p>
             )}
             {doc.cancelled && (
