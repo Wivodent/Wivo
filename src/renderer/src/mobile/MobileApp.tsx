@@ -8,7 +8,8 @@ import { Settings, ChevronLeft } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
 import { NotificationBell } from '../components/NotificationBell'
-import { isSecurityNotice, isUpdateNotice } from '../hooks/useNotifications'
+import { notificationTarget } from '../lib/notificationTarget'
+import { OrdersView } from '../components/Network/OrdersView'
 import { parseRoute, routePath, type Route } from './route'
 import { MobileHome } from './MobileHome'
 import { MobileJob } from './MobileJob'
@@ -57,7 +58,14 @@ export function MobileApp() {
           </button>
         )}
         <div className="ml-auto flex items-center gap-1">
-          <NotificationBell onOpen={n => { if (n.job_id) go({ name: 'job', id: n.job_id }); else if (isSecurityNotice(n) || isUpdateNotice(n)) go({ name: 'settings' }) }} />
+          <NotificationBell onOpen={n => {
+            // The desktop's answer (lib/notificationTarget). The phone has no "Shared with us".
+            const target = notificationTarget(n, { isOwnJob: () => true, partnersOn: false })
+            if (target?.to === 'job') go({ name: 'job', id: target.jobId })
+            else if (target?.to === 'settings') go({ name: 'settings' })
+            else if (target?.to === 'order') go({ name: 'orders', orderId: target.orderId })
+            else if (target?.to === 'requests') go({ name: 'orders', requests: true })
+          }} />
           {route.name !== 'settings' && (
             <button type="button" onClick={() => go({ name: 'settings' })} aria-label={t('mobile.settings')}
               className="rounded-lg p-2 text-ink-soft">
@@ -73,6 +81,9 @@ export function MobileApp() {
       {route.name === 'new' && seesJobs && <MobileNewJob onCreated={id => { history.replaceState(null, '', routePath({ name: 'job', id })); setRoute({ name: 'job', id }); window.scrollTo(0, 0) }} />}
       {route.name === 'job' && seesJobs && <MobileJob id={route.id} onClose={back} />}
       {route.name === 'settings' && <MobileSettings onWhatsNew={whatsNew.open} />}
+      {route.name === 'orders' && (
+        <OrdersView key={routePath(route)} focus={{ orderId: route.orderId, requests: route.requests, n: 1 }} onOpenJob={id => go({ name: 'job', id })} />
+      )}
       {whatsNew.dialog}
     </div>
   )

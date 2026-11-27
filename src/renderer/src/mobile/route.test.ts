@@ -20,3 +20,13 @@ describe('phone routes', () => {
     }
   })
 })
+
+describe('the Orders route (Network notices on the phone)', () => {
+  const id = '11111111-1111-4111-8111-111111111111'
+  it('an order, who asks to connect, the page', () => {
+    expect(parseRoute(`/orders/${id}`)).toEqual({ name: 'orders', orderId: id })
+    expect(parseRoute('/orders/requests')).toEqual({ name: 'orders', requests: true })
+    expect(parseRoute('/orders')).toEqual({ name: 'orders' })
+    for (const r of [{ name: 'orders', orderId: id }, { name: 'orders', requests: true }] as const) expect(parseRoute(routePath(r))).toEqual(r)
+  })
+})

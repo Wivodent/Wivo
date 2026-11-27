@@ -4,6 +4,8 @@
  * Cloudflare serves index.html for every path (mobile-static/_redirects).
  */
 export type Route = { name: 'home' } | { name: 'job'; id: string } | { name: 'settings' } | { name: 'new' }
+  // Orders from outside (the Network): an order opened, or who asks to connect.
+  | { name: 'orders'; orderId?: string; requests?: boolean }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -12,6 +14,9 @@ export function parseRoute(pathname: string): Route {
   if (first === 'job' && second && UUID.test(second) && rest.length === 0) return { name: 'job', id: second.toLowerCase() }
   if (first === 'settings' && !second) return { name: 'settings' }
   if (first === 'new' && !second) return { name: 'new' }
+  if (first === 'orders' && !second) return { name: 'orders' }
+  if (first === 'orders' && second === 'requests' && rest.length === 0) return { name: 'orders', requests: true }
+  if (first === 'orders' && second && UUID.test(second) && rest.length === 0) return { name: 'orders', orderId: second.toLowerCase() }
   return { name: 'home' }
 }
 
@@ -19,6 +24,7 @@ export function parseRoute(pathname: string): Route {
 export const isNetworkPath = (pathname: string): boolean => pathname === '/network' || pathname.startsWith('/network/')
 
 export function routePath(r: Route): string {
+  if (r.name === 'orders') return r.orderId ? `/orders/${r.orderId}` : r.requests ? '/orders/requests' : '/orders'
   return r.name === 'job' ? `/job/${r.id}` : r.name === 'settings' ? '/settings' : r.name === 'new' ? '/new' : '/'
 }
 

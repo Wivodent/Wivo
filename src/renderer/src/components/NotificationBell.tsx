@@ -46,6 +46,13 @@ export const text = (n: AppNotification, stageLabel: (key: string) => string): s
   // sql/138: an order or a request to connect from outside (Wivo Network). Nothing about the patient.
   if (n.kind === 'client_order') return t('notifications.clientOrder')
   if (n.kind === 'client_request') return t('notifications.clientRequest')
+  // sql/142: a client wrote on an order, or answered a review (sql/143).
+  if (n.kind === 'client_message') return t('notifications.clientMessage', { ref: String(n.detail.ref ?? '') })
+  if (n.kind === 'client_review') {
+    return n.detail.decision === 'approved'
+      ? t('notifications.clientApproved', { ref: String(n.detail.ref ?? '') })
+      : t('notifications.clientChanges', { ref: String(n.detail.ref ?? '') })
+  }
   // sql/130: made the one who makes an option of the job ("Metal bar").
   if (n.kind === 'option_assigned') {
     const options = Array.isArray(n.detail.options) ? n.detail.options.filter((o): o is string => typeof o === 'string').join(', ') : ''

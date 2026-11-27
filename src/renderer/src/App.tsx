@@ -16,7 +16,8 @@ import { CalendarView, type CalendarMode, type CalendarScale } from './component
 import { CalendarTopControls } from './components/CalendarView/CalendarTopControls'
 import { PatientsView } from './components/Patients/PatientsView'
 import { UnsortedView } from './components/Unsorted/UnsortedView'
-import { OrdersView } from './components/Network/OrdersView'
+import { OrdersView, type OrdersFocus } from './components/Network/OrdersView'
+import { notificationTarget } from './lib/notificationTarget'
 import { LanguageSync } from './components/LanguageSync'
 import { supabase } from './lib/supabase'
 import { PartnerJobsView } from './components/Partners/PartnerJobsView'
@@ -147,6 +148,8 @@ function AppContent() {
   const deleteJob = useDeleteJob()
   // sql/102: deleting a job is its own permission; marking paid writes payments.
   const { can, sees, moduleOn, home } = usePermissions()
+  // What a bell notice asked the Orders page to open (lib/notificationTarget); `n` makes the same ask twice count.
+  const [ordersFocus, setOrdersFocus] = useState<OrdersFocus>({ n: 0 })
 
   // The same hazard once more, from the licence rather than the mode: a module
   // that is off takes its pages with it, and 'overview' — where the app opens —
@@ -455,17 +458,23 @@ function AppContent() {
           onOpenJob={openSearchResult}
           onNewJob={canEditJobs ? openNew : undefined}
           onOpenNotification={n => {
-            // Our own job opens in the panel; a job shared WITH us is only
-            // reachable through the partner view.
-            // A security notice (sql/097) opens Settings → Security.
-            if (isSecurityNotice(n)) { setSettingsAt(a => ({ group: 'turvalisus', n: a.n + 1 })); setView('settings'); return }
-            // An update notice (sql/119) opens Settings.
-            if (isUpdateNotice(n)) { setView('settings'); return }
-            // Resend's limit (sql/125): the text says it all; no job, nothing to open.
-            if (n.kind === 'mail_quota') return
-            const own = n.job_id ? jobs.find(j => j.id === n.job_id) : undefined
-            if (own) openEdit(own)
-            else setView('partner')
+            // One answer for the desktop and the phone (lib/notificationTarget):
+            // our job opens in the panel; a Network order or request opens
+            // Orders (the job, once accepted); only a partnership's own notice
+            // opens "Shared with us", and only with the partners module.
+            const target = notificationTarget(n, { isOwnJob: id => jobs.some(j => j.id === id), partnersOn: moduleOn('partners') })
+            if (!target) return
+            if (target.to === 'settings') {
+              if (target.group) setSettingsAt(a => ({ group: target.group!, n: a.n + 1 }))
+              setView('settings')
+            } else if (target.to === 'job') {
+              const own = jobs.find(j => j.id === target.jobId)
+              if (own) openEdit(own)
+            } else if (target.to === 'order') {
+              setOrdersFocus(f => ({ orderId: target.orderId, n: f.n + 1 })); setView('orders')
+            } else if (target.to === 'requests') {
+              setOrdersFocus(f => ({ requests: true, n: f.n + 1 })); setView('orders')
+            } else setView('partner')
           }}
           // Only where a visit can be made at all: the clinical side on, the
           // calendar's module in the licence, and the right to book.
@@ -576,7 +585,9 @@ function AppContent() {
           {view === 'workers' && <WorkersPage />}
           {view === 'partner' && <PartnerJobsView />}
           {view === 'unsorted' && <UnsortedView />}
-          {view === 'orders' && <OrdersView />}
+          {view === 'orders' && (
+            <OrdersView focus={ordersFocus} onOpenJob={id => { const own = jobs.find(j => j.id === id); if (own) openEdit(own) }} />
+          )}
           {view === 'stock' && <StockView jobs={jobs} />}
         </main>
       </div>

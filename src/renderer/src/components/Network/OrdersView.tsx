@@ -9,7 +9,7 @@
  * the connected clients. Every number is counted from rows this person may
  * read; nothing is shown that Wivo does not have (no ratings, no "unread").
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Inbox, Check, X, Download, Send, Globe2, Copy } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import {
@@ -47,7 +47,10 @@ const tabLabel = (tab: OrderTab): string =>
 /** The tabs that show their count, as in the design: the ones that need doing. */
 const COUNTED: readonly OrderTab[] = ['new', 'in_progress', 'ready']
 
-export function OrdersView() {
+/** What a bell notice asks this page to open (lib/notificationTarget). `n` grows with each ask. */
+export interface OrdersFocus { orderId?: string; requests?: boolean; n: number }
+
+export function OrdersView({ focus, onOpenJob }: { focus?: OrdersFocus; onOpenJob?: (jobId: string) => void } = {}) {
   const { isOwner, can } = usePermissions()
   usePortalLive()
   useOrderJobsLive()
@@ -75,6 +78,26 @@ export function OrdersView() {
   }, [orders])
   const open = orders.find(o => o.id === openId) ?? null
   const on = settings.data?.enabled ?? false
+
+  // A bell notice: open its order (or the job an accepted order became), or go to who asks to connect.
+  const requestsRef = useRef<HTMLElement>(null)
+  const handled = useRef(0)
+  const ordersLoaded = orders.length > 0
+  useEffect(() => {
+    if (!focus || focus.n === handled.current) return
+    if (focus.requests) {
+      handled.current = focus.n
+      requestsRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+      return
+    }
+    const o = focus.orderId ? orders.find(x => x.id === focus.orderId) : undefined
+    if (!o) return  // not loaded yet: the next render tries again
+    handled.current = focus.n
+    if (o.status === 'accepted' && o.job_id && onOpenJob) { onOpenJob(o.job_id); return }
+    setTab(tabOf(o))
+    setOpenId(o.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.n, ordersLoaded, orders])
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 p-6">
@@ -124,7 +147,7 @@ export function OrdersView() {
 
         <div className="space-y-5">
           {requests.length > 0 && (
-            <section className="space-y-3 rounded-2xl border-2 border-amber-300 bg-amber-500/10 p-4">
+            <section ref={requestsRef} className="space-y-3 rounded-2xl border-2 border-amber-300 bg-amber-500/10 p-4">
               <h2 className="flex items-center gap-2 text-lg font-bold text-ink">{t('orders.requests')}
                 <InfoButton label={t('orders.requests')} text={t('orders.requestsInfo')} /></h2>
               {requests.map(c => <RequestCard key={c.id} client={c} canDecide={isOwner} />)}
