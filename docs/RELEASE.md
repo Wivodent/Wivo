@@ -77,6 +77,13 @@ git switch -c hotfix-2.2.6 c5f0752
 npm run release -- --clinic dentiks
 ```
 
+The installer build (scripts/build-clinic.mjs, which `npm run release` runs
+and which also runs alone as `npm run dist:clinic`) applies the same four
+conditions. It reads no published list, so it checks against the newest
+release this machine built for the clinic below the version being built
+(`releases/<clinic>/<version>/release.json`). A rebuild of the same version
+does not count its own earlier build.
+
 release.json records the branch, and the publish step's phone instruction
 names it: push the hotfix branch, then point the clinic's phone branch at the
 release commit. Afterwards the fix goes onto `testing` too (cherry-pick), so

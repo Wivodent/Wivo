@@ -8,7 +8,10 @@
  * (npm run release -- --clinic <id> runs it, and then makes the release.)
  *
  * What it does, in order, and stops at the first refusal:
- *   1. branch is `testing`, working tree clean (so the installer is a known commit);
+ *   1. branch is `testing`, or a hotfix branch hotfix-X.Y.Z that passes
+ *      release-lib's releaseBranchProblem against the newest release this machine
+ *      built for the clinic (docs/RELEASE.md §1 "Which branch"); working tree
+ *      clean (so the installer is a known commit);
  *   2. reads clinics/<id>.json (the clinic's project, phone address, releases)
  *      and clinics/<id>.env (its public key), refuses production's and the
  *      test copy's project, a key that is not the public one, any secret;
@@ -35,6 +38,7 @@ import { existsSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { appUpdateYmlProblem, cliOptions, clinicFeed, forbiddenIn, loadClinic, parseClinicEnv, phoneBranchCommand } from './clinic-config.mjs'
+import { compareXyz, latestLocalRelease, releaseBranchProblem } from './release-lib.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -80,8 +84,24 @@ function findEnvFiles(dir) {
 
 // 1. a known commit
 const branch = git('rev-parse', '--abbrev-ref', 'HEAD')
-if (branch !== 'testing') fail(`the branch is "${branch}"; the installer is built from testing`)
 if (git('status', '--porcelain') !== '') fail('the working tree has changes; commit or stash them first, so the installer is a known commit')
+// testing, or hotfix-X.Y.Z under the same four conditions as a release
+// (docs/RELEASE.md §1): "published" is the newest release this machine built
+// for the clinic (releases/<clinic>/); release.mjs has already checked the
+// published list itself.
+if (branch !== 'testing') {
+  const version = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version
+  const last = latestLocalRelease(join(ROOT, 'releases', clinic.id), { below: version })
+  let containsPublished = false
+  if (last?.commit) {
+    try { execFileSync('git', ['merge-base', '--is-ancestor', last.commit, 'HEAD'], { cwd: ROOT }); containsPublished = true } catch { /* not an ancestor */ }
+  }
+  const why = releaseBranchProblem({
+    branch, version, clean: true, published: last?.version ?? null, publishedCommit: last?.commit ?? null,
+    containsPublished, compareVersions: compareXyz,
+  })
+  if (why) fail(why)
+}
 const commit = git('rev-parse', '--short', 'HEAD')
 const fullCommit = git('rev-parse', 'HEAD')
 
@@ -151,6 +171,6 @@ console.log('Send the SHA-256 by another channel than the installer. Windows wil
 
 // 7. the phone app, from the same commit
 let pushed = false
-try { execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', 'origin/testing'], { cwd: ROOT }); pushed = true } catch { /* not pushed, or no origin/testing */ }
+try { execFileSync('git', ['merge-base', '--is-ancestor', 'HEAD', `origin/${branch}`], { cwd: ROOT }); pushed = true } catch { /* not pushed, or no origin/<branch> */ }
 console.log(`\n${clinic.name}'s phone app (Cloudflare ${clinic.cloudflareProject} builds the ${clinic.phoneBranch} branch). When you hand over this installer, move it to the same commit:\n\n  ${phoneBranchCommand(fullCommit, clinic.phoneBranch)}\n`)
-if (!pushed) console.log('First push testing: this commit is not on origin/testing yet.')
+if (!pushed) console.log(`First push ${branch}: this commit is not on origin/${branch} yet.`)

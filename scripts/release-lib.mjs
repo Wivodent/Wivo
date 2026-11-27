@@ -4,7 +4,8 @@
  * reads a key or the network; the clinic comes from clinics/<id>.json
  * (scripts/clinic-config.mjs).
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { transform } from 'esbuild'
 import { RELEASE_TAG } from './clinic-config.mjs'
 
@@ -101,6 +102,40 @@ export function releaseBranchProblem({ branch, version, clean, published, publis
   if (compareVersions(version, published) <= 0) return `${branch} releases ${version}, but ${published} is already published; a hotfix must be above it`
   if (!publishedCommit) return `cannot tell which commit ${published} was built from (its release.json is missing or names no commit); a hotfix must start from that commit, so it is refused`
   if (!containsPublished) return `${branch} does not contain ${publishedCommit.slice(0, 10)}, the commit ${published} was built from; start the hotfix from that commit (git switch -c ${branch} ${publishedCommit.slice(0, 10)})`
+  return null
+}
+
+/** x.y.z against x.y.z, numerically: <0, 0, >0. For scripts that do not load shared/release. */
+export function compareXyz(a, b) {
+  const pa = String(a).split('.').map(Number)
+  const pb = String(b).split('.').map(Number)
+  for (let i = 0; i < 3; i++) if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) - (pb[i] ?? 0)
+  return 0
+}
+
+/**
+ * The newest release this machine built for a clinic, from its
+ * releases/<clinic>/<version>/release.json files: { version, commit } (commit
+ * null when that release.json names none), or null when there is none.
+ *
+ * scripts/build-clinic.mjs (also run alone, `npm run dist:clinic`) reads no
+ * published list; for a hotfix branch it checks against this, the release
+ * Kevin built and published last. `below`: only versions under it (the version
+ * being built, so a rebuild of it does not count its own earlier build).
+ * release.mjs checks against the published list itself before it calls build-clinic.
+ */
+export function latestLocalRelease(dir, { below = null, read = p => readFileSync(p, 'utf8'), list = d => readdirSync(d) } = {}) {
+  let names = []
+  try { names = list(dir) } catch { return null }
+  // Below the version being built: its own earlier, unpublished build is not "the last release".
+  const versions = names.filter(n => /^\d+\.\d+\.\d+$/.test(n) && (below === null || compareXyz(n, below) < 0)).sort(compareXyz)
+  for (const version of versions.reverse()) {
+    try {
+      const rel = JSON.parse(read(join(dir, version, 'release.json')))
+      if (rel.version !== version) continue
+      return { version, commit: /^[0-9a-f]{40}$/.test(rel.commit ?? '') ? rel.commit : null }
+    } catch { /* not a release this machine built: the next one */ }
+  }
   return null
 }
 
