@@ -13,7 +13,7 @@
  * tab forgets it, and the Network token is asked for again.
  */
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { CatalogueItem, ClientOrderStatus, WivoOrderV1 } from '@shared/network/order'
+import type { CatalogueItem, ClientOrderStatus, WivoOrder } from '@shared/network/order'
 
 const URL_ = (import.meta.env.VITE_NETWORK_URL ?? '').trim()
 const KEY = (import.meta.env.VITE_NETWORK_ANON_KEY ?? '').trim()
@@ -62,7 +62,7 @@ export interface ClientOrderSummary {
 export interface ClientOrderDetail {
   id: string
   created_at: string
-  payload: WivoOrderV1
+  payload: WivoOrder
   status: ClientOrderStatus
   reject_reason: string | null
   messages: { id: string; from_client: boolean; body: string; created_at: string }[] | null
@@ -208,7 +208,7 @@ export function clinicApi(clinicId: string, apiUrl: string, session: string) {
     /** The reference the clinic would give the next order (sql/140); given out only when it is sent. */
     nextRef: () => call<string>(clinicId, apiUrl, session, 'next_ref'),
     order: (orderId: string) => call<ClientOrderDetail>(clinicId, apiUrl, session, 'order', { orderId }),
-    newOrder: (order: WivoOrderV1) => call<string>(clinicId, apiUrl, session, 'new_order', { order }),
+    newOrder: (order: WivoOrder) => call<string>(clinicId, apiUrl, session, 'new_order', { order }),
     message: (orderId: string, body: string) => call<string>(clinicId, apiUrl, session, 'message', { orderId, body }),
     end: async () => { await call(clinicId, apiUrl, session, 'end'); forget(clinicId) },
     download: (fileId: string, name: string) => call<{ url: string }>(clinicId, apiUrl, session, 'download', { fileId, name }),

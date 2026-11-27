@@ -10,7 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useRealtimeInvalidate } from './useRealtimeInvalidate'
-import type { WivoOrderV1 } from '@shared/network/order'
+import type { WivoOrder } from '@shared/network/order'
 import { readDirectoryEntry, setDirectoryListed, type DirectoryEntry, type DirectoryError } from '../lib/networkDirectory'
 import type { OrderJobState } from '../lib/orderView'
 
@@ -44,7 +44,7 @@ export interface NetworkClientRow {
 export interface ClientOrderRow {
   id: string
   client_id: string
-  payload: WivoOrderV1
+  payload: WivoOrder
   work_type: string
   patient_ref: string
   due: string | null

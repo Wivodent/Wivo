@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   orderTab, countByTab, clientStatusOfTab, teethLabel, parseTeeth, formatTeeth, initials, dayPart,
   chosenOptionLabels, fileBadge, stepNumber, orderTouched, networkConfigured, UPPER_TEETH, LOWER_TEETH,
+  catalogueRules, withAutoImplants, implantSummary, expectedImplants, wireOrder,
 } from './orderView'
+import { orderProblems, type CatalogueItem } from '@shared/network/order'
 
 const DONE = 'valmis'
 
@@ -99,5 +101,45 @@ describe('the Orders page\'s Network card', () => {
     expect(networkConfigured({ network_public_key: 'A'.repeat(43), network_clinic_id: null })).toBe(false)
     expect(networkConfigured({ network_public_key: null, network_clinic_id: 'x' })).toBe(false)
     expect(networkConfigured({ network_public_key: 'A'.repeat(43), network_clinic_id: 'x' })).toBe(true)
+  })
+})
+
+describe('implants in an order from outside (sql/141)', () => {
+  const item = (over: Partial<CatalogueItem>): CatalogueItem => ({ name: 'X', teeth: 'tooth', groups: [], order_version: 2, ...over })
+
+  it('reads the new-job form\'s rules from the catalogue entry', () => {
+    expect(catalogueRules(item({ name: 'Implant crown' }))).toMatchObject({ implantBased: true, isBridge: false, toothMode: 'tooth' })
+    expect(catalogueRules(item({ name: 'Implant bridge', liik: 'bridge' }))).toMatchObject({ implantBased: true, isBridge: true })
+    expect(catalogueRules(item({ name: 'All-on-4', liik: 'arch', teeth: 'arch' }))).toMatchObject({ implantBased: true, toothMode: 'arch' })
+    expect(catalogueRules(item({ name: 'Hybrid denture', teeth: 'arch' }))).toMatchObject({ implantBased: true })
+    expect(catalogueRules(item({ name: 'Zirconia crown' }))).toMatchObject({ implantBased: false, isBridge: false })
+  })
+
+  it('an implant crown: the tooth picked is an implant at once; a tooth let go takes its implant with it', () => {
+    expect(withAutoImplants([], [36], [], true)).toEqual([36])
+    expect(withAutoImplants([36], [36, 46], [], true)).toEqual([46])  // 36 unmarked by hand stays unmarked
+    expect(withAutoImplants([36, 46], [46], [36, 46], true)).toEqual([46])
+    expect(withAutoImplants([], [11], [], false)).toEqual([])
+  })
+
+  it('the summary: implants and, for a bridge on implants, the pontics', () => {
+    expect(implantSummary([14, 13, 12], [14, 12], true, true)).toEqual({ teeth: 3, implants: [14, 12], pontics: [13] })
+    expect(implantSummary([14, 13, 12], [14, 12], false, true).pontics).toEqual([])
+  })
+
+  it('All-on-N says how many implants it carries', () => {
+    expect(expectedImplants('All-on-4')).toBe(4)
+    expect(expectedImplants('all on 6 upper')).toBe(6)
+    expect(expectedImplants('Allon5')).toBe(5)
+    expect(expectedImplants('Implant bridge')).toBeNull()
+  })
+
+  it('the order sent: v2 with implants among the teeth and only differing abutments; v1 without them', () => {
+    const form = { format: 'wivo-order' as const, version: 1 as const, work_type: 'Implant bridge', teeth: '14,13,12', options: {}, shade: null, due: null, patient_ref: 'R', notes: null }
+    const extra = { implants: [12, 14, 21], abutmentAll: ' MIS C1 ', abutmentTeeth: { 12: 'Straumann BL', 14: 'MIS C1' } }
+    expect(wireOrder(form, extra, true)).toEqual({ ...form, version: 2, implants: '14,12', abutment: { all: 'MIS C1', teeth: { 12: 'Straumann BL' } } })
+    expect(wireOrder(form, { implants: [14], abutmentAll: '', abutmentTeeth: {} }, true)).toMatchObject({ implants: '14', abutment: null })
+    expect(wireOrder(form, extra, false)).toEqual({ ...form, version: 1 })
+    expect(orderProblems(wireOrder(form, extra, true))).toEqual([])
   })
 })

@@ -4,7 +4,9 @@
  * which tab an order belongs to, teeth as a short label, initials, the
  * greeting. Nothing here invents a number: every count is counted from rows.
  */
-import type { ClientOrderStatus } from '@shared/network/order'
+import type { CatalogueItem, ClientOrderStatus, WivoOrder, WivoOrderV1 } from '@shared/network/order'
+import type { WorkType } from '@shared/pricing/workTypes'
+import { workTypeRules } from '@shared/wizard/workTypeRules'
 
 /** The Orders page's tabs, in the clinic's words. Mirrors client_order_status (sql/138). */
 export type OrderTab = 'new' | 'in_progress' | 'ready' | 'sent' | 'rejected'
@@ -128,4 +130,60 @@ export function stepNumber(step: FormStep, withClinicStep: boolean): { number: n
 export function orderTouched(o: { work_type: string; teeth: string; options: Record<string, string[]>; shade: string | null; due: string | null; patient_ref: string; notes: string | null }, files: number): boolean {
   return files > 0 || o.work_type !== '' || o.teeth !== '' || Object.values(o.options).some(v => v.length > 0)
     || !!o.shade || !!o.due || o.patient_ref.trim() !== '' || !!o.notes?.trim()
+}
+
+// ── Implants in an order from outside (sql/141, Wivo order v2) ───────────────
+
+/** What the new-job form knows about a work type, read from the clinic's catalogue entry (shared/wizard/workTypeRules). */
+export function catalogueRules(item: CatalogueItem): { implantBased: boolean; isBridge: boolean; supportsAbutment: boolean; toothMode: 'tooth' | 'arch' | 'none' } {
+  const type = {
+    nimi: item.name, hex: '#000000', match: item.match ?? [], katalog: item.katalog ?? undefined,
+    liik: item.liik ?? undefined, hambaviis: item.hambaviis ?? undefined,
+  } as unknown as WorkType
+  const r = workTypeRules(item.name, [type])
+  return { implantBased: r.implantBased, isBridge: r.isBridge, supportsAbutment: r.supportsAbutment || r.implantBased, toothMode: r.toothMode }
+}
+
+/** How many implants an All-on-N carries, from its name (All-on-4 → 4); null for anything else. */
+export function expectedImplants(name: string): number | null {
+  const m = /all[\s-]?on[\s-]?(\d)/i.exec(name)
+  return m ? Number(m[1]) : null
+}
+
+/**
+ * The implants after the teeth changed: those still among the teeth stay; for
+ * work built on implants (tooth by tooth), a newly picked tooth IS an implant
+ * until someone says otherwise, e.g. a bridge's pontic — as the new-job form.
+ */
+export function withAutoImplants(prevTeeth: readonly number[], nextTeeth: readonly number[], implants: readonly number[], autoMark: boolean): number[] {
+  const next = new Set(nextTeeth)
+  const before = new Set(prevTeeth)
+  const kept = implants.filter(t => next.has(t))
+  const added = autoMark ? nextTeeth.filter(t => !before.has(t) && !kept.includes(t)) : []
+  return parseTeeth(formatTeeth([...kept, ...added]))
+}
+
+/** Teeth, implants and (for a bridge built on implants) pontics, in mouth order. */
+export function implantSummary(teeth: readonly number[], implants: readonly number[], isBridge: boolean, implantBased: boolean): { teeth: number; implants: number[]; pontics: number[] } {
+  const marked = new Set(implants)
+  const ordered = parseTeeth(formatTeeth([...teeth]))
+  return {
+    teeth: ordered.length,
+    implants: ordered.filter(t => marked.has(t)),
+    pontics: isBridge && implantBased ? ordered.filter(t => !marked.has(t)) : [],
+  }
+}
+
+/** The order as it is sent: version 2 with the implants and abutment when the clinic takes it, else version 1 without them. */
+export function wireOrder(form: WivoOrderV1, extra: { implants: readonly number[]; abutmentAll: string; abutmentTeeth: Record<string, string> }, v2: boolean): WivoOrder {
+  if (!v2) return { ...form, version: 1 }
+  const implants = parseTeeth(formatTeeth([...extra.implants])).filter(t => parseTeeth(form.teeth).includes(t))
+  const all = extra.abutmentAll.trim()
+  const teeth: Record<string, string> = {}
+  for (const t of implants) {
+    const own = (extra.abutmentTeeth[String(t)] ?? '').trim()
+    if (own && own !== all) teeth[String(t)] = own
+  }
+  const abutment = implants.length && (all || Object.keys(teeth).length) ? { all: all || null, teeth } : null
+  return { ...form, version: 2, implants: formatTeeth(implants), abutment }
 }

@@ -24,20 +24,23 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import { useQueries, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
-import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X, Undo2 } from 'lucide-react'
+import { ChevronLeft, Plus, Search, LogOut, Send, Download, Paperclip, Check, Clock, Building2, MoreHorizontal, X, Undo2, Bolt } from 'lucide-react'
 import { format } from 'date-fns'
 import {
   network, networkConfigured, myAccount, saveAccount, directory, clinicByInvite, myConnections,
   requestConnection, endConnection, connect, clinicApi, NetworkError,
   type Account, type Connection, type DirectoryClinic, type ClinicSession, type ClientOrderSummary, type ClientOrderDetail,
 } from '../../lib/network'
-import { emptyOrder, orderProblems, type CatalogueItem, type ClientOrderStatus, type WivoOrderV1 } from '@shared/network/order'
+import { emptyOrder, orderProblems, orderImplants, type CatalogueItem, type ClientOrderStatus, type WivoOrderV1 } from '@shared/network/order'
 import { InfoButton } from '../../components/ui/InfoButton'
 import { WorkTypeArt } from '../../components/ui/WorkTypeArt'
 import { ToothPicker } from '../../components/teeth/ToothPicker'
 import { applyPaint } from '../../components/teeth/toothDrag'
+import { AbutmentPicker } from '../../components/NewJobWizard/teeth/AbutmentPicker'
+import { teethCountLabel } from '../../components/NewJobWizard/teeth/WorkTypeTabs'
 import {
   teethLabel, parseTeeth, formatTeeth, initials, dayPart, chosenOptionLabels, fileBadge, stepNumber, orderTouched,
+  catalogueRules, expectedImplants, withAutoImplants, implantSummary, wireOrder,
   UPPER_TEETH, LOWER_TEETH, type FormStep,
 } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
@@ -628,6 +631,10 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refError, setRefError] = useState<string | null>(null)
+  // Where the implants are and what sits on them (Wivo order v2, sql/141), as on the new-job form.
+  const [implants, setImplants] = useState<number[]>([])
+  const [abutmentAll, setAbutmentAll] = useState('')
+  const [abutmentTeeth, setAbutmentTeeth] = useState<Record<string, string>>({})
   // The clinic's next reference (sql/140), filled in once; the client may write its own instead.
   const nextRef = useQuery<string>({ queryKey: ['network', 'next_ref', clinicId], queryFn: api.nextRef, staleTime: 0, retry: false })
   const autoRef = nextRef.data ?? null
@@ -643,6 +650,10 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
   const set = (patch: Partial<WivoOrderV1>) => setOrder(o => ({ ...o, ...patch }))
   const { number, total } = stepNumber(step, withClinicStep)
   const options = chosenOptionLabels(order.options, (key, id) => item?.groups.find(g => g.key === key)?.options.find(o => o.id === id)?.name)
+  // The clinic takes order v2 (sql/141): implants can be marked. Before it, the form is as it was.
+  const v2 = (catalog.data ?? []).some(c => (c.order_version ?? 1) >= 2)
+  const rules = item ? catalogueRules(item) : null
+  const summary = implantSummary(parseTeeth(order.teeth), implants, !!rules?.isBridge, !!rules?.implantBased)
 
   async function back() {
     if (step === 'review') return setStep('details')
@@ -661,7 +672,7 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
   async function send() {
     setBusy(true); setError(null)
     try {
-      const id = await api.newOrder(order)
+      const id = await api.newOrder(wireOrder(order, { implants, abutmentAll, abutmentTeeth }, v2))
       for (const f of files) await api.upload(id, f)
       onSent(id)
     } catch (e) {
@@ -690,7 +701,14 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
               const on = order.work_type === c.name
               return (
                 <button key={c.name} type="button" aria-pressed={on}
-                  onClick={() => set({ work_type: c.name, options: {}, teeth: c.teeth === 'none' ? '' : order.teeth })}
+                  onClick={() => {
+                    if (c.name === order.work_type) return
+                    const keep = c.teeth === 'none' ? '' : order.teeth
+                    set({ work_type: c.name, options: {}, teeth: keep })
+                    // Implants follow the new work's own rule: built on implants, its teeth are implants at once.
+                    const r = catalogueRules(c)
+                    setImplants(r.implantBased && r.toothMode === 'tooth' ? parseTeeth(keep) : [])
+                  }}
                   className={`flex flex-col items-center gap-1.5 rounded-2xl bg-bg-card px-1.5 py-2.5 ${on ? 'border-2 border-accent' : 'border border-ink-faint/30'}`}>
                   <TypeArt name={c.name} size={44} />
                   <span className={`text-center text-xs leading-tight ${on ? 'font-bold' : ''}`}>{c.name}</span>
@@ -723,7 +741,32 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
             </div>
           ))}
 
-          {needsTeeth && <TeethPicker value={order.teeth} arch={item!.teeth === 'arch'} workType={order.work_type} onChange={teeth => set({ teeth })} />}
+          {needsTeeth && (
+            <TeethPicker value={order.teeth} implants={implants} arch={item!.teeth === 'arch'} workType={order.work_type}
+              canMarkImplants={v2} autoImplants={!!rules?.implantBased && rules.toothMode === 'tooth'}
+              onChange={(teeth, nextImplants) => { set({ teeth }); setImplants(nextImplants) }} />
+          )}
+          {needsTeeth && v2 && rules?.implantBased && rules.toothMode === 'arch' && (
+            <p className="rounded-xl bg-accent/10 p-3 text-sm text-ink">{t('network.tapImplants')}</p>
+          )}
+          {needsTeeth && summary.teeth > 0 && (
+            <ImplantSummaryLine summary={summary} />
+          )}
+          {needsTeeth && v2 && expectedImplants(order.work_type) !== null && summary.teeth > 0 && summary.implants.length !== expectedImplants(order.work_type) && (
+            <p className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800" role="status">
+              {t('network.implantCountWarning', { work: order.work_type, n: expectedImplants(order.work_type)!, marked: summary.implants.length })}</p>
+          )}
+          {v2 && summary.implants.length > 0 && (
+            <div className="card rounded-2xl p-3">
+              <AbutmentPicker
+                types={[{ too: order.work_type, hex: ORDER_TOOTH_HEX, teeth: summary.implants }]}
+                byType={{ [order.work_type]: abutmentAll }}
+                byTooth={abutmentTeeth}
+                onChangeType={(_too, code) => setAbutmentAll(code)}
+                onChangeTooth={(tooth, code) => setAbutmentTeeth(a => ({ ...a, [tooth]: code }))}
+              />
+            </div>
+          )}
           {footer(<button type="button" disabled={!workOk} onClick={() => setStep('details')} className="btn-primary min-h-12 flex-[2] justify-center rounded-2xl text-base font-bold">{t('network.next')}</button>)}
         </>
       )}
@@ -780,6 +823,11 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
             </div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
               {order.teeth && <><dt className="text-ink-muted">{t('network.teeth')}</dt><dd>{teethLabel(order.teeth)}</dd></>}
+              {v2 && summary.implants.length > 0 && <><dt className="text-ink-muted">{t('network.implants')}</dt><dd>{summary.implants.join(', ')}</dd></>}
+              {v2 && summary.pontics.length > 0 && <><dt className="text-ink-muted">{t('network.pontics')}</dt><dd>{summary.pontics.join(', ')}</dd></>}
+              {v2 && summary.implants.length > 0 && (abutmentAll.trim() || Object.values(abutmentTeeth).some(v => v.trim())) && (
+                <><dt className="text-ink-muted">{t('network.abutment')}</dt><dd className="break-words">{abutmentText(summary.implants, abutmentAll, abutmentTeeth)}</dd></>
+              )}
               <dt className="text-ink-muted">{t('network.patientRef')}</dt><dd className="break-words">{order.patient_ref}</dd>
               {order.shade && <><dt className="text-ink-muted">{t('network.shade')}</dt><dd>{order.shade}</dd></>}
               {order.due && <><dt className="text-ink-muted">{t('network.due')}</dt><dd>{format(new Date(order.due), 'd MMM yyyy', { locale: dateLocale })}</dd></>}
@@ -803,30 +851,43 @@ function NewOrder({ api, clinicId, clinicName, prices, withClinicStep, onLeave, 
 const ORDER_TOOTH_HEX = '#0a7f8a'
 
 /**
- * Teeth on the same chart as Wivo's new-job form (components/teeth/ToothPicker):
- * tap a tooth, or press and sweep across a row (16 → 26 too) to take or let go
- * of several at once; a sweep that starts on a tooth does not scroll the page.
- * Each tap or sweep is one change, and Undo takes it back.
+ * Teeth on the same chart as Wivo's new-job form (components/teeth/ToothPicker),
+ * with the same implant marking: a "+" over each chosen tooth, the Implants
+ * mode in the toolbar (tap or sweep), and, for work built on implants, its
+ * teeth marked at once (a bridge's pontics can then be unmarked). Tap a tooth
+ * or press and sweep across a row (16 → 26 too); a sweep that starts on a
+ * tooth does not scroll the page. Each tap or sweep is one change; Undo.
  */
-function TeethPicker({ value, arch, workType, onChange }: { value: string; arch: boolean; workType: string; onChange: (teeth: string) => void }) {
-  const [history, setHistory] = useState<string[]>([])
-  const change = (next: string) => {
-    if (next === value) return
-    setHistory(h => [...h.slice(-49), value])
-    onChange(next)
+function TeethPicker({ value, implants, arch, workType, canMarkImplants, autoImplants, onChange }: {
+  value: string; implants: number[]; arch: boolean; workType: string
+  /** The clinic takes order v2 (sql/141). */
+  canMarkImplants: boolean
+  /** Work built on implants, tooth by tooth: a tooth picked is an implant at once. */
+  autoImplants: boolean
+  onChange: (teeth: string, implants: number[]) => void
+}) {
+  const [history, setHistory] = useState<{ teeth: string; implants: number[] }[]>([])
+  const [markMode, setMarkMode] = useState<'implant' | null>(null)
+  const current = parseTeeth(value)
+  const change = (nextTeeth: string, nextImplants: number[]) => {
+    if (nextTeeth === value && formatTeeth(nextImplants) === formatTeeth(implants)) return
+    setHistory(h => [...h.slice(-49), { teeth: value, implants }])
+    onChange(nextTeeth, nextImplants)
   }
+  const setTeeth = (next: number[]) =>
+    change(formatTeeth(next), withAutoImplants(current, next, implants, autoImplants))
+  const setMarks = (next: number[]) => change(value, parseTeeth(formatTeeth(next.filter(t => current.includes(t)))))
   const undo = () => {
     const last = history[history.length - 1]
-    if (last === undefined) return
+    if (!last) return
     setHistory(h => h.slice(0, -1))
-    onChange(last)
+    onChange(last.teeth, last.implants)
   }
-  const current = parseTeeth(value)
   const wholeArch = (teeth: readonly number[]) => {
     const all = teeth.every(n => current.includes(n))
-    change(formatTeeth(applyPaint(current, [...teeth], all ? 'remove' : 'add')))
+    setTeeth(applyPaint(current, [...teeth], all ? 'remove' : 'add'))
   }
-  const items = [{ id: 'order', too: workType, hambad: value }]
+  const items = [{ id: 'order', too: workType, hambad: value, ...(implants.length ? { implantaadid: formatTeeth(implants) } : {}) }]
   return (
     <div className="card space-y-2 rounded-2xl p-3">
       <div className="flex items-center justify-between gap-2">
@@ -843,18 +904,58 @@ function TeethPicker({ value, arch, workType, onChange }: { value: string; arch:
         items={items}
         activeItemId="order"
         colorMap={{ [workType]: ORDER_TOOTH_HEX }}
-        onToggleTooth={tooth => change(formatTeeth(applyPaint(current, [tooth], current.includes(tooth) ? 'remove' : 'add')))}
-        onPaintTeeth={(teeth, paint) => change(formatTeeth(applyPaint(current, teeth, paint)))}
-        toolbar={
-          <button type="button" data-chrome="chart" onClick={undo} disabled={history.length === 0}
-            className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-ink-faint/30 bg-bg-card px-2.5 text-xs font-semibold text-ink-soft disabled:opacity-40">
-            <Undo2 size={14} aria-hidden="true" /> {t('teeth.undo')}
-          </button>
-        }
+        onToggleTooth={tooth => setTeeth(applyPaint(current, [tooth], current.includes(tooth) ? 'remove' : 'add'))}
+        onPaintTeeth={(teeth, paint) => setTeeth(applyPaint(current, teeth, paint))}
+        onToggleImplant={canMarkImplants ? tooth => setMarks(applyPaint(implants, [tooth], implants.includes(tooth) ? 'remove' : 'add')) : undefined}
+        onPaintImplants={canMarkImplants ? (teeth, on) => setMarks(applyPaint(implants, teeth, on ? 'add' : 'remove')) : undefined}
+        implantButtons={canMarkImplants}
+        markMode={markMode}
         externalControls
+        toolbar={
+          <>
+            {canMarkImplants && (
+              <button type="button" data-chrome="chart" aria-pressed={markMode === 'implant'} disabled={current.length === 0}
+                onClick={() => setMarkMode(m => (m === 'implant' ? null : 'implant'))}
+                className={`inline-flex min-h-9 items-center gap-1 rounded-lg border px-2.5 text-xs font-semibold disabled:opacity-40 ${markMode === 'implant' ? 'border-slate-900 bg-slate-900 text-white' : 'border-ink-faint/30 bg-bg-card text-ink-soft'}`}>
+                <Bolt size={14} aria-hidden="true" /> {t('jobDetail.implants')}
+              </button>
+            )}
+            <button type="button" data-chrome="chart" onClick={undo} disabled={history.length === 0}
+              className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-ink-faint/30 bg-bg-card px-2.5 text-xs font-semibold text-ink-soft disabled:opacity-40">
+              <Undo2 size={14} aria-hidden="true" /> {t('teeth.undo')}
+            </button>
+          </>
+        }
       />
     </div>
   )
+}
+
+/** "12 teeth · 4 implants (15, 12, 22, 25) · 2 pontics (13, 12)", in the new-job form's words. */
+function ImplantSummaryLine({ summary }: { summary: { teeth: number; implants: number[]; pontics: number[] } }) {
+  const list = (xs: number[]) => xs.join(', ')
+  const parts = [teethCountLabel(summary.teeth)]
+  if (summary.implants.length > 0) {
+    parts.push(summary.implants.length === 1
+      ? t('wizard.summaryImplant1', { teeth: list(summary.implants) })
+      : t('wizard.summaryImplants', { n: summary.implants.length, teeth: list(summary.implants) }))
+  }
+  if (summary.pontics.length > 0) {
+    parts.push(summary.pontics.length === 1
+      ? t('wizard.summaryPontic1', { teeth: list(summary.pontics) })
+      : t('wizard.summaryPontics', { n: summary.pontics.length, teeth: list(summary.pontics) }))
+  }
+  return <p className="text-sm font-semibold text-ink" aria-live="polite">{parts.join(' · ')}</p>
+}
+
+/** "MIS C1; 12: Straumann BL" for the Review step and the order. */
+function abutmentText(implants: readonly number[], all: string, byTooth: Record<string, string>): string {
+  const parts = all.trim() ? [all.trim()] : []
+  for (const tooth of implants) {
+    const own = (byTooth[String(tooth)] ?? '').trim()
+    if (own && own !== all.trim()) parts.push(`${tooth}: ${own}`)
+  }
+  return parts.join('; ')
 }
 
 /** The steps an order goes through as the client sees them; a date only where Wivo has one. */
@@ -892,6 +993,11 @@ function OrderScreen({ api, clinicId, clinicName, orderId, detail }: {
           <p className="text-base font-bold">{[p.work_type, ...options].join(' · ')}</p>
           <p className="text-sm text-ink-muted">{[clinicName, teeth && t('network.teethShort', { teeth }),
             p.due && t('network.dueShort', { date: format(new Date(p.due), 'dd.MM', { locale: dateLocale }) }), p.shade && t('network.shadeShort', { shade: p.shade })].filter(Boolean).join(' · ')}</p>
+          {/* Version 2 (sql/141): the implants and what sits on them. */}
+          {orderImplants(p) && <p className="text-sm text-ink-muted">{t('network.implants')}: {orderImplants(p).split(',').join(', ')}</p>}
+          {p.version === 2 && p.abutment && (
+            <p className="text-sm text-ink-muted">{t('network.abutment')}: {abutmentText(parseTeeth(p.implants), p.abutment.all ?? '', p.abutment.teeth)}</p>
+          )}
         </div>
       </div>
 

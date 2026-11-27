@@ -31,6 +31,7 @@ import { describeError } from '../Patients/errors'
 import { InfoButton } from '../ui/InfoButton'
 import { WorkTypeArt } from '../ui/WorkTypeArt'
 import { UNKNOWN_WORK_TYPE } from '@shared/pricing/workTypes'
+import { orderImplants } from '@shared/network/order'
 import { t, dateLocale } from '@/lib/i18n'
 
 const SEE_KEYS: (keyof CanSee)[] = ['status', 'messages', 'files', 'prices']
@@ -502,6 +503,11 @@ function OrderDialog({ order, client, canDecide, onClose }: { order: ClientOrder
           <Field label={t('orders.ref')} value={order.patient_ref} info={t('orders.refInfo')} />
           <Field label={t('orders.teeth')} value={teethLabel(p?.teeth ?? '') || '—'} />
           <Field label={t('orders.shade')} value={p?.shade || '—'} />
+          {/* Version 2 (sql/141): accepting makes the job with exactly these. */}
+          {p && orderImplants(p) && <Field label={t('orders.implants')} value={orderImplants(p).split(',').join(', ')} />}
+          {p?.version === 2 && p.abutment && (
+            <Field label={t('orders.abutment')} value={[p.abutment.all, ...Object.entries(p.abutment.teeth).map(([tooth, code]) => `${tooth}: ${code}`)].filter(Boolean).join('; ')} />
+          )}
           <Field label={t('orders.due')} value={order.due ? format(new Date(order.due), 'd MMM yyyy', { locale: dateLocale }) : '—'} />
           {optionNames.length > 0 && <Field label={t('orders.options')} value={optionNames.join(' · ')} />}
           {p?.notes && <div className="sm:col-span-2"><Field label={t('orders.notes')} value={p.notes} /></div>}

@@ -172,7 +172,7 @@ describe('orders', () => {
     expect(await serviceError(`select public.client_new_order($1, $2::jsonb)`, [s, order({ patient_ref: '' })])).toMatch(/patient reference/)
     expect(await serviceError(`select public.client_new_order($1, $2::jsonb)`, [s, order({ personal_code: '39001010000' })])).toMatch(/Unknown field/)
     expect(await serviceError(`select public.client_new_order($1, $2::jsonb)`, [s, order({ teeth: '99' })])).toMatch(/FDI/)
-    expect(await serviceError(`select public.client_new_order($1, $2::jsonb)`, [s, order({ version: 2 })])).toMatch(/Not a Wivo order/)
+    expect(await serviceError(`select public.client_new_order($1, $2::jsonb)`, [s, order({ version: 3 })])).toMatch(/Not a Wivo order/)
   })
 
   it('the catalogue shows prices only when the owner allows it', async () => {

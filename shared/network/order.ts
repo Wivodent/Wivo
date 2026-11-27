@@ -10,7 +10,10 @@
  */
 
 export const ORDER_FORMAT = 'wivo-order'
+/** Version 1, as every clinic before sql/141 accepts it. */
 export const ORDER_VERSION = 1
+/** The versions this code reads and writes. A clinic says the highest it takes in its catalogue (`order_version`). */
+export const ORDER_VERSIONS = [1, 2] as const
 
 export interface WivoOrderV1 {
   format: typeof ORDER_FORMAT
@@ -29,6 +32,31 @@ export interface WivoOrderV1 {
   notes: string | null
 }
 
+/** Screw / abutment references: one for every implant, and the implants that differ. As WorkItem.kruvi / kruvid. */
+export interface OrderAbutment {
+  all: string | null
+  /** FDI → code, for implants whose code differs from `all`. */
+  teeth: Record<string, string>
+}
+
+/**
+ * Version 2 (sql/141): version 1 plus where the implants are and what sits on
+ * them. A bridge's pontics are its teeth that are not implants; they are not
+ * a field of their own, so the two can never disagree.
+ */
+export interface WivoOrderV2 extends Omit<WivoOrderV1, 'version'> {
+  version: 2
+  /** FDI numbers among `teeth` that sit on an implant, comma-separated; "" for none. */
+  implants: string
+  abutment: OrderAbutment | null
+}
+
+export type WivoOrder = WivoOrderV1 | WivoOrderV2
+
+/** The implants an order names (none in version 1). */
+export const orderImplants = (o: Pick<WivoOrder, 'version'> & { implants?: string }): string =>
+  o.version === 2 ? o.implants ?? '' : ''
+
 /** A work type as the clinic shows it to a client (client_catalog). */
 export interface CatalogueItem {
   name: string
@@ -37,17 +65,30 @@ export interface CatalogueItem {
   /** Only when the owner lets this client see prices. */
   price?: number | null
   unit?: 'too' | 'hammas'
+  /**
+   * The type's own words, as the clinic set them (sql/141): the phone reads
+   * from them what the new-job form reads (shared/wizard/workTypeRules: built
+   * on implants, a bridge, a screw/abutment). Absent from a clinic before 141.
+   */
+  liik?: 'single' | 'bridge' | 'arch' | 'none' | null
+  hambaviis?: 'tooth' | 'arch' | 'none' | null
+  katalog?: string | null
+  match?: string[] | null
+  /** The highest order version this clinic takes (sql/141: 2). Absent: 1. */
+  order_version?: number
 }
 
-export const LIMITS = { workType: 120, teeth: 200, shade: 20, patientRef: 40, notes: 2000, optionId: 80, options: 20 } as const
+export const LIMITS = { workType: 120, teeth: 200, shade: 20, patientRef: 40, notes: 2000, optionId: 80, options: 20, abutment: 60 } as const
 
 const FDI = /^(?:[1-8][1-8])(?:,[1-8][1-8])*$/
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const OPTION_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/
-const KEYS = new Set(['format', 'version', 'work_type', 'teeth', 'options', 'shade', 'due', 'patient_ref', 'notes'])
+const KEYS_V1 = ['format', 'version', 'work_type', 'teeth', 'options', 'shade', 'due', 'patient_ref', 'notes']
+const KEYS: Record<number, Set<string>> = { 1: new Set(KEYS_V1), 2: new Set([...KEYS_V1, 'implants', 'abutment']) }
 
 export type OrderProblem =
   | 'format' | 'unknown_field' | 'work_type' | 'teeth' | 'options' | 'shade' | 'due' | 'patient_ref' | 'notes'
+  | 'implants' | 'abutment'
   | 'not_in_catalogue' | 'option_not_offered' | 'one_option_only'
 
 /** What is wrong with an order, or [] when it may be sent. With the catalogue, its choices are checked too. */
@@ -55,8 +96,23 @@ export function orderProblems(o: unknown, catalogue?: readonly CatalogueItem[], 
   if (!o || typeof o !== 'object' || Array.isArray(o)) return ['format']
   const x = o as Record<string, unknown>
   const out: OrderProblem[] = []
-  if (x.format !== ORDER_FORMAT || x.version !== ORDER_VERSION) out.push('format')
-  if (Object.keys(x).some(k => !KEYS.has(k))) out.push('unknown_field')
+  const keys = KEYS[x.version as number]
+  if (x.format !== ORDER_FORMAT || !keys) out.push('format')
+  if (Object.keys(x).some(k => !(keys ?? KEYS[1]).has(k))) out.push('unknown_field')
+  if (x.version === 2) {
+    const teeth = typeof x.teeth === 'string' ? x.teeth.split(',') : []
+    const implants = typeof x.implants === 'string' ? x.implants : null
+    const implantList = implants ? implants.split(',') : []
+    if (implants === null || (implants !== '' && !FDI.test(implants)) || implantList.some(t => !teeth.includes(t))) out.push('implants')
+    const a = x.abutment
+    const code = (v: unknown) => typeof v === 'string' && v.trim().length > 0 && v.length <= LIMITS.abutment
+    const abutmentOk = a === null || (!!a && typeof a === 'object' && !Array.isArray(a)
+      && Object.keys(a).every(k => k === 'all' || k === 'teeth')
+      && ((a as OrderAbutment).all === null || code((a as OrderAbutment).all))
+      && !!(a as OrderAbutment).teeth && typeof (a as OrderAbutment).teeth === 'object' && !Array.isArray((a as OrderAbutment).teeth)
+      && Object.entries((a as OrderAbutment).teeth).every(([k, v]) => implantList.includes(k) && code(v)))
+    if (!abutmentOk || (a && implantList.length === 0)) out.push('abutment')
+  }
   if (typeof x.work_type !== 'string' || !x.work_type.trim() || x.work_type.length > LIMITS.workType) out.push('work_type')
   if (typeof x.teeth !== 'string' || x.teeth.length > LIMITS.teeth || (x.teeth !== '' && !FDI.test(x.teeth))) out.push('teeth')
   const opts = x.options
@@ -86,7 +142,7 @@ export function orderProblems(o: unknown, catalogue?: readonly CatalogueItem[], 
   return [...new Set(out)]
 }
 
-/** A new, empty order, as the form starts it. */
+/** A new, empty order, as the form starts it (version 1; the form adds the implants when the clinic takes version 2). */
 export function emptyOrder(): WivoOrderV1 {
   return { format: ORDER_FORMAT, version: ORDER_VERSION, work_type: '', teeth: '', options: {}, shade: null, due: null, patient_ref: '', notes: null }
 }

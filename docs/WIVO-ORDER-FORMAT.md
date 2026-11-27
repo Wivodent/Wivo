@@ -1,4 +1,4 @@
-# "Wivo order" format, version 1
+# "Wivo order" format, versions 1 and 2
 
 What an outside client (a technician, a doctor, a clinic or a lab with a Wivo
 Network account) sends a clinic. Checked in three places that must agree:
@@ -46,6 +46,42 @@ signed upload link, and it is marked done (`client_file_done`). At most 30 per
 order. Their names are the client's; when the clinic accepts the order they
 become the job's files under the job's code.
 
+## Version 2: implants (sql/141)
+
+Version 1 and two more fields, both required in version 2:
+
+```json
+{
+  "format": "wivo-order",
+  "version": 2,
+  "work_type": "Implant bridge",
+  "teeth": "14,13,12",
+  "implants": "14,12",
+  "abutment": { "all": "MIS C1", "teeth": { "12": "Straumann BL" } },
+  "options": {}, "shade": "A2", "due": null, "patient_ref": "TF-DE-261127-001", "notes": null
+}
+```
+
+| Field | Type | Rule |
+|---|---|---|
+| `implants` | text | FDI numbers **among `teeth`** that sit on an implant, comma-separated; `""` for none |
+| `abutment` | object or `null` | `all`: the screw / abutment of every implant (text 1–60 or `null`); `teeth`: FDI → code (1–60) for implants whose code differs. Only with at least one implant |
+
+**Pontics** are a bridge's teeth that are not implants: not a field, so the
+two can never disagree. On the form, work built on implants (an implant crown
+or bridge, an abutment, an overdenture, a hybrid, All-on-4/5/6) marks a tooth
+picked as an implant at once, exactly as Wivo's new-job form; All-on-N asks
+where its N implants are and warns when the count differs.
+
+Accepting the order makes the job's work item with exactly these:
+`implantaadid` = `implants`, `kruvi` = `abutment.all`, `kruvid` =
+`abutment.teeth`.
+
+A clinic says it takes version 2 by `order_version: 2` on its catalogue
+entries (`client_catalog`, sql/141); a client sends version 2 only then, and
+version 1 to a clinic without it. Version 1 orders, old and new, stay valid
+everywhere and open as before.
+
 ## What the client sees back
 
 `client_orders` and `client_order_detail` give an order's status in four
@@ -63,5 +99,5 @@ words, and the reason if it was rejected:
 
 A new version is a new number. The clinic's database accepts only the
 versions it knows (today: 1); a client sends the highest version both sides
-know. Version 1 is never changed once a clinic has it: a new field is
-version 2.
+know. A version is never changed once a clinic has it: a new field is the
+next version (version 2 added `implants` and `abutment`).

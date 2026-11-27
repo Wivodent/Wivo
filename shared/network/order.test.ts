@@ -33,8 +33,30 @@ describe('Wivo order v1 (docs/WIVO-ORDER-FORMAT.md)', () => {
     expect(orderProblems(order({ teeth: '11, 21' }))).toContain('teeth')
     expect(orderProblems(order({ teeth: '99' }))).toContain('teeth')
     expect(orderProblems(order({ due: '2026-11-01' }), undefined, '2026-11-27')).toContain('due')
-    expect(orderProblems({ ...order(), version: 2 })).toContain('format')
+    expect(orderProblems({ ...order(), version: 3 })).toContain('format')
     expect(orderProblems(null)).toEqual(['format'])
+  })
+})
+
+describe('Wivo order v2: implants and screw / abutment (sql/141)', () => {
+  const v2 = (over: Record<string, unknown> = {}) => ({ ...order({ teeth: '14,13,12' }), version: 2, implants: '14,12', abutment: null, ...over })
+  it('implants among the teeth; the pontics of a bridge are the rest', () => {
+    expect(orderProblems(v2())).toEqual([])
+    expect(orderProblems(v2({ implants: '' }))).toEqual([])
+    expect(orderProblems(v2({ implants: '15' }))).toContain('implants')
+    expect(orderProblems(v2({ implants: '14, 12' }))).toContain('implants')
+    expect(orderProblems({ ...v2(), implants: undefined })).toContain('implants')
+  })
+  it('a screw / abutment for every implant and for the ones that differ, only with implants', () => {
+    expect(orderProblems(v2({ abutment: { all: 'MIS C1', teeth: { 12: 'Straumann BL' } } }))).toEqual([])
+    expect(orderProblems(v2({ abutment: { all: null, teeth: { 13: 'X' } } }))).toContain('abutment')
+    expect(orderProblems(v2({ abutment: { all: 'x'.repeat(61), teeth: {} } }))).toContain('abutment')
+    expect(orderProblems(v2({ abutment: { all: 'MIS', teeth: {}, extra: 1 } }))).toContain('abutment')
+    expect(orderProblems(v2({ implants: '', abutment: { all: 'MIS', teeth: {} } }))).toContain('abutment')
+  })
+  it('version 1 has no such fields: an old order stays valid, a v1 order with them is refused', () => {
+    expect(orderProblems(order())).toEqual([])
+    expect(orderProblems({ ...order(), implants: '11' })).toContain('unknown_field')
   })
 })
 
