@@ -153,6 +153,25 @@ export function myTurnIn(lines: readonly StageLine[], me: string | null | undefi
 
 export const jobStagesKey = (jobId: string) => ['job_stages', jobId] as const
 
+/** A job's stages, with their people, read now. Empty for a database without them. */
+export async function fetchJobStages(jobId: string): Promise<JobStage[]> {
+  const { data, error } = await supabase.from('job_stage').select(SELECT).eq('job_id', jobId).order('position')
+  if (error) {
+    if (jobStagesUnavailable(error)) return []
+    throw error
+  }
+  return jobStagesFromRows(data as unknown as RawJobStage[])
+}
+
+/**
+ * The stages a job may not be dropped into on the board: those switched off
+ * on it, except the one it is at (dropping it back where it came from is no
+ * move at all). Pure.
+ */
+export function closedStagesFor(stages: readonly JobStage[], currentKey: string): Set<string> {
+  return new Set(stages.filter(s => s.skipped && s.stageKey !== currentKey).map(s => s.stageKey))
+}
+
 /** A job's stages, with their people. Empty for a database without them. */
 export function useJobStages(jobId: string | null | undefined) {
   // Who is on a stage, changed on another computer, shows at once (2.2.4);
@@ -162,14 +181,7 @@ export function useJobStages(jobId: string | null | undefined) {
     queryKey: jobStagesKey(jobId ?? ''),
     enabled: !!jobId,
     staleTime: 15_000,
-    queryFn: async () => {
-      const { data, error } = await supabase.from('job_stage').select(SELECT).eq('job_id', jobId!).order('position')
-      if (error) {
-        if (jobStagesUnavailable(error)) return []
-        throw error
-      }
-      return jobStagesFromRows(data as unknown as RawJobStage[])
-    },
+    queryFn: () => fetchJobStages(jobId!),
   })
 }
 

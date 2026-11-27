@@ -19,6 +19,10 @@ interface BoardColumnProps {
   onStageChange?: (jobId: string, stage: StageKey) => void
   onRevisionStageChange?: (jobId: string, revId: string, stage: StageKey) => void
   onRevisionClick?: (job: Job, revId: string) => void
+  /** A job card was picked up (its id) or put down (null): the board greys the stages it may not go to. */
+  onJobDrag?: (jobId: string | null) => void
+  /** The job being dragged has this stage switched off: greyed, and nothing drops here. */
+  closed?: boolean
   wide?: boolean
   totalCount?: number
   // Valmis week navigation
@@ -31,7 +35,7 @@ interface BoardColumnProps {
 
 export function BoardColumn({
   stage, entries, onJobClick, onStageChange,
-  onRevisionStageChange, onRevisionClick,
+  onRevisionStageChange, onRevisionClick, onJobDrag, closed = false,
   wide, totalCount, weekLabel, isCurrentWeek, onPrevWeek, onNextWeek, onThisWeek,
 }: BoardColumnProps) {
   const { doneStageKey } = usePipeline()
@@ -54,15 +58,23 @@ export function BoardColumn({
     if (revId) e.dataTransfer.setData('revId', revId)
     e.dataTransfer.effectAllowed = 'move'
     setDraggingId(jobId)
+    // A revision moves by its own stage, which no job stage switches off.
+    if (!revId) onJobDrag?.(jobId)
     playSound('ui-pickup')
   }
-  const handleDragEnd = () => setDraggingId(null)
-  const handleDragOver  = (e: React.DragEvent) => { if (!onStageChange) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setIsDragOver(true) }
+  const handleDragEnd = () => { setDraggingId(null); onJobDrag?.(null) }
+  // A closed column does not accept the drop: without preventDefault the
+  // browser shows "no drop" and never fires drop here.
+  const handleDragOver  = (e: React.DragEvent) => { if (!onStageChange || closed) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setIsDragOver(true) }
   const handleDragLeave = (e: React.DragEvent) => { if (!columnRef.current?.contains(e.relatedTarget as Node)) setIsDragOver(false) }
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
+    // The card moves to another column and unmounts, so its own dragend may
+    // never come: the board stops greying here.
+    onJobDrag?.(null)
     const id = e.dataTransfer.getData('jobId')
+    if (closed && !e.dataTransfer.getData('revId')) return
     const revId = e.dataTransfer.getData('revId')
     if (!id) return
     playSound('ui-drop')
@@ -79,7 +91,8 @@ export function BoardColumn({
   const jobCount = entries.filter(e => e.type === 'job').length
 
   return (
-    <div className={`flex flex-col flex-shrink-0 ${wide ? 'min-w-[500px] w-[500px]' : 'min-w-[240px] w-[240px]'}`}>
+    <div className={`flex flex-col flex-shrink-0 transition-opacity ${closed ? 'opacity-40 grayscale' : ''} ${wide ? 'min-w-[500px] w-[500px]' : 'min-w-[240px] w-[240px]'}`}
+      aria-disabled={closed || undefined}>
       {/* ── Column header ── */}
       {/* Accent bar from stage.hex, not the legacy Tailwind border class — a
           user-picked colour can never be a class, so the class field goes stale
@@ -135,8 +148,13 @@ export function BoardColumn({
         onDrop={handleDrop}
         className={`flex-1 min-h-[200px] p-2 rounded-b-card transition-colors duration-150
           ${wide ? 'grid grid-cols-2 gap-2 content-start' : 'flex flex-col gap-2'}
-          ${isDragOver ? 'bg-accent-light ring-2 ring-accent/30' : 'bg-bg-sidebar/60'}`}
+          ${closed ? 'cursor-not-allowed bg-bg-sidebar/30' : isDragOver ? 'bg-accent-light ring-2 ring-accent/30' : 'bg-bg-sidebar/60'}`}
       >
+        {closed && (
+          <p className={`rounded-lg border border-dashed border-ink-faint/40 px-2 py-3 text-center text-xs font-medium text-ink-muted ${wide ? 'col-span-2' : ''}`}>
+            {t('workflow.offForThisJob')}
+          </p>
+        )}
         <AnimatePresence mode="popLayout">
           {entries.map(entry => {
             if (entry.type === 'rev') {

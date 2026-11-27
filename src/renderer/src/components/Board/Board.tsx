@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
 import { startOfWeek, endOfWeek, addWeeks, parseISO, isWithinInterval, format } from 'date-fns'
 import type { Job, StageKey, Revision } from '../../types/job'
@@ -8,6 +9,7 @@ import { usePipeline } from '../../context/PipelineContext'
 import { BoardColumn } from './BoardColumn'
 import { t, dateLocale } from '@/lib/i18n'
 import { useJobActivityLive } from '../../hooks/useJobActivity'
+import { closedStagesFor, fetchJobStages, jobStagesKey } from '../../lib/jobStages'
 
 // ── Discriminated union for board entries ─────────────────────────────────────
 export type BoardEntry =
@@ -31,6 +33,21 @@ export function Board({
   useJobActivityLive()
   const [weekOffset, setWeekOffset] = useState(0)
   const { stages, doneStageKey } = usePipeline()
+  const qc = useQueryClient()
+  // The stages the job being dragged has switched off: greyed, nothing drops
+  // there (the database would refuse it). Read when the card is picked up;
+  // a slow answer for a card already put down is dropped.
+  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set())
+  const dragging = useRef<string | null>(null)
+  const onJobDrag = (jobId: string | null) => {
+    dragging.current = jobId
+    setClosed(new Set())
+    const job = jobId ? jobs.find(j => j.id === jobId) : null
+    if (!jobId || !job) return
+    void qc.fetchQuery({ queryKey: jobStagesKey(jobId), queryFn: () => fetchJobStages(jobId), staleTime: 15_000 })
+      .then(list => { if (dragging.current === jobId) setClosed(closedStagesFor(list, job.status)) })
+      .catch(() => { /* not known: the database still says no, and why (lib/stageMoveError) */ })
+  }
 
   if (loading) {
     return (
@@ -117,6 +134,8 @@ export function Board({
           onStageChange={onStageChange}
           onRevisionStageChange={onRevisionStageChange}
           onRevisionClick={onRevisionClick}
+          onJobDrag={onStageChange ? onJobDrag : undefined}
+          closed={closed.has(stage.key)}
           wide={stage.key === doneStageKey}
           totalCount={stage.key === doneStageKey ? totalDone : undefined}
           weekLabel={stage.key === doneStageKey ? weekLabel : undefined}

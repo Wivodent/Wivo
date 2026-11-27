@@ -3,6 +3,7 @@
 import { isConflict } from '@shared/concurrency/guardedSave'
 import { t } from '@/lib/i18n'
 import { isUpdateRequired } from '../../lib/appVersion'
+import { REFUSAL_TEXT, refusalOf } from '../../lib/refusal'
 
 
 export function describeError(err: unknown): string {
@@ -26,10 +27,11 @@ export function describeError(err: unknown): string {
     return t('stock.expiredCannotUse')
   }
   // Refused by the database's rules: since sql/102 that is what a missing
-  // permission looks like. Never "run this SQL": nobody using Wivo should.
-  if (e?.code === '42501' || /row-level security/i.test(msg)) {
-    return t('app.noPermission')
-  }
+  // permission looks like, but the same code also says "the job is gone", "the
+  // stage rules don't allow it", "sign in again" (lib/refusal). Never "run this
+  // SQL": nobody using Wivo should.
+  const refusal = refusalOf(err)
+  if (refusal) return t(REFUSAL_TEXT[refusal])
   // A column, table, function or relationship this database does not have
   // (yet): a neutral message; the technical one stays for support.
   if (['PGRST204', '42703', '42P01', 'PGRST200', 'PGRST202', '42883'].includes(e?.code ?? '')

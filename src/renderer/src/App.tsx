@@ -52,6 +52,8 @@ import { UpdateProvider } from './providers/UpdateProvider'
 import type { Job, JobInput, StageKey } from './types/job'
 import type { ViewMode } from './types/view'
 import { describeError } from './components/Patients/errors'
+import { explainStageMove } from './lib/stageMoveError'
+import { setJobStageSkipped } from './lib/jobStages'
 import { t } from '@/lib/i18n'
 
 const queryClient = new QueryClient({
@@ -83,7 +85,10 @@ function AppContent() {
   // Which settings tab to open; `n` remounts the page when it is already open.
   // `workType`: the Prices card to show (the new job's "Not a bridge? Change type").
   // A stage move on the board that was refused or failed: said at the top.
-  const [moveError, setMoveError] = useState<string | null>(null)
+  // Why the last move on the board did not happen. `turnOn`: the target is
+  // switched off on that job and this person may switch it back on.
+  const [moveError, setMoveError] = useState<{ message: string; turnOn?: { jobId: string; stage: StageKey } } | null>(null)
+  const [turningOn, setTurningOn] = useState(false)
   const [settingsAt, setSettingsAt] = useState<{ group?: GroupKey; workType?: string; n: number }>({ n: 0 })
   // Only for that one opening: Settings from the sidebar opens where it always does.
   useEffect(() => { if (view !== 'settings') setSettingsAt(a => (a.group ? { n: a.n } : a)) }, [view])
@@ -244,11 +249,31 @@ function AppContent() {
           ...(becomingDone ? { valmis_kuupaev: new Date().toISOString().slice(0, 10) } : {}),
         })
       } catch (e) {
-        // The card goes back to where it was; the reason is said, not swallowed.
-        setMoveError(describeError(e))
+        // The card goes back to where it was; the reason is said, not swallowed,
+        // and for the move tried: a stage switched off on the job is not "no
+        // permission" (lib/stageMoveError).
+        const why = await explainStageMove(e, jobId, stage)
+        setMoveError({ message: why.message, ...(why.mayTurnOn ? { turnOn: { jobId, stage } } : {}) })
       }
     },
     [updateJob, jobs, doneStageKey]
+  )
+
+  // "Turn on and move": the stage back on for this job, then the same move.
+  const turnOnAndMove = useCallback(
+    async (jobId: string, stage: StageKey) => {
+      setTurningOn(true)
+      try {
+        await setJobStageSkipped(jobId, stage, false)
+        void queryClient.invalidateQueries({ queryKey: ['job_stages', jobId] })
+        await handleStageChange(jobId, stage)
+      } catch (e) {
+        setMoveError({ message: describeError(e) })
+      } finally {
+        setTurningOn(false)
+      }
+    },
+    [handleStageChange]
   )
 
   const moveRevisionStage = useCallback(
@@ -283,7 +308,7 @@ function AppContent() {
 
   const handleRevisionStageChange = useCallback(
     async (jobId: string, revId: string, stage: StageKey) => {
-      try { await moveRevisionStage(jobId, revId, stage) } catch (e) { setMoveError(describeError(e)) }
+      try { await moveRevisionStage(jobId, revId, stage) } catch (e) { setMoveError({ message: describeError(e) }) }
     },
     [moveRevisionStage]
   )
@@ -332,13 +357,21 @@ function AppContent() {
   const handleBulkStatusChange = useCallback(
     async (ids: string[], status: StageKey) => {
       const stamp = status === doneStageKey ? new Date().toISOString().slice(0, 10) : null
-      await Promise.all(ids.map(id => {
+      setMoveError(null)
+      const results = await Promise.allSettled(ids.map(id => {
         const job = jobs.find(j => j.id === id)
         return updateJob.mutateAsync({
           id, status,
           ...(stamp && job?.valmis_kuupaev == null ? { valmis_kuupaev: stamp } : {}),
         })
       }))
+      // A refused job used to be an unhandled rejection: nothing on screen said
+      // that some did not move, nor why. The others are moved.
+      const failed = results.flatMap((r, i) => r.status === 'rejected' ? [{ id: ids[i], reason: r.reason as unknown }] : [])
+      if (failed.length > 0) {
+        const why = await explainStageMove(failed[0].reason, failed[0].id, status)
+        setMoveError({ message: ids.length === 1 ? why.message : t('app.someNotMoved', { n: failed.length, total: ids.length, e: why.message }) })
+      }
     },
     [updateJob, jobs, doneStageKey]
   )
@@ -455,7 +488,14 @@ function AppContent() {
         <LicenceUpdatedBanner onOpenSettings={() => { setSettingsAt(a => ({ group: 'litsents', n: a.n + 1 })); setView('settings') }} />
         {moveError && (
           <div role="alert" className="mx-4 mt-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2 flex items-center gap-3">
-            <span className="flex-1 text-sm text-rose-600">{t('app.stageNotMoved', { e: moveError })}</span>
+            <span className="flex-1 text-sm text-rose-600">{t('app.stageNotMoved', { e: moveError.message })}</span>
+            {moveError.turnOn && (
+              <button type="button" disabled={turningOn}
+                onClick={() => { const to = moveError.turnOn; if (to) void turnOnAndMove(to.jobId, to.stage) }}
+                className="btn-primary min-h-[40px] px-4 text-sm font-semibold disabled:opacity-50">
+                {t('workflow.turnOnAndMove')}
+              </button>
+            )}
             <button type="button" onClick={() => setMoveError(null)} className="text-sm font-semibold text-ink-soft hover:text-ink">{t('app.dismiss')}</button>
           </div>
         )}

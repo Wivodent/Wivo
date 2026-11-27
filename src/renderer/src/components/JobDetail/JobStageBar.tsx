@@ -21,6 +21,7 @@ import {
   setJobStageSkipped, skipStage, startJobStage, stageLines, visibleStageLines, useCanMove, useJobStages, useRefreshJobStages,
 } from '../../lib/jobStages'
 import { StageBar, type StageBarItem } from './StageBar'
+import { explainStageMove } from '../../lib/stageMoveError'
 import { stagePeopleOf } from '@/lib/stageAssign'
 import { t } from '@/lib/i18n'
 
@@ -36,6 +37,9 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
   const { data: stages = [] } = useJobStages(job.id)
   const refresh = useRefreshJobStages()
   const [error, setError] = useState<string | null>(null)
+  // The move refused because its stage is switched off on this job, for
+  // someone who may switch it back on: "Turn on and move".
+  const [turnOn, setTurnOn] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
   const [showSkipped, setShowSkipped] = useState(false)
@@ -88,16 +92,28 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
       || (l.state === 'current' && !l.skipped && !finished && next !== null && canNext.data === true),
   }))
   const phone = size === 'lg'
-  const goNext = () => { if (next) void run(() => moveJobStage(job.id, next.stageKey)) }
-  const goBack = () => { if (previous) void run(() => moveJobStage(job.id, previous.stageKey)) }
+  const goNext = () => { if (next) void moveTo(next.stageKey) }
+  const goBack = () => { if (previous) void moveTo(previous.stageKey) }
 
-  async function run(action: () => Promise<void>) {
+  // A move says why it was refused for that move (lib/stageMoveError): a stage
+  // switched off on the job (the bar is behind another computer's skip) is
+  // not "no permission".
+  function moveTo(to: string) {
+    return run(() => moveJobStage(job.id, to), async e => {
+      const why = await explainStageMove(e, job.id, to)
+      if (why.mayTurnOn) setTurnOn(to)
+      return why.message
+    })
+  }
+
+  async function run(action: () => Promise<void>, explain: (e: unknown) => Promise<string> = async e => describeError(e)) {
     setError(null)
+    setTurnOn(null)
     setBusy(true)
     try {
       await action()
     } catch (e) {
-      setError(describeError(e))
+      setError(await explain(e))
     } finally {
       setBusy(false)
       refresh(job.id)
@@ -179,6 +195,13 @@ export function JobStageBar({ job, size = 'md', canAddStage = true }: {
         />
       )}
       {error && <p role="alert" className="text-sm text-rose-500">{error}</p>}
+      {turnOn && (
+        <button type="button" disabled={busy}
+          onClick={() => { const to = turnOn; void run(async () => { await setJobStageSkipped(job.id, to, false); await moveJobStage(job.id, to) }) }}
+          className={`btn-primary font-semibold ${phone ? 'min-h-[48px] w-full text-base' : 'min-h-[36px] px-4 text-sm'}`}>
+          {t('workflow.turnOnAndMove')}
+        </button>
+      )}
     </section>
   )
 }

@@ -106,3 +106,13 @@ describe('the stage bar hides skipped stages (2.2.7)', () => {
     expect(visibleStageLines(stageLines(stages, 'a'), true).map(l => l.stageKey)).toEqual(['a', 'b', 'c', 'd'])
   })
 })
+
+describe('the board closes the stages a dragged job has switched off', () => {
+  it('every skipped stage but the one the job is at', async () => {
+    const { closedStagesFor } = await import('./jobStages')
+    const stages = [st('a', 0), st('b', 1, { skipped: true }), st('c', 2, { skipped: true }), st('d', 3)]
+    expect([...closedStagesFor(stages, 'a')].sort()).toEqual(['b', 'c'])
+    expect([...closedStagesFor(stages, 'c')]).toEqual(['b'])
+    expect(closedStagesFor([], 'a').size).toBe(0)
+  })
+})
