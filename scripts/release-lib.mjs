@@ -72,6 +72,38 @@ export function certificatePayload(token) {
   return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
 }
 
+/** A hotfix branch, named after the version it releases: hotfix-2.2.6. */
+export const HOTFIX_BRANCH = /^hotfix-(\d+\.\d+\.\d+)$/
+
+/**
+ * Null when a clinic's release may be built from this branch and tree; else
+ * why not (docs/RELEASE.md §1, "Which branch").
+ *
+ * `testing`, as always: a clean tree. A hotfix branch `hotfix-X.Y.Z` too, but
+ * only when (1) X.Y.Z is package.json's version, (2) the branch contains the
+ * commit the published release was built from, (3) the version is above the
+ * published one, (4) the tree is clean. A hotfix exists to change a published
+ * release a little, so without a published release (or without knowing its
+ * commit) there is nothing for it to build on, and it is refused.
+ *
+ * `publishedCommit`: from the published version's own release.json
+ * (releases/<clinic>/<version>/), as the build step wrote it; the signed
+ * statement does not carry a commit. `containsPublished`: `git merge-base
+ * --is-ancestor <publishedCommit> HEAD`.
+ */
+export function releaseBranchProblem({ branch, version, clean, published, publishedCommit, containsPublished, compareVersions }) {
+  if (!clean) return 'the working tree has changes; commit them first, so the release is a known commit'
+  if (branch === 'testing') return null
+  const m = HOTFIX_BRANCH.exec(branch ?? '')
+  if (!m) return `the branch is "${branch}"; a clinic's releases are built from testing, or from a hotfix branch hotfix-X.Y.Z (docs/RELEASE.md §1)`
+  if (m[1] !== version) return `the branch is ${branch} but package.json says ${version}; a hotfix branch is named after the version it releases (rename the branch or the version)`
+  if (!published) return `a hotfix builds on a published release, and nothing is published yet; build the first release from testing`
+  if (compareVersions(version, published) <= 0) return `${branch} releases ${version}, but ${published} is already published; a hotfix must be above it`
+  if (!publishedCommit) return `cannot tell which commit ${published} was built from (its release.json is missing or names no commit); a hotfix must start from that commit, so it is refused`
+  if (!containsPublished) return `${branch} does not contain ${publishedCommit.slice(0, 10)}, the commit ${published} was built from; start the hotfix from that commit (git switch -c ${branch} ${publishedCommit.slice(0, 10)})`
+  return null
+}
+
 /** Null when `next` may be published after `published` (a version, or nothing yet); else why not. */
 export function versionProblem(published, next, compareVersions) {
   if (!published) return null

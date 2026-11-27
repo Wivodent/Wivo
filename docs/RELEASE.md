@@ -12,7 +12,7 @@ Background: docs/ARCHITECTURE-INSTANCES.md §5a, 5e, 5g (phase 1, slices 1 and 9
 ## 1. The path of one update
 
 ```
-Kevin's Windows machine (clean `testing`)
+Kevin's Windows machine (clean `testing`, or a hotfix branch: "Which branch" below)
   npm run release -- --clinic dentiks
                                   build the installer with the clinic's project, phone
                                   address and feed (clinics/dentiks.json), write
@@ -48,6 +48,40 @@ repository. The main process points electron-updater at that address
 installer's `app-update.yml` says the same (scripts/electron-builder.clinic.cjs),
 and the build checks it. A clinic's build without a repository has no source, so
 it refuses every update.
+
+### Which branch (from 2.2.6)
+
+`npm run release` builds from a clean `testing`, as always, **or from a hotfix
+branch** `hotfix-X.Y.Z`. A hotfix branch is a small fix on top of what the
+clinic already runs, without anything else from `testing`. The build step
+allows it only when all four hold, and otherwise refuses and says which one
+failed (scripts/release-lib.mjs `releaseBranchProblem`, tested in
+scripts/releaseBranch.test.ts):
+
+1. **The branch name is package.json's version.** `hotfix-2.2.6` releases
+   2.2.6, nothing else.
+2. **The branch contains the commit of the published release.** That commit
+   comes from the published version's own `releases/<clinic>/<version>/release.json`
+   (the signed statement carries none). The check is `git merge-base
+   --is-ancestor <that commit> HEAD`. If that release.json is missing on this
+   machine, the build refuses, because it can't tell where the hotfix must start.
+3. **The version is above the published one.** With nothing published there is
+   nothing to fix: the first release comes from `testing`.
+4. **The working tree is clean.**
+
+Starting one, from the commit the clinic runs (2.2.5: `c5f0752`):
+
+```powershell
+git switch -c hotfix-2.2.6 c5f0752
+# the fix, then npm version 2.2.6 --no-git-tag-version, commit
+npm run release -- --clinic dentiks
+```
+
+release.json records the branch, and the publish step's phone instruction
+names it: push the hotfix branch, then point the clinic's phone branch at the
+release commit. Afterwards the fix goes onto `testing` too (cherry-pick), so
+the next release from `testing` still has it. A hotfix carries **no
+migration**: anything with a migration is released from `testing`.
 
 On the command line, PowerShell may drop the `--` of `npm run release -- --clinic
 dentiks`. The options still arrive, because npm passes them on as
