@@ -14,8 +14,13 @@ const ROOT = execSync('git rev-parse --show-toplevel').toString().trim()
 function invokedByTheApp(): string[] {
   // execFileSync, no shell: cmd.exe on Windows keeps single quotes in a pathspec and matches nothing.
   const out = execFileSync('git', ['grep', '-h', '-o', "functions.invoke('[a-z-]*'", '--', 'src/renderer/src'], { cwd: ROOT }).toString()
-  return [...new Set(out.trim().split('\n').map(l => /'([a-z-]+)'/.exec(l)![1]))].sort()
+  return [...new Set(out.trim().split('\n').map(l => /'([a-z-]+)'/.exec(l)![1]))]
+    // The Wivo Network's own function (network/functions, its own project), called by
+    // the phone app's Network mode through the Network's client (lib/network): below.
+    .filter(name => !NETWORK_FUNCTIONS.includes(name)).sort()
 }
+
+const NETWORK_FUNCTIONS = ['network-token']
 
 describe('the version headers and the Edge Functions', () => {
   it('allows both headers', () => {
@@ -35,6 +40,11 @@ describe('the version headers and the Edge Functions', () => {
     const src = readFileSync(join(ROOT, 'supabase/functions', name, 'index.ts'), 'utf8')
     expect(src).toContain("'Access-Control-Allow-Headers': APP_ALLOWED_HEADERS")
     expect(src).toContain('callerVersionHeaders(req)')
+  })
+
+  it.each(NETWORK_FUNCTIONS)('%s (the Network project) lets the version header through', name => {
+    const src = readFileSync(join(ROOT, 'network/functions', name, 'index.ts'), 'utf8')
+    expect(src).toMatch(/'Access-Control-Allow-Headers': '[^']*x-wivo-version/)
   })
 
   it('the app calls exactly these functions today', () => {
