@@ -16,7 +16,8 @@ import { useAuth } from '../../context/AuthContext'
 import { useSettings } from '../../stores/useSettings'
 import { useCustomers } from '../../hooks/useCustomers'
 import { clinicCountry } from '../../lib/country'
-import { prefillLetter, sendInvoiceByEmail, SendInvoiceError, type SendErrorCode } from '../../lib/invoiceSend'
+import { prefillLetter, renumberLetter, sendInvoiceByEmail, SendInvoiceError, type SendErrorCode, type Letter } from '../../lib/invoiceSend'
+import { isDraftNumber } from '../../types/invoice'
 import { docLanguageFor } from '@shared/billing/countryInvoice'
 import { splitAddresses, looksLikeEmail, HAND_SEND_MAX_RECIPIENTS } from '@shared/billing/sendGuard'
 import type { InvoiceFull } from '../../types/invoice'
@@ -41,6 +42,7 @@ export function sendErrorText(code: SendErrorCode): string {
     case 'saaja-vigane': return t('sendInvoice.errBadAddress')
     case 'liiga-palju-saajaid': return t('sendInvoice.errTooMany', { n: HAND_SEND_MAX_RECIPIENTS })
     case 'teema-puudub': return t('sendInvoice.errNoSubject')
+    case 'number_changed': return t('sendInvoice.errNumberChanged')
     case 'smtp_not_set_up': return t('sendInvoice.errSmtp')
     case 'not_allowed': return t('sendInvoice.errNotAllowed')
     case 'signed_out': return t('sendInvoice.errSignedOut')
@@ -63,11 +65,23 @@ export function SendInvoiceDialog({ invoice, onClose }: { invoice: InvoiceFull; 
       return (data?.email as string | null) ?? null
     },
   })
+  // A draft: the number it will get when it is sent (sql/150), read without taking it.
+  const draft = isDraftNumber(invoice.number)
+  const upcoming = useQuery<string | null>({
+    queryKey: ['invoice-upcoming-number', invoice.clinic_id],
+    enabled: draft,
+    staleTime: 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('upcoming_invoice_number', { p_clinic: invoice.clinic_id })
+      return error ? null : (data as string | null) ?? null
+    },
+  })
   const addressee = invoice.bill_to_kind === 'customer'
     ? customers.find(c => c.id === invoice.customer_id) ?? null
     : { email: patientEmail.data ?? null }
-  const ready = invoice.bill_to_kind === 'customer' ? customers.length > 0 || !invoice.customer_id : !invoice.patient_id || patientEmail.isFetched
-  const start = useMemo(() => prefillLetter(invoice, clinic, language, settings.epost, addressee),
+  const ready = (invoice.bill_to_kind === 'customer' ? customers.length > 0 || !invoice.customer_id : !invoice.patient_id || patientEmail.isFetched)
+    && (!draft || upcoming.isFetched)
+  const start = useMemo(() => prefillLetter(invoice, clinic, language, settings.epost, addressee, upcoming.data),
     // Filled once, when what it is made from has arrived; edits are the person's after that.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ready])
@@ -79,11 +93,16 @@ export function SendInvoiceDialog({ invoice, onClose }: { invoice: InvoiceFull; 
 }
 
 function SendForm({ invoice, start, myEmail, onSent, onClose }: {
-  invoice: InvoiceFull; start: { to: string[]; subject: string; message: string }; myEmail: string | null; onSent: () => void; onClose: () => void
+  invoice: InvoiceFull; start: Letter; myEmail: string | null; onSent: () => void; onClose: () => void
 }) {
+  const qc = useQueryClient()
   const [to, setTo] = useState(start.to.join(', '))
   const [subject, setSubject] = useState(start.subject)
   const [message, setMessage] = useState(start.message)
+  // The number the letter names: the draft's coming one, or the number the invoice got meanwhile.
+  const [number, setNumber] = useState(start.number)
+  const [renumbered, setRenumbered] = useState<{ from: string; to: string } | null>(null)
+  const draft = isDraftNumber(invoice.number) && !renumbered
   const [copy, setCopy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<{ text: string; detail?: string } | null>(null)
@@ -95,9 +114,17 @@ function SendForm({ invoice, start, myEmail, onSent, onClose }: {
   async function send() {
     setBusy(true); setError(null)
     try {
-      await sendInvoiceByEmail({ invoiceId: invoice.id, to: addresses, subject: subject.trim(), message, copyToMe: copy })
+      await sendInvoiceByEmail({ invoiceId: invoice.id, to: addresses, subject: subject.trim(), message, copyToMe: copy, expectedNumber: number })
       onSent()
     } catch (e) {
+      // Someone took the number first: the invoice has another one now. Nothing was sent; the letter says the new one.
+      if (e instanceof SendInvoiceError && e.code === 'number_changed' && e.number) {
+        const next = renumberLetter({ subject, message }, number, e.number)
+        setSubject(next.subject); setMessage(next.message)
+        setRenumbered({ from: number, to: e.number }); setNumber(e.number)
+        void qc.invalidateQueries({ queryKey: ['invoices'] })
+        return
+      }
       setError(e instanceof SendInvoiceError ? { text: sendErrorText(e.code), detail: e.detail } : { text: sendErrorText('failed') })
     } finally { setBusy(false) }
   }
@@ -106,7 +133,11 @@ function SendForm({ invoice, start, myEmail, onSent, onClose }: {
     <div role="dialog" aria-modal="true" aria-labelledby="send-invoice-h" className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="card w-full max-w-lg space-y-3 p-5" onClick={e => e.stopPropagation()}>
         <div className="flex items-start gap-3">
-          <h2 id="send-invoice-h" className="flex-1 text-lg font-bold text-ink">{t('sendInvoice.title', { number: invoice.number.startsWith('draft:') ? t('invoices.draftLabel') : invoice.number })}</h2>
+          <div className="flex-1">
+            <h2 id="send-invoice-h" className="text-lg font-bold text-ink">{t('sendInvoice.title', { number })}</h2>
+            {/* A draft gets this number when it is sent (sql/150). */}
+            {draft && <p className="text-[11px] text-ink-muted">{t('sendInvoice.numberOnSend')}</p>}
+          </div>
           <button type="button" onClick={onClose} aria-label={t('invoices.close')} className="h-9 w-9 rounded-lg text-ink-muted hover:bg-bg-sidebar"><X size={18} className="mx-auto" /></button>
         </div>
         <label className="block"><span className="label">{t('sendInvoice.to')}</span>
@@ -125,6 +156,11 @@ function SendForm({ invoice, start, myEmail, onSent, onClose }: {
           {myEmail ? t('sendInvoice.copyToMe', { email: myEmail }) : t('sendInvoice.copyToMeNoEmail')}
         </label>
         <p className="text-[11px] text-ink-faint">{t('sendInvoice.replyTo')}</p>
+        {renumbered && (
+          <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5" role="status">
+            {t('sendInvoice.numberChanged', { from: renumbered.from, to: renumbered.to })}
+          </p>
+        )}
         {error && (
           <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5 space-y-1" role="alert">
             <p>{error.text}</p>

@@ -1,7 +1,14 @@
 /**
  * One invoice sent by e-mail by hand (Edge Function send-invoice, sql/148).
  *
- *   { invoiceId, to: string[], subject, message, copyToMe }
+ *   { invoiceId, to: string[], subject, message, copyToMe, expectedNumber? }
+ *
+ * A draft gets its number here, after every check has passed (sql/149), so a
+ * refused try takes no number. expectedNumber is the number the letter was
+ * written with (sql/150: the one the draft would get). If the invoice gets
+ * another one (someone took that number first), nothing is sent: the answer
+ * is 409 number_changed with the invoice's number, and the dialog updates the
+ * subject and the message and shows it.
  *
  * Asked of the database as the signed-in person (invoice_send_prepare: Edit
  * payments, an invoice of their clinic). The guard (shared/billing/sendGuard
@@ -87,24 +94,18 @@ export async function handleSendInvoice(authorization: string | null, body: unkn
   const subject = typeof b.subject === 'string' ? b.subject.trim().slice(0, 300) : ''
   const message = typeof b.message === 'string' ? b.message.slice(0, 10000) : ''
   const copyToMe = b.copyToMe === true
+  const expectedNumber = typeof b.expectedNumber === 'string' ? b.expectedNumber.trim().slice(0, 60) : ''
   if (!invoiceId || !to || (Array.isArray(b.to) && to.length !== b.to.length)) return bad
 
   const note = (what: string) => deps.log(`invoice ${invoiceId}: ${what}`)
   let prepared = await deps.prepare(invoiceId)
-  // A draft has no number yet (sql/149): it is issued first, so the e-mail and its PDF carry one.
-  const draftNumber = (prepared.data as Prepared | null)?.invoice?.number
-  if (!prepared.error && deps.issue && (!draftNumber || String(draftNumber).startsWith('draft:'))) {
-    const issued = await deps.issue(invoiceId)
-    if (issued.error) { note(`issue failed ${issued.error.code ?? ''}`.trim()); return { status: 500, body: { error: 'failed' } } }
-    prepared = await deps.prepare(invoiceId)
-  }
   if (prepared.error) {
     if (prepared.error.code === '42501') { note('not allowed'); return { status: 403, body: { error: 'not_allowed' } } }
     if (/JWT|token/i.test(prepared.error.message ?? '')) return { status: 401, body: { error: 'signed_out' } }
     note(`prepare failed ${prepared.error.code ?? ''}`.trim())
     return { status: 500, body: { error: 'failed' } }
   }
-  const p = prepared.data as Prepared
+  let p = prepared.data as Prepared
   const policy = { ...SAFE_MAIL_POLICY, ...(p.email ?? {}) }
   const verdict = mayHandSendInvoice(p.invoice as { status: string }, policy, to, subject, Number(p.sent_today ?? 0))
   if (!verdict.send) { note(`refused ${verdict.code}`); return { status: 422, body: { error: 'refused', code: verdict.code } } }
@@ -115,6 +116,21 @@ export async function handleSendInvoice(authorization: string | null, body: unkn
     return { status: 422, body: { error: 'refused', code } }
   }
   if (!deps.smtpReady()) { note('smtp not set up'); return { status: 503, body: { error: 'smtp_not_set_up' } } }
+
+  // A draft has no number yet (sql/149): it is issued now, every check passed, so the e-mail and its PDF carry one.
+  const number = String(p.invoice?.number ?? '')
+  if (deps.issue && (!number || number.startsWith('draft:'))) {
+    const issued = await deps.issue(invoiceId)
+    if (issued.error) { note(`issue failed ${issued.error.code ?? ''}`.trim()); return { status: 500, body: { error: 'failed' } } }
+    prepared = await deps.prepare(invoiceId)
+    if (prepared.error) { note(`prepare failed ${prepared.error.code ?? ''}`.trim()); return { status: 500, body: { error: 'failed' } } }
+    p = prepared.data as Prepared
+  }
+  // The letter names another number than the invoice now has: not sent, the dialog updates it (sql/150).
+  if (expectedNumber && String(p.invoice.number) !== expectedNumber) {
+    note('number changed')
+    return { status: 409, body: { error: 'number_changed', number: String(p.invoice.number) } }
+  }
 
   const language = docLanguageFor((p.clinic?.country ?? 'EE') as string, p.language)
   const doc = invoiceDoc(p.invoice, p.clinic, language)

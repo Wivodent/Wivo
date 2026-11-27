@@ -26,6 +26,8 @@ export const READ_FUNCTIONS: ReadonlySet<string> = new Set([
   'client_feedback_summary', 'my_rating_summary',
   // sql/146: what a job is tied to, before deleting it.
   'job_delete_check',
+  // sql/150: the number a draft will get, read for its e-mail without taking it.
+  'upcoming_invoice_number',
   'open_questions', 'partner_orgs', 'partner_stock', 'pay_settings', 'preview_order_reference', 'team_accounts', 'update_status',
 ])
 

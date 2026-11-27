@@ -333,3 +333,9 @@ html.mobile #root {
     margin: 16mm;
   }
 }
+
+/* The invoice panel: on a narrow panel "Send by e-mail" is its envelope alone (the name stays as its tooltip). */
+.invoice-panel { container-type: inline-size; }
+@container (max-width: 359px) {
+  .invoice-send-label { display: none; }
+}

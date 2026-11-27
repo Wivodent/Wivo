@@ -101,6 +101,45 @@ describe('sending one invoice by hand', () => {
     expect(rendered).toHaveLength(1)
   })
 
+  it('a refused try takes no number (sql/149): the draft is issued only once every check has passed', async () => {
+    let issued = 0
+    const draftPrep = prepared({ invoice: { ...prepared().invoice, number: 'draft:abc' } })
+    const refused = setup({ prep: draftPrep, allowOnly: 'test@dentiks.lv' })
+    refused.deps.issue = async () => { issued++; return { error: null } }
+    expect((await handleSendInvoice('Bearer x', body(), refused.deps)).body).toMatchObject({ error: 'refused', code: 'test_copy_needs_test_address' })
+    const noSmtp = setup({ prep: draftPrep, smtp: false })
+    noSmtp.deps.issue = async () => { issued++; return { error: null } }
+    expect((await handleSendInvoice('Bearer x', body(), noSmtp.deps)).status).toBe(503)
+    expect(issued).toBe(0)
+  })
+
+  it('the letter names the number the draft was to get, and someone took it first: nothing sent, the new number back (sql/150)', async () => {
+    let issued = false
+    const { deps, sent, records, logged } = setup()
+    const draftPrep = prepared({ invoice: { ...prepared().invoice, number: 'draft:abc' } })
+    deps.prepare = async () => ({ data: issued ? prepared({ invoice: { ...prepared().invoice, number: 'DEN-2026-0004' } }) : draftPrep, error: null })
+    deps.issue = async () => { issued = true; return { error: null } }
+    const a = await handleSendInvoice('Bearer x', body({ expectedNumber: 'DEN-2026-0003' }), deps)
+    expect(a).toEqual({ status: 409, body: { error: 'number_changed', number: 'DEN-2026-0004' } })
+    expect(sent).toHaveLength(0)
+    expect(records).toHaveLength(0)
+    expect(logged).toEqual([`invoice ${INV}: number changed`])
+    // Sent again with the new number: it goes.
+    expect((await handleSendInvoice('Bearer x', body({ expectedNumber: 'DEN-2026-0004' }), deps)).status).toBe(200)
+    expect(sent).toHaveLength(1)
+  })
+
+  it('the number it was to get is the one it got: sent; an older app without expectedNumber: sent as before', async () => {
+    let issued = false
+    const { deps, sent } = setup()
+    const draftPrep = prepared({ invoice: { ...prepared().invoice, number: 'draft:abc' } })
+    deps.prepare = async () => ({ data: issued ? prepared() : draftPrep, error: null })
+    deps.issue = async () => { issued = true; return { error: null } }
+    expect((await handleSendInvoice('Bearer x', body({ expectedNumber: 'DEN-2026-0003' }), deps)).status).toBe(200)
+    expect((await handleSendInvoice('Bearer x', body(), setup().deps)).status).toBe(200)
+    expect(sent).toHaveLength(1)
+  })
+
   it('a test address that is not an address says so', async () => {
     const bad = setup({ prep: prepared({ email: { saatjaAadress: 'arved@dentiks.lv', paevaLimiit: 20, testAadress: 'not an address' } }) })
     expect((await handleSendInvoice('Bearer x', body(), bad.deps)).body).toEqual({ error: 'refused', code: 'testaadress-vigane' })

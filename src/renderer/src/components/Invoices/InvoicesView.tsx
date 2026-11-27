@@ -369,10 +369,11 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, all, onDeleted, o
   }
 
   return (
-    <aside className="w-[380px] flex-shrink-0 border-l border-ink-faint/15 bg-bg-card overflow-y-auto">
+    <aside className="invoice-panel w-[380px] flex-shrink-0 border-l border-ink-faint/15 bg-bg-card overflow-y-auto">
       <div className="p-4 space-y-4">
-        <div className="flex items-start justify-between">
-          <div>
+        {/* The number and the addressee take what is left; the buttons keep one line (a long draft hint squeezed them before). */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <p className="text-[11px] text-ink-muted">{t('invoices.invoice2')}</p>
             <h2 className="text-lg font-bold text-ink tabular-nums">{invoiceNumberText(invoice.number, t('invoices.draftLabel'))}</h2>
             {/* sql/149: a draft has no number until it is issued (marked Sent, or e-mailed). */}
@@ -384,10 +385,11 @@ function InvoiceDetail({ invoice, canWrite, onClose, onStatus, all, onDeleted, o
               {invoice.patsient}
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-shrink-0 items-center gap-1">
             {canWrite && invoice.status !== 'tuhistatud' && (
-              <button onClick={() => setSending(true)} className="btn-ghost text-xs border border-ink-faint/25" title={t('sendInvoice.button')}>
-                <Mail size={13} /> {t('sendInvoice.button')}
+              <button onClick={() => setSending(true)} className="btn-ghost whitespace-nowrap text-xs border border-ink-faint/25"
+                title={t('sendInvoice.button')} aria-label={t('sendInvoice.button')}>
+                <Mail size={13} aria-hidden="true" /> <span className="invoice-send-label">{t('sendInvoice.button')}</span>
               </button>
             )}
             <button onClick={onPrint} className="btn-ghost p-1.5" title={t('invoices.printSavePDF')}>

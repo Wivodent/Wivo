@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('./supabase', () => ({ supabase: {} }))
-const { prefillLetter, sendErrorFrom } = await import('./invoiceSend')
+const { prefillLetter, renumberLetter, sendErrorFrom } = await import('./invoiceSend')
 const { buyerDetailsMissing } = await import('./invoiceBuyer')
 
 const invoice = {
@@ -19,7 +19,33 @@ describe('the hand-sent letter, filled in (sql/148)', () => {
   })
   it('the clinic’s own letter when it wrote one; no address when the addressee has none', () => {
     const l = prefillLetter(invoice, { name: 'SIA Dentiks' }, 'lv', { pealkiri: 'Invoice {arve}', sissejuhatus: 'Hi {saaja}', lopp: 'Bye' }, { email: null })
-    expect(l).toEqual({ to: [], subject: 'Invoice DEN-2026-0003', message: 'Hi SIA Zobi\n\nBye' })
+    expect(l).toEqual({ to: [], subject: 'Invoice DEN-2026-0003', message: 'Hi SIA Zobi\n\nBye', number: 'DEN-2026-0003' })
+  })
+})
+
+describe('a draft’s letter carries the number it will get (sql/150)', () => {
+  const draft = { ...invoice, number: 'draft:4b1c' }
+  const own = { pealkiri: 'Invoice {arve}', sissejuhatus: 'Hi {saaja}, invoice {arve}.', lopp: '' }
+  it('the coming number, never the word "draft"', () => {
+    const l = prefillLetter(draft, { name: 'SIA Dentiks' }, 'en', own, { email: 'buh@zobi.lv' }, 'DEN-2026-0009')
+    expect(l.subject).toBe('Invoice DEN-2026-0009')
+    expect(l.message.startsWith('Hi SIA Zobi, invoice DEN-2026-0009.')).toBe(true)
+    expect(l.number).toBe('DEN-2026-0009')
+  })
+  it('an invoice with its number keeps it, whatever is coming', () => {
+    expect(prefillLetter(invoice, null, 'en', own, null, 'DEN-2026-0009').number).toBe('DEN-2026-0003')
+  })
+  it('no coming number (a database before 150): the word, which the sender then replaces', () => {
+    expect(prefillLetter(draft, null, 'en', own, null, null).number).toBe('DRAFT')
+  })
+  it('the number was taken: every mention in the subject and the message becomes the new one', () => {
+    expect(renumberLetter({ subject: 'Invoice DEN-2026-0009', message: 'Invoice DEN-2026-0009, due soon. DEN-2026-0009' }, 'DEN-2026-0009', 'DEN-2026-0010'))
+      .toEqual({ subject: 'Invoice DEN-2026-0010', message: 'Invoice DEN-2026-0010, due soon. DEN-2026-0010' })
+    expect(renumberLetter({ subject: 'Invoice DRAFT', message: '' }, 'DRAFT', 'DEN-2026-0010').subject).toBe('Invoice DEN-2026-0010')
+  })
+  it('the function’s "number changed" comes back with the new number', async () => {
+    const e = await sendErrorFrom({ name: 'FunctionsHttpError', context: { status: 409, json: async () => ({ error: 'number_changed', number: 'DEN-2026-0010' }) } })
+    expect([e.code, e.number]).toEqual(['number_changed', 'DEN-2026-0010'])
   })
 })
 

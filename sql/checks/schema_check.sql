@@ -26,7 +26,7 @@
 -- (security, volatility, settings, a fingerprint of the body) and the grants
 -- to anon, authenticated, service_role and PUBLIC on tables, columns and
 -- functions, and the tables in the realtime publication supabase_realtime.
--- Expected rows: 2771.
+-- Expected rows: 2774.
 -- ============================================================================
 
 with expected(kind, key, def) as (values
@@ -1073,6 +1073,7 @@ with expected(kind, key, def) as (values
     ('function', 'public.technician_permissions()', 'security invoker, immutable, search_path=public, body md5 914018a2b2d08397dfb668a8c0df2206'),
     ('function', 'public.touch_clinic_settings()', 'security invoker, volatile, search_path=public, body md5 9b1889f56258bf9d6554213c05019c76'),
     ('function', 'public.unshare_job(p_job uuid, p_partner_org uuid)', 'security definer, volatile, search_path=public, body md5 65fe1cf58c6226e50795d8234be965b3'),
+    ('function', 'public.upcoming_invoice_number(p_clinic uuid)', 'security definer, stable, search_path=public, body md5 ce8f69df94862d2a47ad7b37e3b5cfcb'),
     ('function', 'public.update_approval()', 'security definer, stable, search_path=public, body md5 5878cd4061b29f0b3d87748d3a2764c1'),
     ('function', 'public.update_approvers()', 'security definer, stable, search_path=public, body md5 e284f27ce2d10a2cd080261323539c31'),
     ('function', 'public.update_status()', 'security definer, stable, search_path=public, body md5 6c94a2a679eb74d2320a8106fb04043e'),
@@ -1827,6 +1828,8 @@ with expected(kind, key, def) as (values
     ('grant', 'public.touch_clinic_settings() to service_role', 'EXECUTE'),
     ('grant', 'public.unshare_job(p_job uuid, p_partner_org uuid) to authenticated', 'EXECUTE'),
     ('grant', 'public.unshare_job(p_job uuid, p_partner_org uuid) to service_role', 'EXECUTE'),
+    ('grant', 'public.upcoming_invoice_number(p_clinic uuid) to authenticated', 'EXECUTE'),
+    ('grant', 'public.upcoming_invoice_number(p_clinic uuid) to service_role', 'EXECUTE'),
     ('grant', 'public.update_approval() to authenticated', 'EXECUTE'),
     ('grant', 'public.update_approval() to service_role', 'EXECUTE'),
     ('grant', 'public.update_status() to authenticated', 'EXECUTE'),
