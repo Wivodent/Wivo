@@ -1,6 +1,6 @@
 {
   "name": "wivo",
-  "version": "2.2.7",
+  "version": "2.3.0",
   "description": "Wivo — dental clinic and lab management",
   "author": "Wivo",
   "main": "out/main/index.js",

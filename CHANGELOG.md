@@ -1,5 +1,63 @@
 # Changelog
 
+## [2.3.0] — 2026-11-28
+
+**Wivo Network orders, invoices for Latvia and by e-mail, feedback, safe deletes**
+
+"What's new": release-notes/2.3.0. A minor version: the Network order block
+(orders from outside, through to the invoice) is complete.
+
+Database: migrations 140–153, each on its own, in order, after 136–139.
+- **140–143** order references, implants in orders (Wivo order v2), client
+  notices, files and review in messages: 140 runs after 138.
+- **144–146** feedback and ratings (licence module `ratings`; harmless
+  without it), Received and delivery problems, safe job delete. 145
+  schedules the hourly delivery reminders where the project has pg_cron.
+- **147–153** invoicing unbilled work, Latvian/English invoices, the draft /
+  cancel / credit lifecycle, the upcoming number, automatic invoicing (151
+  schedules `wivo-auto-invoices` where pg_cron exists), the invoice e-mail,
+  client prices. 149 holds every build to "only a draft is deleted"; a draft
+  made after it carries a `draft:…` placeholder number until issued, so raise
+  the minimum version to 2.3.0 once every machine has it.
+- **Network project:** network/sql 002, 003, 004, then network-clinic and
+  network-token deployed again.
+- **Clinic functions** deployed again: network-client, send-notifications,
+  network-directory, send-invoice (new), send-invoices.
+- **Maintenance:** sql/maintenance/schedule-send-invoices.sql for a clinic
+  that e-mails invoices (pg_cron, pg_net and the Vault);
+  sql/maintenance/repoint-test-copy-crons.sql on the test copy only.
+
+- **Wivo Network** (sql/140–143, 153; docs/NETWORK-SETUP.md): `npm run
+  network:connect -- --clinic <id>` connects a clinic in one command; Orders
+  → Wivo Network has the owner's switches, the directory listing and the
+  invite link; app.wivodent.com is the Network only. Mark as sent on the
+  Orders page, the job page and the phone; the client's bell and a one-line
+  e-mail; the clinic's bell hears the client.
+- **Teeth:** sweep with mouse, pen or finger, one change and Undo, on every
+  chart; implants on the Network order form as on the new-job form (order
+  v2), carried into the job by Accept.
+- **Order references** made by the clinic (TF-DE-261127-001, sql/140), also
+  on the new-job form (Settings switch `auto_reference`).
+- **Messages:** files both ways, "Needs the client's review" with Approve /
+  Request changes (sql/143); the conversation folds (sql/146).
+- **Delivery and feedback** (sql/144–146): Sent → Received → Fitted / Needs
+  adjustment, a delivery problem until resolved, 1–5 ratings behind the
+  `ratings` module, the owner's view in Statistics → Production.
+- **Invoices** (sql/147–152): unbilled work line by line; Latvian clinics,
+  invoice language per client (et/lv/en), VAT exemption with its reason, the
+  Noto Sans PDF font carried with the functions; Send by e-mail; automatic
+  invoicing per job or monthly; the billing e-mail from the Network
+  (Network 004); Settings → Invoices as its own page.
+- **Client prices** (sql/153): work types "Available to clients" and the
+  price shown to them, a client's discount and own prices, Accept with the
+  price, quotes the client approves.
+- **Safe deletes:** only a draft invoice is deleted, an issued one is
+  cancelled or credited (sql/149); a job tied to money is not deleted, a
+  Network order's job needs a reason and its code, the owner purges from the
+  bin (sql/146).
+- **Version line** ("Wivo Network · 2.3.0 · <commit>"): /network, the
+  phone's Settings, beside "What's new" on the desktop.
+
 ## [2.2.7] — 2026-11-27
 
 **From testing: activity marks, skipped stages hidden, clearer refusals; the night's work of 2026-11-27**
