@@ -42,7 +42,7 @@ import { cliOptions, loadClinic, phoneBranchCommand } from './clinic-config.mjs'
 import {
   RELEASE_TAG, SIGNERS, SLOTS, appPayload, certificatePayload, indexPayload, keysFor, latestYml,
   listDays, loadTs, migrationFiles, migrationsAfter, minVersionOption, minimumLine, nextMinimum, releaseUrl, uploadPlan,
-  versionProblem,
+  releaseBranchProblem, versionProblem,
 } from './release-lib.mjs'
 import { loadRelease } from './yubikey/load-release.mjs'
 import { signStatements } from './yubikey/sign-statements.mjs'
@@ -152,18 +152,37 @@ async function confirm(question) {
 
 const releaseDir = version => join(RELEASES, version)
 
+/** The commit a release was built from, as its own release.json says (the signed statement carries none). */
+function commitOf(version) {
+  try {
+    const rel = JSON.parse(readFileSync(join(releaseDir(version), 'release.json'), 'utf8'))
+    return rel.version === version && /^[0-9a-f]{40}$/.test(rel.commit ?? '') ? rel.commit : null
+  } catch { return null }
+}
+
 // ─── build ────────────────────────────────────────────────────────────────────
 
 async function build() {
   const version = pkgVersion()
   if (!R.isVersion(version)) fail(`package.json's version "${version}" is not x.y.z`)
   const branch = git('rev-parse', '--abbrev-ref', 'HEAD')
-  if (branch !== 'testing') fail(`the branch is "${branch}"; a clinic's releases are built from testing`)
-  if (git('status', '--porcelain') !== '') fail('the working tree has changes; commit them first, so the release is a known commit')
+  const clean = git('status', '--porcelain') === ''
+  // The cheap refusals first, before anything is read from the network.
+  const early = releaseBranchProblem({ branch, version, clean, published: null, compareVersions: R.compareVersions })
+  if (early && !/nothing is published/.test(early)) fail(early)
 
   const published = await readPublished()
   if (!published && !has('--first')) fail(`nothing is published at ${SOURCE}/${RELEASE_TAG}/ (or it can't be reached). If this is the first release, run again with --first`)
   if (published && has('--first')) fail('--first, but a release is already published')
+  // A hotfix branch: it must contain the commit the published release was built from (docs/RELEASE.md §1).
+  const publishedVersion = published?.app?.version ?? null
+  const publishedCommit = publishedVersion ? commitOf(publishedVersion) : null
+  const containsPublished = !!publishedCommit
+    && spawnSync('git', ['merge-base', '--is-ancestor', publishedCommit, 'HEAD'], { cwd: ROOT }).status === 0
+  const branchProblem = releaseBranchProblem({
+    branch, version, clean, published: publishedVersion, publishedCommit, containsPublished, compareVersions: R.compareVersions,
+  })
+  if (branchProblem) fail(branchProblem)
   const problem = versionProblem(published?.app?.version ?? null, version, R.compareVersions)
   if (problem) fail(problem)
   const asked = askedMinimum()
@@ -190,7 +209,7 @@ async function build() {
   if (blockmap) copyFileSync(`${exe}.blockmap`, join(dir, blockmap))
   writeFileSync(join(dir, 'latest.yml'), latestYml({ version, file, sha512: facts.sha512, size: facts.size, releaseDate: new Date().toISOString() }))
   writeFileSync(join(dir, 'release.json'), JSON.stringify({
-    build: BUILD, version, file, blockmap, ...facts, commit: git('rev-parse', 'HEAD'), schema, new_migrations: newMigrations,
+    build: BUILD, version, file, blockmap, ...facts, commit: git('rev-parse', 'HEAD'), branch, schema, new_migrations: newMigrations,
     ...(asked !== undefined ? { min_version: asked } : {}),
     first: !published, previous: published ? { version: published.app?.version ?? null, schema: published.app?.schema ?? null, serial: published.index.serial } : null,
     built_at: new Date().toISOString(),
@@ -356,7 +375,7 @@ async function publish() {
     console.log(`\n${same ? 'Published' : 'Uploaded'}: Wivo ${version} for ${NAME}.`)
     console.log(`  Installer: ${releaseUrl(REPO, rel.file)}\n  SHA-256:   ${rel.sha256}`)
     console.log(`\n${NAME}'s desktops find it within 30 minutes and install it at their next start.`)
-    console.log(`${NAME}'s phone app (Cloudflare ${clinic.cloudflareProject}), from the same commit (push testing first):\n\n  ${phoneBranchCommand(rel.commit, clinic.phoneBranch)}\n`)
+    console.log(`${NAME}'s phone app (Cloudflare ${clinic.cloudflareProject}), from the same commit (push ${rel.branch ?? 'testing'} first):\n\n  ${phoneBranchCommand(rel.commit, clinic.phoneBranch)}\n`)
   } else console.log(same ? '\nThe new list is published.' : '\nUploaded; check again in a minute.')
   if (!same) process.exit(2)
 }
