@@ -7,7 +7,7 @@ Version 2026-11-draft. Effective from [EFFECTIVE DATE].
 **Between**
 
 - **The clinic** (controller): [CLINIC NAME], registry code [CLINIC REG CODE], [CLINIC ADDRESS], represented by [NAME, ROLE].
-- **Wivo** (processor): [COMPANY NAME], registry code [REG CODE], [ADDRESS], [CONTACT EMAIL], represented by [NAME, ROLE].
+- **Wivo** (processor): Treial OÜ, registry code 16401540, Laada tn 8-1, 44310 Rakvere, Estonia, [CONTACT EMAIL], represented by Kevin Treial, Member of the Management Board.
 
 This agreement is part of the Wivo licence agreement between the parties and meets Article 28 of the General Data Protection Regulation (EU) 2016/679 ("GDPR").
 
@@ -54,21 +54,21 @@ The clinic shall:
 
 ## 5. Sub-processors
 
-The clinic gives general authorisation for the sub-processors in Annex 2. Wivo tells the clinic at least [NOTICE PERIOD] before adding or replacing one, and the clinic may object on reasonable grounds; if the parties cannot agree, the clinic may end the affected service. Wivo puts the same data protection obligations on each sub-processor by contract and remains responsible for them.
+The clinic gives general authorisation for the sub-processors in Annex 2. Wivo tells the clinic at least 30 days before adding or replacing one, and the clinic may object on reasonable grounds; if the parties cannot agree, the clinic may end the affected service. Wivo puts the same data protection obligations on each sub-processor by contract and remains responsible for them.
 
 Providers the clinic contracts itself (its Supabase organisation, Resend, its mail host) are not Wivo's sub-processors.
 
 ## 6. Personal data breaches
 
-Wivo tells the clinic without undue delay, and at the latest within [HOURS] hours, after becoming aware of a personal data breach affecting the clinic's data in Wivo's processing, with what Wivo knows: what happened, which data and people may be affected, likely consequences, and what has been and will be done. Wivo keeps a record of breaches.
+Wivo tells the clinic without undue delay, and at the latest within 48 hours, after becoming aware of a personal data breach affecting the clinic's data in Wivo's processing, with what Wivo knows: what happened, which data and people may be affected, likely consequences, and what has been and will be done. Wivo keeps a record of breaches.
 
 ## 7. Audits
 
-Wivo makes available all information needed to show that this agreement is kept. The clinic, or an auditor bound by confidentiality, may audit Wivo's processing once a year, or after a breach, with [NOTICE PERIOD] notice. Each party bears its own costs unless the audit finds a material breach by Wivo.
+Wivo makes available all information needed to show that this agreement is kept. The clinic, or an auditor bound by confidentiality, may audit Wivo's processing once a year, or after a breach, with 30 days notice. Each party bears its own costs unless the audit finds a material breach by Wivo.
 
 ## 8. Duration and end
 
-This agreement lasts as long as Wivo processes the clinic's personal data under the licence agreement. When it ends, Wivo deletes the clinic's personal data it holds (setup records, support copies, if any) within [DAYS] days, or returns it if the clinic asks, and confirms this in writing. The clinic's own project is the clinic's and stays with the clinic.
+This agreement lasts as long as Wivo processes the clinic's personal data under the licence agreement. When it ends, Wivo deletes the clinic's personal data it holds (setup records, support copies, if any) within 30 days, or returns it if the clinic asks, and confirms this in writing. The clinic's own project is the clinic's and stays with the clinic.
 
 ## 9. Liability and law
 
@@ -100,9 +100,9 @@ Liability follows the licence agreement and GDPR article 82. This agreement is g
 
 | Sub-processor | What for | Where | Transfer safeguard |
 |---|---|---|---|
-| Supabase, Inc. | Wivo Network database, sign-in and server functions; the pass that tells the clinic who a Network user is | EU, Frankfurt (Germany) | [SAFEGUARD]: US company |
-| Cloudflare, Inc. | Serving the files of the clinic's phone and /network web app (Cloudflare Pages); sees page requests and IP addresses, not the clinic's data | Global network | [SAFEGUARD]: US company |
-| [OTHER, e.g. GitHub, Inc.] | Hosting Wivo's signed update packages and desktop releases; no clinic data | [WHERE] | [SAFEGUARD] |
+| Supabase, Inc. | Wivo Network database, sign-in and server functions; the pass that tells the clinic who a Network user is | EU, Frankfurt (Germany) | EU–US Data Privacy Framework or Standard Contractual Clauses: US company |
+| Cloudflare, Inc. | Serving the files of the clinic's phone and /network web app (Cloudflare Pages); sees page requests and IP addresses, not the clinic's data | Global network | EU–US Data Privacy Framework or Standard Contractual Clauses: US company |
+| GitHub, Inc. | Hosting Wivo's signed update packages and desktop releases; no clinic data | United States / global | EU–US Data Privacy Framework or Standard Contractual Clauses |
 
 Not sub-processors of Wivo (the clinic's own contracts): the clinic's Supabase organisation and project; Resend (notice e-mails); the clinic's mail host (invoice e-mails).
 

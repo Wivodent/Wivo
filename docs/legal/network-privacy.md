@@ -10,7 +10,7 @@ This notice explains what personal data Wivo Network uses, why, and what rights 
 
 There are two kinds of data in Wivo Network, with different people responsible for them.
 
-- **Your account and the directory.** [COMPANY NAME], registry code [REG CODE], [ADDRESS], [CONTACT EMAIL] ("Wivo", "we") is the controller of your Wivo Network account, your connections and the clinic directory.
+- **Your account and the directory.** Treial OÜ, registry code 16401540, Laada tn 8-1, 44310 Rakvere, Estonia, [CONTACT EMAIL] ("Wivo", "we") is the controller of your Wivo Network account, your connections and the clinic directory.
 - **Your orders.** Orders, files, messages, prices, ratings and notices are stored in the database of the clinic you send them to, not in Wivo Network. **That clinic is the controller** of what it receives. You are the controller of the data you decide to send, including any patient data in it.
 - Where a clinic uses Wivo's software and services, Wivo may act as that clinic's processor under a data processing agreement. Wivo then follows only the clinic's instructions.
 
@@ -66,13 +66,13 @@ E-mail notices and invoices about your orders are sent by the clinic, with its o
 
 ## 7. Transfers outside the EU
 
-We keep Wivo Network's data in the EU. Some of our providers are companies based in the United States. Where a provider may access data from outside the EU, the transfer is protected by [TRANSFER SAFEGUARD, e.g. the EU–US Data Privacy Framework or Standard Contractual Clauses].
+We keep Wivo Network's data in the EU. Some of our providers are companies based in the United States. Where a provider may access data from outside the EU, the transfer is protected by the EU–US Data Privacy Framework where the provider is certified under it, and otherwise the European Commission's Standard Contractual Clauses.
 
 ## 8. How long we keep it
 
 - Your account, profile and connections: while you have an account. When your account is deleted, they are deleted with it.
-- Your accepted terms version: while you have an account, then [RETENTION PERIOD] for evidence.
-- Security and sign-in logs at our hosting provider: as long as the provider's plan keeps them, [LOG RETENTION].
+- Your accepted terms version: while you have an account, then 3 years for evidence.
+- Security and sign-in logs at our hosting provider: as long as the provider's plan keeps them, currently 7 days.
 - What a clinic received from you stays with that clinic under its own rules, also after your account or the connection ends.
 
 ## 9. Your rights
@@ -101,4 +101,4 @@ We may update this notice. We tell you about important changes in Wivo Network b
 
 ## 12. Contact
 
-[COMPANY NAME], [ADDRESS], [CONTACT EMAIL].
+Treial OÜ, Laada tn 8-1, 44310 Rakvere, Estonia, [CONTACT EMAIL].

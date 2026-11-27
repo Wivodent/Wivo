@@ -4,7 +4,7 @@
 
 Version 2026-11-draft. Effective from [EFFECTIVE DATE].
 
-These terms are an agreement between you and [COMPANY NAME], registry code [REG CODE], [ADDRESS] ("Wivo", "we"). They apply when you create a Wivo Network account or use Wivo Network at app.wivodent.com or at a clinic's own Wivo address.
+These terms are an agreement between you and Treial OÜ, registry code 16401540, Laada tn 8-1, 44310 Rakvere, Estonia ("Wivo", "we"). They apply when you create a Wivo Network account or use Wivo Network at app.wivodent.com or at a clinic's own Wivo address.
 
 ## 1. What Wivo Network is
 
@@ -65,7 +65,7 @@ Wivo Network is provided "as is", to the extent the law allows.
 ## 9. Liability
 
 - To the extent the law allows, Wivo is not liable for indirect or consequential loss, lost profit, or loss of data, nor for anything that results from an order, a price, the work, a delivery or a payment between you and a clinic.
-- Wivo's total liability to you for any claim about Wivo Network is limited to [AMOUNT].
+- Wivo's total liability to you for any claim about Wivo Network is limited to 500 euros.
 - Nothing in these terms limits liability that cannot be limited by law, such as for intent or gross negligence.
 
 ## 10. Suspension and ending
@@ -80,10 +80,10 @@ We may change these terms. We tell you before a change takes effect, and you are
 
 ## 12. Law and disputes
 
-These terms are governed by the law of the Republic of Estonia. Disputes are settled by the courts of Estonia, [COURT], unless the law gives you the right to another court.
+These terms are governed by the law of the Republic of Estonia. Disputes are settled by the courts of Estonia, Harju County Court (Harju Maakohus), unless the law gives you the right to another court.
 
 ## 13. Contact
 
-[COMPANY NAME], [ADDRESS], [CONTACT EMAIL].
+Treial OÜ, Laada tn 8-1, 44310 Rakvere, Estonia, [CONTACT EMAIL].
 
 How we handle personal data is described in the Wivo Network Privacy Notice.
