@@ -10,6 +10,14 @@
  * The files only the phone needs (manifest, service worker, Cloudflare's
  * _headers/_redirects, the icon) live in src/renderer/mobile-static/ and are
  * added here, so the desktop build does not carry them.
+ *
+ * VITE_NETWORK_ONLY=true (app.wivodent.com): the Wivo Network and nothing
+ * else. Its own page (network.html → mobile/networkMain.tsx), which imports no
+ * clinic code: no staff sign-in, no clinic screens, no clinic Supabase client,
+ * so VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not needed and not in
+ * the bundle (mobile/networkOnly.test.ts). "/" and every other address go to
+ * /network; the manifest and the title say "Wivo Network". Without the flag
+ * (a clinic's phone app, e.g. wivo.dentiks.lv) everything is as before.
  */
 import { readFileSync, readdirSync } from 'fs'
 import { resolve, join } from 'path'
@@ -32,19 +40,46 @@ const TYPES: Record<string, string> = {
  * (VITE_SUPABASE_URL, set per Pages project), Report-Only at first, so a
  * wrong rule is reported in the browser's console instead of breaking the app.
  */
-function headersFor(mode: string): (text: string) => string {
+function headersFor(mode: string, networkOnly: boolean): (text: string) => string {
   const env = { ...loadEnv(mode, resolve('.'), 'VITE_'), ...process.env }
-  if (!env.VITE_SUPABASE_URL) console.warn('[wivo-mobile] VITE_SUPABASE_URL is not set: the CSP allows any *.supabase.co')
-  const csp = mobileCsp({ supabaseUrl: env.VITE_SUPABASE_URL, sentryDsn: env.VITE_SENTRY_DSN })
+  // The Network mode talks to the Network and to whichever clinic a client is
+  // connected to: any *.supabase.co, on purpose, and no clinic of its own.
+  if (!networkOnly && !env.VITE_SUPABASE_URL) console.warn('[wivo-mobile] VITE_SUPABASE_URL is not set: the CSP allows any *.supabase.co')
+  const csp = mobileCsp({ supabaseUrl: networkOnly ? undefined : env.VITE_SUPABASE_URL, sentryDsn: env.VITE_SENTRY_DSN })
   return text => text.replace('%CSP_REPORT_ONLY%', csp)
 }
 
-function mobileStatic(mode: string): Plugin {
-  const fill = headersFor(mode)
-  const files = (): [string, Buffer][] => [
-    ...readdirSync(STATIC_DIR).map(f => [f, readFileSync(join(STATIC_DIR, f))] as [string, Buffer]),
-    ['icon-256.png', readFileSync(ICON)],
-  ]
+/** Whether this is app.wivodent.com's build: the Network only. */
+export function isNetworkOnly(mode: string): boolean {
+  const env = { ...loadEnv(mode, resolve('.'), 'VITE_'), ...process.env }
+  return env.VITE_NETWORK_ONLY === 'true'
+}
+
+/** The network-only build's own versions of the phone files. */
+function networkOnlyFile(name: string, source: Buffer): Buffer | null {
+  if (name === 'sw.js') return null  // the clinic app's push worker: nothing here uses it
+  if (name === 'manifest.webmanifest') {
+    const m = JSON.parse(source.toString('utf8')) as Record<string, unknown>
+    return Buffer.from(JSON.stringify({ ...m, name: 'Wivo Network', short_name: 'Wivo Network', start_url: '/network' }, null, 2) + '\n')
+  }
+  // "/" goes to /network at the door; any other address the page itself sends there.
+  if (name === '_redirects') return Buffer.from(`/    /network   302\n${source.toString('utf8')}`)
+  return source
+}
+
+function mobileStatic(mode: string, networkOnly: boolean): Plugin {
+  const fill = headersFor(mode, networkOnly)
+  const files = (): [string, Buffer][] => {
+    const all: [string, Buffer][] = [
+      ...readdirSync(STATIC_DIR).map(f => [f, readFileSync(join(STATIC_DIR, f))] as [string, Buffer]),
+      ['icon-256.png', readFileSync(ICON)],
+    ]
+    if (!networkOnly) return all
+    return all.flatMap(([name, source]) => {
+      const next = networkOnlyFile(name, source)
+      return next ? [[name, next] as [string, Buffer]] : []
+    })
+  }
   return {
     name: 'wivo-mobile-static',
     enforce: 'post', // after Vite's own HTML step, so the page exists to rename
@@ -60,18 +95,20 @@ function mobileStatic(mode: string): Plugin {
       for (const [name, source] of files()) {
         this.emitFile({ type: 'asset', fileName: name, source: name === '_headers' ? fill(source.toString('utf8')) : source })
       }
-      const page = bundle['mobile.html']
+      const page = bundle[networkOnly ? 'network.html' : 'mobile.html']
       if (page) page.fileName = 'index.html'
     },
   }
 }
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  const networkOnly = isNetworkOnly(mode)
+  return {
   root: resolve('src/renderer'),
   base: '/',
   envDir: resolve('.'),
   publicDir: resolve('src/renderer/public'),
-  plugins: [react(), mobileStatic(mode)],
+  plugins: [react(), mobileStatic(mode, networkOnly)],
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   resolve: {
     alias: {
@@ -84,7 +121,12 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: resolve('dist-mobile'),
     emptyOutDir: true,
-    rollupOptions: { input: { mobile: resolve('src/renderer/mobile.html') } },
+    rollupOptions: {
+      input: networkOnly
+        ? { network: resolve('src/renderer/network.html') }
+        : { mobile: resolve('src/renderer/mobile.html') },
+    },
   },
   server: { port: 5174 },
-}))
+  }
+})

@@ -21,3 +21,6 @@ export const isNetworkPath = (pathname: string): boolean => pathname === '/netwo
 export function routePath(r: Route): string {
   return r.name === 'job' ? `/job/${r.id}` : r.name === 'settings' ? '/settings' : r.name === 'new' ? '/new' : '/'
 }
+
+/** The network-only build (app.wivodent.com): /network and below stay; every other address is /network. */
+export const networkOnlyPath = (pathname: string): string => (isNetworkPath(pathname) ? pathname : '/network')

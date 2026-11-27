@@ -121,6 +121,20 @@ Settings → Environment variables (Production):
 Mõlemad on avalikud. Järgmine build võtab need. Ilma nendeta ütleb
 `/network` "not set up".
 
+**app.wivodent.com on ainult Wivo Network.** Selle Cloudflare projektis
+(`wivo`) lisaks:
+
+| Nimi | Väärtus |
+|---|---|
+| `VITE_NETWORK_ONLY` | `true` |
+
+Siis on build ainult Network: `/` ja kõik muud aadressid viivad `/network`
+peale, töötajate sisselogimist ega kliiniku vaateid pole, ja
+`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` pole vaja (need võib sealt
+eemaldada; kui on, ei jõua need bundle'isse). Pealkiri ja manifest:
+"Wivo Network". Kliinikute telefonid (`wivo-dentiks`, `wivo-test`) jäävad
+ilma selle muutujata, nagu praegu.
+
 ---
 
 ## B. Kliinik Networki (iga kliinik, üks käsk)

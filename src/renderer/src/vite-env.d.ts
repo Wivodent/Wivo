@@ -26,6 +26,12 @@ interface ImportMetaEnv {
    */
   readonly VITE_NETWORK_URL?: string
   readonly VITE_NETWORK_ANON_KEY?: string
+  /**
+   * 'true' only for app.wivodent.com: the phone build is the Wivo Network and
+   * nothing else (network.html, mobile/networkMain.tsx). Read by
+   * vite.mobile.config.ts, not by the app.
+   */
+  readonly VITE_NETWORK_ONLY?: string
 }
 
 // Preload bridge (src/preload/index.ts). Optional: during `dev` the renderer can
