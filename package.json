@@ -8,6 +8,8 @@
     "dev": "electron-vite dev",
     "dev:test": "electron-vite dev --mode test",
     "dev:test:2": "node scripts/dev-test-profile.mjs 2",
+    "dev:fake": "node scripts/dev-test-profile.mjs --fake",
+    "dev:fake:2": "node scripts/dev-test-profile.mjs --fake 2",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "test": "vitest run --mode unit",

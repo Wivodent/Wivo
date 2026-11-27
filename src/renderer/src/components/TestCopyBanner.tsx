@@ -17,7 +17,7 @@
  * Vite mode `production`, where production is the one address allowed and
  * `testCopyProblem` is null.
  */
-import { IS_TEST_COPY } from '../lib/testCopy'
+import { IS_TEST_COPY, IS_FAKE_PROJECT } from '../lib/testCopy'
 import { testCopyProblem } from '../lib/supabase'
 import { t } from '@/lib/i18n'
 
@@ -30,7 +30,7 @@ export function TestCopyBanner() {
       style={{ boxShadow: `inset 0 0 0 4px ${colour}` }}>
       <div className="absolute left-1/2 top-1 -translate-x-1/2 rounded-b-lg px-4 py-1 text-xs font-bold tracking-wider text-white shadow-card"
         style={{ backgroundColor: colour }}>
-        {IS_TEST_COPY ? t('testCopy.label')
+        {IS_TEST_COPY ? (IS_FAKE_PROJECT ? t('testCopy.fakeLabel') : t('testCopy.label'))
           : testCopyProblem === 'licence-api' ? t('testCopy.licenceLabel')
           : t('testCopy.devLabel')}
         {testCopyProblem === 'missing' && <span className="ml-2 font-semibold">· {t('testCopy.missing')}</span>}

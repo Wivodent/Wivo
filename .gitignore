@@ -5,6 +5,8 @@ out
 # No longer read: test mode's URL and anon key are in config/test-copy.env
 # (tracked). Ignored so a leftover copy is never committed.
 .env.test
+# A person's own fake-data project (docs/TEST-PROJECT.md). The .example is tracked.
+config/test-fake.env
 *.local
 *.tsbuildinfo
 

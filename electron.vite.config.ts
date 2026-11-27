@@ -4,6 +4,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import { loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { testCopyDefine } from './config/testCopyEnv'
+import { testFakeDefine } from './config/testFakeEnv'
 import { desktopCsp } from './config/csp'
 
 /**
@@ -58,7 +59,9 @@ export default defineConfig({
     // a packaged build — nothing else exposes it to the UI.
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
-      ...(mode === 'test' ? testCopyDefine() : {})
+      // `npm run dev:fake`: test mode against one's own project of fake data
+      // (config/testFakeEnv.ts, docs/TEST-PROJECT.md) instead of the test copy.
+      ...(mode === 'test' ? (process.env['WIVO_TEST_TARGET'] === 'fake' ? testFakeDefine() : testCopyDefine()) : {})
     },
     resolve: {
       alias: {

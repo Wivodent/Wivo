@@ -41,7 +41,20 @@ export const PRODUCTION_REF = 'wrtucsfmpbwekugzzzxw'
 
 /** The test copy (CLAUDE.md). The ONLY project test mode talks to. If it ever changes, change it here. */
 export const TEST_REF = 'jhqyvancrzykxhzwnost'
-export const TEST_ORIGIN = `https://${TEST_REF}.supabase.co`
+/**
+ * `npm run dev:fake`: one's own project of FAKE data (docs/TEST-PROJECT.md).
+ * Its id comes from config/test-fake.env, checked at build time
+ * (config/testFakeEnv.ts); here again, so production and the test copy can
+ * never be it. Empty outside fake mode, and then the test copy is the one
+ * address test mode allows, exactly as before.
+ */
+declare const __WIVO_FAKE_REF__: string | undefined
+const fakeRef = typeof __WIVO_FAKE_REF__ === 'string' ? __WIVO_FAKE_REF__ : ''
+export const FAKE_REF: string =
+  /^[a-z0-9]{20}$/.test(fakeRef) && fakeRef !== PRODUCTION_REF && fakeRef !== TEST_REF ? fakeRef : ''
+/** Test mode against a fake-data project rather than the test copy. */
+export const IS_FAKE_PROJECT: boolean = FAKE_REF !== ''
+export const TEST_ORIGIN = `https://${FAKE_REF || TEST_REF}.supabase.co`
 
 /** Test mode's own sign-in, apart from the normal app's (supabase.ts). */
 export const TEST_STORAGE_KEY = 'wivo-test-copy-auth'

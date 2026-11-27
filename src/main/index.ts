@@ -31,8 +31,12 @@ import { externalAllowed, isAppUrl } from './navigation'
 const testProfile = import.meta.env.MODE === 'test' && /^[A-Za-z0-9]{1,16}$/.test(process.env['WIVO_TEST_PROFILE'] ?? '')
   ? process.env['WIVO_TEST_PROFILE'] as string
   : null
+// `npm run dev:fake` (scripts/dev-test-profile.mjs --fake): one's own project
+// of fake data, in a folder of its own, so its sign-in never meets the test
+// copy's.
+const testFolder = process.env['WIVO_TEST_TARGET'] === 'fake' ? 'test-fake' : 'test-copy'
 if (import.meta.env.MODE === 'test') {
-  app.setPath('userData', join(app.getPath('appData'), `${app.getName()}-test-copy${testProfile ? `-${testProfile}` : ''}`))
+  app.setPath('userData', join(app.getPath('appData'), `${app.getName()}-${testFolder}${testProfile ? `-${testProfile}` : ''}`))
 }
 
 // Chromium's own controls — the date and time pickers, the right-click menu,

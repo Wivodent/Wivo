@@ -3820,6 +3820,7 @@ export const et: Partial<Record<MessageKey, Message>> = {
   'testCopy.missing': "config/test-copy.env failis pole URL-i või anon-võtit: ühendust pole",
   'testCopy.notTestCopy': "config/test-copy.env osutab projektile, mis pole testkoopia: keeldutud, ühendust pole",
   'testCopy.label': "TESTKOOPIA",
+  'testCopy.fakeLabel': "VÕLTSANDMED",
   'testCopy.devLabel': "ARENDUSVERSIOON",
   'testCopy.devProduction': ".env osutab tootmisprojektile: keeldutud, ühendust pole. Kasuta npm run dev:test.",
   'testCopy.licenceApi': "litsents ei luba selle serveri aadressi: keeldutud, ühendust pole",

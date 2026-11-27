@@ -3834,6 +3834,7 @@ export const en = {
   'testCopy.missing': "config/test-copy.env has no URL or anon key: not connected",
   'testCopy.notTestCopy': "config/test-copy.env points at a project that is not the test copy: refused, not connected",
   'testCopy.label': "TEST COPY",
+  'testCopy.fakeLabel': "FAKE DATA",
   'testCopy.devLabel': "DEVELOPMENT BUILD",
   'testCopy.devProduction': ".env points at the production project: refused, not connected. Use npm run dev:test.",
   'testCopy.licenceApi': "the licence does not allow this server's address: refused, not connected",
