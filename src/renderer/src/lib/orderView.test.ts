@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   orderTab, countByTab, clientStatusOfTab, teethLabel, parseTeeth, formatTeeth, initials, dayPart,
   chosenOptionLabels, fileBadge, stepNumber, orderTouched, networkConfigured, UPPER_TEETH, LOWER_TEETH,
-  catalogueRules, withAutoImplants, implantSummary, expectedImplants, wireOrder,
+  catalogueRules, withAutoImplants, implantSummary, expectedImplants, wireOrder, sentMessage,
 } from './orderView'
 import { orderProblems, type CatalogueItem } from '@shared/network/order'
 

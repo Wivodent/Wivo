@@ -6,6 +6,7 @@ import {
 import type { Job, JobInput, StageKey, Revision } from '../../types/job'
 import { MATERIAL_SHADES, jobWorkItems, workItemDesigner } from '../../types/job'
 import { usePipeline } from '../../context/PipelineContext'
+import { MarkSentButton } from '../Network/MarkSent'
 import { stageChipStyle } from '../../config/pipeline'
 import { ToothPicker } from '../teeth/ToothPicker'
 import { ShadePicker } from './ShadePicker'
@@ -1043,6 +1044,8 @@ export function JobDetailPanel({ job, onClose, onSave, onCreateCopy, onDelete, s
               />
               {/* The chosen options and who makes each (sql/130). */}
               {!activeRev && <OptionDoers job={job} className="mx-5 mt-3 px-5 py-3 bg-bg-card rounded-xl" />}
+              {/* At the last stage and still at the lab: send it (and tell the client, if it is an order). */}
+              {!activeRev && <div className="mx-5 mt-3 flex justify-end empty:hidden"><MarkSentButton job={job} /></div>}
               <JobReadView
                 job={job}
                 isBottom={isBottom}

@@ -25,6 +25,7 @@ import { PhoneCamera } from './PhoneCamera'
 import { MobileDeleteJob } from './MobileDeleteJob'
 import type { Job } from '../types/job'
 import { usePermissions } from '../hooks/usePermissions'
+import { MarkSentButton } from '../components/Network/MarkSent'
 import { t, dateLocale } from '@/lib/i18n'
 
 export function MobileJob({ id, onClose }: { id: string; onClose: () => void }) {
@@ -96,6 +97,9 @@ function OwnJob({ job, onClose }: { job: Job; onClose: () => void }) {
       <section className="rounded-xl border border-ink-faint/20 bg-bg-card p-3">
         <JobStageBar job={job} size="lg" canAddStage={false} />
       </section>
+
+      {/* At the last stage and still at the lab: send it, as on the desk. */}
+      <div className="flex empty:hidden"><MarkSentButton job={job} className="h-12 w-full text-base" /></div>
 
       {/* The chosen options and who makes each (sql/130), thumb-sized. */}
       <OptionDoers job={job} size="lg" className="rounded-xl border border-ink-faint/20 bg-bg-card p-3" />

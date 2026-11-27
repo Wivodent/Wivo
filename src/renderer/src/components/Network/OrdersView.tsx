@@ -25,6 +25,7 @@ import { usePipeline } from '../../context/PipelineContext'
 import { useSettings, useWorkTypes } from '../../stores/useSettings'
 import { saveOrderFile } from '../../lib/fileLink'
 import { inviteLink, type DirectoryProblem } from '../../lib/networkDirectory'
+import { MarkSentButton } from './MarkSent'
 import { orderTab, countByTab, teethLabel, parseTeeth, initials, chosenOptionLabels, networkConfigured, type OrderTab } from '../../lib/orderView'
 import { confirmDialog } from '../../lib/confirm'
 import { describeError } from '../Patients/errors'
@@ -141,7 +142,7 @@ export function OrdersView({ focus, onOpenJob }: { focus?: OrdersFocus; onOpenJo
           {shown.length === 0 && <p className="p-6 text-base text-ink-muted">{tab === 'new' ? t('orders.noNewOrders') : t('orders.tabEmpty')}</p>}
           {shown.map(o => (
             <OrderRow key={o.id} order={o} tab={tab} client={byId.get(o.client_id)} counts={counts}
-              canAccept={can('jobs.write')} onOpen={() => setOpenId(o.id)} />
+              canAccept={can('jobs.write')} onOpen={() => setOpenId(o.id)} job={o.job_id ? jobs?.get(o.job_id) : undefined} />
           ))}
         </section>
 
@@ -451,8 +452,10 @@ function Chip({ children, tone }: { children: React.ReactNode; tone?: 'blue' }) 
   return <span className={`rounded-lg px-2 py-0.5 text-sm ${tone === 'blue' ? 'bg-sky-500/15 font-semibold text-sky-800' : 'border border-ink-faint/30 bg-bg-card text-ink'}`}>{children}</span>
 }
 
-function OrderRow({ order, tab, client, counts, canAccept, onOpen }: {
+function OrderRow({ order, tab, client, counts, canAccept, onOpen, job }: {
   order: ClientOrderRow; tab: OrderTab; client?: NetworkClientRow; counts?: OrderCounts; canAccept: boolean; onOpen: () => void
+  /** The job the order became, as the board has it (for Mark as sent). */
+  job?: { id: string; status: string | null; delivery_status: string | null }
 }) {
   const accept = useAcceptOrder()
   const optionLabels = useOptionLabels()
@@ -490,6 +493,7 @@ function OrderRow({ order, tab, client, counts, canAccept, onOpen }: {
             {t('orders.acceptShort')}
           </button>
         )}
+        {tab === 'ready' && order.job_id && job && <MarkSentButton job={job} orderId={order.id} />}
         <button type="button" onClick={onOpen} className="btn-ghost h-10 justify-center border border-ink-faint/30 px-4 text-sm">{t('orders.open')}</button>
       </div>
     </div>

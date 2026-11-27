@@ -187,3 +187,19 @@ export function wireOrder(form: WivoOrderV1, extra: { implants: readonly number[
   const abutment = implants.length && (all || Object.keys(teeth).length) ? { all: all || null, teeth } : null
   return { ...form, version: 2, implants: formatTeeth(implants), abutment }
 }
+
+/**
+ * What the client is told when the work is sent with a courier, a tracking
+ * number or a note: one message, or null when none was given (the "on its
+ * way" notice says enough then). Labels come from the caller's language.
+ */
+export function sentMessage(
+  f: { courier: string; tracking: string; note: string },
+  labels: { title: string; courier: (c: string) => string; tracking: (n: string) => string },
+): string | null {
+  const courier = f.courier.trim()
+  const tracking = f.tracking.trim()
+  const note = f.note.trim()
+  if (!courier && !tracking && !note) return null
+  return [labels.title, courier && labels.courier(courier), tracking && labels.tracking(tracking), note].filter(Boolean).join('\n').slice(0, 4000)
+}
